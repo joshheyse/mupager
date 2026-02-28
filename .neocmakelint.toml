@@ -1,0 +1,3 @@
+command_upcase = "lowercase"
+enable_external_cmake_lint = true
+line_max_words = 200

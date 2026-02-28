@@ -1,0 +1,110 @@
+BasedOnStyle: LLVM
+Language: Cpp
+
+# Indentation
+IndentWidth: 2
+ContinuationIndentWidth: 4
+IndentCaseLabels: true
+IndentCaseBlocks: false
+IndentPPDirectives: AfterHash
+NamespaceIndentation: None
+AccessModifierOffset: -2
+
+# Pointer/reference alignment
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Column limit
+ColumnLimit: 160
+
+# Function/block formatting
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortBlocksOnASingleLine: Never
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: All
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortCompoundRequirementOnASingleLine: true
+
+# Argument/parameter layout
+AlignAfterOpenBracket: BlockIndent
+BinPackArguments: false
+BinPackParameters: false
+
+# Brace wrapping
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterExternBlock: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterObjCDeclaration: false
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+
+# Break style
+BreakAfterAttributes: Always
+BreakBeforeBinaryOperators: All
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeComma
+BreakTemplateDeclarations: Yes
+
+# Attribute macros
+AttributeMacros: ["[[nodiscard]]", "[[maybe_unused]]"]
+
+# Spacing
+SpaceBeforeParens: ControlStatements
+SpaceBeforeCpp11BracedList: false
+SpacesInAngles: Never
+
+# Empty lines
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+# Alignment — no automatic alignment to reduce diff noise
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+
+# Line breaking penalties
+PenaltyBreakBeforeFirstCallParameter: 100
+PenaltyBreakComment: 300
+PenaltyBreakFirstLessLess: 120
+PenaltyBreakString: 1000
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 200
+PenaltyBreakAssignment: 100
+
+# Include sorting (IWYU regroup)
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Project headers ("...")
+  - Regex: '^"'
+    Priority: 1
+  # C system headers (<*.h>)
+  - Regex: '^<.*\.h>'
+    Priority: 2
+  # C++ standard library (<array>, <cstdint>, etc.)
+  - Regex: '^<[a-z_]+>$'
+    Priority: 3
+  # Third-party libraries (<foo/bar.h>)
+  - Regex: '^<.*/'
+    Priority: 4
+  # Catch-all
+  - Regex: '.*'
+    Priority: 5
+
+# Auto-insert braces around single-line control flow bodies
+InsertBraces: true
