@@ -46,6 +46,8 @@
             # Libraries
             mupdf
             msgpack-cxx
+            notcurses
+            ncurses
           ];
 
           shellHook = ''

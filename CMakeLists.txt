@@ -18,6 +18,27 @@ CPMAddPackage(
 )
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 
+CPMAddPackage(
+  NAME tomlplusplus
+  GITHUB_REPOSITORY marzer/tomlplusplus
+  GIT_TAG v3.4.0
+  SYSTEM TRUE
+)
+
+CPMAddPackage(
+  NAME CLI11
+  GITHUB_REPOSITORY CLIUtils/CLI11
+  GIT_TAG v2.4.2
+  SYSTEM TRUE
+)
+
+CPMAddPackage(
+  NAME spdlog
+  GITHUB_REPOSITORY gabime/spdlog
+  GIT_TAG v1.15.0
+  SYSTEM TRUE
+)
+
 include(CheckIPOSupported)
 check_ipo_supported(RESULT lto_supported OUTPUT lto_error)
 if(lto_supported)

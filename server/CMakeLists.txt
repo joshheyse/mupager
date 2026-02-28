@@ -2,6 +2,7 @@ project(mupdf-server VERSION 0.1.0 LANGUAGES CXX)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MUPDF REQUIRED IMPORTED_TARGET mupdf)
+pkg_check_modules(NOTCURSES REQUIRED IMPORTED_TARGET notcurses++)
 
 find_path(MSGPACK_INCLUDE_DIR NAMES msgpack.hpp REQUIRED)
 
@@ -30,6 +31,10 @@ target_include_directories(mupdf-server
 
 target_link_libraries(mupdf-server
   PRIVATE PkgConfig::MUPDF
+  PRIVATE PkgConfig::NOTCURSES
+  PRIVATE tomlplusplus::tomlplusplus
+  PRIVATE CLI11::CLI11
+  PRIVATE spdlog::spdlog
 )
 
 # --- Tests ---
