@@ -1,71 +1,49 @@
-// Smoke test: verify all dependencies compile and link.
+#include "document.h"
 
-// MuPDF (C API)
-#include <mupdf/fitz.h>
-
-// notcurses (C++ API)
-#include <ncpp/NotCurses.hh>
-#include <ncpp/Visual.hh>
-
-// msgpack-cxx
-#include <msgpack.hpp>
-
-// toml++ (header-only)
-#include <toml++/toml.hpp>
-
-// CLI11 (header-only)
-#include <CLI/CLI.hpp>
-
-// spdlog
+#include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
 
+#include <cstdlib>
+#include <filesystem>
+#include <string>
+
+#include <CLI/CLI.hpp>
+
+static std::string default_log_path() {
+  const char* state = std::getenv("XDG_STATE_HOME");
+  std::filesystem::path dir = state ? std::filesystem::path(state) : std::filesystem::path(std::getenv("HOME")) / ".local" / "state";
+  dir /= "mupdf-nvim";
+  std::filesystem::create_directories(dir);
+  return (dir / "mupdf-server.log").string();
+}
+
 int main(int argc, char* argv[]) {
-  // -- CLI11 --
   CLI::App app{"mupdf-server - terminal document viewer"};
+
   std::string file;
   app.add_option("file", file, "Document to open")->required();
+
+  std::string log_level = "info";
+  app.add_option("--log-level", log_level, "Log level (trace, debug, info, warn, error, critical)");
+
+  std::string log_file = default_log_path();
+  app.add_option("--log-file", log_file, "Log file path");
+
   CLI11_PARSE(app, argc, argv);
 
-  // -- spdlog --
+  auto logger = spdlog::basic_logger_mt("mupdf-server", log_file, true);
+  spdlog::set_default_logger(logger);
+  spdlog::set_level(spdlog::level::from_str(log_level));
   spdlog::info("mupdf-server starting: {}", file);
 
-  // -- MuPDF --
-  fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
-  if (!ctx) {
-    spdlog::error("failed to create mupdf context");
-    return 1;
+  try {
+    Document doc(file);
+    spdlog::info("opened document: {} pages", doc.page_count());
   }
-  fz_register_document_handlers(ctx);
-  spdlog::info("mupdf context created");
-
-  fz_document* doc = nullptr;
-  fz_try(ctx) {
-    doc = fz_open_document(ctx, file.c_str());
-  }
-  fz_catch(ctx) {
-    spdlog::error("failed to open document: {}", fz_caught_message(ctx));
-    fz_drop_context(ctx);
+  catch (const std::exception& e) {
+    spdlog::error("{}", e.what());
     return 1;
   }
 
-  int pages = fz_count_pages(ctx, doc);
-  spdlog::info("opened document: {} pages", pages);
-
-  fz_drop_document(ctx, doc);
-  fz_drop_context(ctx);
-
-  // -- toml++ --
-  auto tbl = toml::parse("title = 'smoke test'");
-  spdlog::info("toml++ parsed: title = {}", tbl["title"].value_or("???"));
-
-  // -- msgpack --
-  msgpack::sbuffer sbuf;
-  msgpack::pack(sbuf, std::string("hello msgpack"));
-  spdlog::info("msgpack packed {} bytes", sbuf.size());
-
-  // -- notcurses (just check the version, don't init a terminal) --
-  spdlog::info("notcurses version: {}", notcurses_version());
-
-  spdlog::info("all dependencies OK");
   return 0;
 }

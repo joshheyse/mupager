@@ -30,7 +30,7 @@ test: build
 
 # Format all C++ source files
 fmt-cpp:
-    find server -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i
+    find server -name '*.cpp' -o -name '*.h' -o -name '*.hpp' | xargs clang-format -i
 
 # Format all Lua source files
 fmt-lua:
@@ -41,8 +41,16 @@ fmt: fmt-cpp fmt-lua
 
 # Run clang-tidy on all C++ translation units
 lint-cpp: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    extra_args=()
+    while IFS= read -r dir; do
+        extra_args+=(--extra-arg=-isystem --extra-arg="$dir")
+    done < <(clang++ -E -x c++ /dev/null -v 2>&1 \
+        | sed -n '/#include <...> search starts here:/,/End of search list/p' \
+        | grep '^ ' | sed 's/^ *//')
     find server -name '*.cpp' | xargs clang-tidy -p build \
-        --extra-arg="-resource-dir=$$(clang -print-resource-dir)" \
+        "${extra_args[@]}" \
         --header-filter="server/"
 
 # Run selene on all Lua files
