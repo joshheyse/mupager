@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -27,7 +28,20 @@ struct CachedPage {
 /// @brief View mode for page display.
 enum class ViewMode {
   CONTINUOUS, ///< Pages flow with gaps between them.
-  PAGE,       ///< One page at a time, scroll clamped to page boundaries.
+  PAGE_WIDTH, ///< One page at a time, scroll clamped to page boundaries.
+};
+
+/// @brief Color theme.
+enum class Theme {
+  LIGHT,
+  DARK
+};
+
+/// @brief Input mode for command/search bar.
+enum class InputMode {
+  NORMAL,
+  COMMAND,
+  SEARCH
 };
 
 /// @brief Main application controller.
@@ -55,6 +69,8 @@ private:
   void render();
   void jump_to_page(int page);
   int current_page() const;
+  int viewport_height();
+  void update_statusline();
 
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
@@ -64,6 +80,12 @@ private:
   bool pending_g_ = false;
   int pending_count_ = 0;
   ViewMode view_mode_ = ViewMode::CONTINUOUS;
+  Theme theme_ = Theme::DARK;
+  InputMode input_mode_ = InputMode::NORMAL;
+  std::string search_term_;
+  std::string command_input_;
+  int search_page_matches_ = 0;
+  int search_total_matches_ = 0;
 
   std::vector<PageLayout> layout_;
   std::unordered_map<int, CachedPage> page_cache_;

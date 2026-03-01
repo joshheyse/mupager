@@ -21,7 +21,7 @@ public:
   uint32_t upload_image(const Pixmap& pixmap, int cols, int rows) override;
   void free_image(uint32_t image_id) override;
   void show_pages(const std::vector<PageSlice>& slices) override;
-  void statusline(const std::string& text) override;
+  void statusline(const std::string& left, const std::string& right) override;
 
 private:
   void query_winsize();

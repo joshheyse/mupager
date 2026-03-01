@@ -53,6 +53,8 @@ public:
   /// @param slices Vector of PageSlice describing each visible page region.
   virtual void show_pages(const std::vector<PageSlice>& slices) = 0;
 
-  /// @brief Update the status line. Stub for Phase 4+.
-  virtual void statusline(const std::string& text) = 0;
+  /// @brief Update the status line with left/right aligned sections.
+  /// @param left Left-aligned text (command/search input).
+  /// @param right Right-aligned text (mode, theme, page info).
+  virtual void statusline(const std::string& left, const std::string& right) = 0;
 };

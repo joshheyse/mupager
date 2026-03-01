@@ -175,4 +175,29 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   }
 }
 
-void TerminalFrontend::statusline(const std::string& /*text*/) {}
+void TerminalFrontend::statusline(const std::string& left, const std::string& right) {
+  if (ws_row_ == 0 || ws_col_ == 0) {
+    return;
+  }
+
+  int width = static_cast<int>(ws_col_);
+  // Build content: " {left}{padding}{right} "
+  std::string padded_left = " " + left;
+  std::string padded_right = right + " ";
+  int content_len = static_cast<int>(padded_left.size() + padded_right.size());
+  int pad = std::max(0, width - content_len);
+
+  std::string out;
+  // Move cursor to last row, column 1
+  out += "\x1b[" + std::to_string(ws_row_) + ";1H";
+  // Enable reverse video
+  out += "\x1b[7m";
+  out += padded_left;
+  out += std::string(pad, ' ');
+  out += padded_right;
+  // Reset attributes
+  out += "\x1b[0m";
+
+  std::fwrite(out.data(), 1, out.size(), stdout);
+  std::fflush(stdout);
+}

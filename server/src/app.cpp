@@ -6,11 +6,12 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <string>
 
 App::App(std::unique_ptr<Frontend> frontend, const Args& args)
     : frontend_(std::move(frontend))
     , doc_(args.file)
-    , view_mode_(args.view_mode == "page" ? ViewMode::PAGE : ViewMode::CONTINUOUS) {
+    , view_mode_(args.view_mode == "page" ? ViewMode::PAGE_WIDTH : ViewMode::CONTINUOUS) {
   spdlog::info("opened document: {} pages, mode: {}", doc_.page_count(), args.view_mode);
 }
 
@@ -116,6 +117,33 @@ void App::pre_upload_adjacent() {
   }
 }
 
+int App::viewport_height() {
+  auto [pxy, pxx] = frontend_->pixel_size();
+  auto [celly, cellx] = frontend_->cell_size();
+  return static_cast<int>(pxy) - static_cast<int>(celly);
+}
+
+void App::update_statusline() {
+  std::string left;
+  if (input_mode_ == InputMode::COMMAND) {
+    left = ":" + command_input_;
+  }
+  else if (input_mode_ == InputMode::SEARCH) {
+    left = "/" + search_term_;
+    if (search_total_matches_ > 0) {
+      left += "  " + std::to_string(search_page_matches_) + "/" + std::to_string(search_total_matches_);
+    }
+  }
+
+  std::string mode_str = (view_mode_ == ViewMode::CONTINUOUS) ? "Continuous" : "Page-Width";
+  std::string theme_str = (theme_ == Theme::DARK) ? "DARK" : "LIGHT";
+  int page = current_page() + 1;
+  int total = doc_.page_count();
+  std::string right = mode_str + " \xe2\x94\x82 " + theme_str + " \xe2\x94\x82 " + std::to_string(page) + "/" + std::to_string(total);
+
+  frontend_->statusline(left, right);
+}
+
 void App::update_viewport() {
   auto [pxy, pxx] = frontend_->pixel_size();
   auto [celly, cellx] = frontend_->cell_size();
@@ -123,7 +151,7 @@ void App::update_viewport() {
     return;
   }
 
-  int vh = static_cast<int>(pxy);
+  int vh = viewport_height();
   int vw = static_cast<int>(pxx);
   int num_pages = static_cast<int>(layout_.size());
 
@@ -176,6 +204,7 @@ void App::update_viewport() {
   }
 
   frontend_->show_pages(slices);
+  update_statusline();
 }
 
 int App::current_page() const {
@@ -187,8 +216,7 @@ void App::scroll(int dx, int dy) {
     return;
   }
 
-  auto [pxy, pxx] = frontend_->pixel_size();
-  int vh = static_cast<int>(pxy);
+  int vh = viewport_height();
 
   // Total document height
   const auto& last_layout = layout_.back();
@@ -198,7 +226,7 @@ void App::scroll(int dx, int dy) {
   int new_y = std::clamp(scroll_y_ + dy, 0, max_y);
 
   // In PAGE mode, clamp scroll to stay within the current page
-  if (view_mode_ == ViewMode::PAGE) {
+  if (view_mode_ == ViewMode::PAGE_WIDTH) {
     int p = page_at_y(new_y);
     int page_top = layout_[p].global_y;
     int page_max = page_top + std::max(0, layout_[p].pixel_height - vh);
@@ -227,8 +255,7 @@ void App::render() {
 
   // Clamp scroll
   if (!layout_.empty()) {
-    auto [pxy, pxx] = frontend_->pixel_size();
-    int vh = static_cast<int>(pxy);
+    int vh = viewport_height();
     const auto& last_layout = layout_.back();
     int total_height = last_layout.global_y + last_layout.pixel_height;
     int max_y = std::max(0, total_height - vh);
@@ -244,8 +271,7 @@ void App::jump_to_page(int page) {
   scroll_y_ = layout_[page].global_y;
 
   // Clamp
-  auto [pxy, pxx] = frontend_->pixel_size();
-  int vh = static_cast<int>(pxy);
+  int vh = viewport_height();
   const auto& last_layout = layout_.back();
   int total_height = last_layout.global_y + last_layout.pixel_height;
   int max_y = std::max(0, total_height - vh);
@@ -374,13 +400,11 @@ void App::handle_command(Command cmd) {
       break;
     }
     case Command::HALF_PAGE_DOWN: {
-      auto [pxy, pxx] = frontend_->pixel_size();
-      scroll(0, static_cast<int>(pxy) / 2);
+      scroll(0, viewport_height() / 2);
       break;
     }
     case Command::HALF_PAGE_UP: {
-      auto [pxy, pxx] = frontend_->pixel_size();
-      scroll(0, -static_cast<int>(pxy) / 2);
+      scroll(0, -viewport_height() / 2);
       break;
     }
     case Command::GOTO_FIRST_PAGE: {
@@ -391,8 +415,7 @@ void App::handle_command(Command cmd) {
     case Command::GOTO_LAST_PAGE: {
       spdlog::info("goto last page (bottom)");
       if (!layout_.empty()) {
-        auto [pxy, pxx] = frontend_->pixel_size();
-        int vh = static_cast<int>(pxy);
+        int vh = viewport_height();
         const auto& last = layout_.back();
         int total_height = last.global_y + last.pixel_height;
         scroll_y_ = std::max(0, total_height - vh);
@@ -405,7 +428,7 @@ void App::handle_command(Command cmd) {
         break;
       }
       int p = current_page();
-      if (view_mode_ == ViewMode::PAGE) {
+      if (view_mode_ == ViewMode::PAGE_WIDTH) {
         jump_to_page(p + 1);
       }
       else {
@@ -418,7 +441,7 @@ void App::handle_command(Command cmd) {
         break;
       }
       int p = current_page();
-      if (view_mode_ == ViewMode::PAGE) {
+      if (view_mode_ == ViewMode::PAGE_WIDTH) {
         jump_to_page(p - 1);
       }
       else {
@@ -427,8 +450,8 @@ void App::handle_command(Command cmd) {
       break;
     }
     case Command::TOGGLE_VIEW_MODE: {
-      view_mode_ = (view_mode_ == ViewMode::CONTINUOUS) ? ViewMode::PAGE : ViewMode::CONTINUOUS;
-      spdlog::info("view mode: {}", view_mode_ == ViewMode::PAGE ? "page" : "continuous");
+      view_mode_ = (view_mode_ == ViewMode::CONTINUOUS) ? ViewMode::PAGE_WIDTH : ViewMode::CONTINUOUS;
+      spdlog::info("view mode: {}", view_mode_ == ViewMode::PAGE_WIDTH ? "page" : "continuous");
       render();
       break;
     }
