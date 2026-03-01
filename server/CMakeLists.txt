@@ -2,7 +2,7 @@ project(mupdf-server VERSION 0.1.0 LANGUAGES CXX)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MUPDF REQUIRED IMPORTED_TARGET mupdf)
-pkg_check_modules(NOTCURSES REQUIRED IMPORTED_TARGET notcurses-core)
+pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw)
 
 find_path(MSGPACK_INCLUDE_DIR NAMES msgpack.hpp REQUIRED)
 
@@ -28,7 +28,7 @@ target_include_directories(server-lib
 
 target_link_libraries(server-lib
   PUBLIC PkgConfig::MUPDF
-  PUBLIC PkgConfig::NOTCURSES
+  PUBLIC PkgConfig::NCURSESW
   PUBLIC spdlog::spdlog
   PRIVATE CLI11::CLI11
 )

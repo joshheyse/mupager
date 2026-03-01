@@ -2,12 +2,22 @@
 
 #include <cstdint>
 
-/// @brief Input event types.
-enum class EventType { UNKNOWN, PRESS, REPEAT, RELEASE };
+/// @brief Project-level input constants, decoupled from any terminal library.
+namespace input {
+static constexpr uint32_t RESIZE = 0xFFFF'FF00;
+} // namespace input
 
-/// @brief Thin wrapper around notcurses input, keeping ncinput out of App/KeyMap layers.
+/// @brief Input event types.
+enum class EventType {
+  UNKNOWN,
+  PRESS,
+  REPEAT,
+  RELEASE
+};
+
+/// @brief Thin input event wrapper, independent of the terminal backend.
 struct InputEvent {
-  uint32_t id;         ///< Unicode codepoint or NCKEY_* constant.
-  unsigned modifiers;  ///< NCKEY_MOD_* bitmask.
-  EventType type;      ///< Key event type.
+  uint32_t id;        ///< Unicode codepoint or project-level constant (e.g. input::RESIZE).
+  unsigned modifiers; ///< Modifier bitmask.
+  EventType type;     ///< Key event type.
 };

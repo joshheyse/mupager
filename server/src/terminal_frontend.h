@@ -2,10 +2,9 @@
 
 #include "frontend.h"
 
-struct notcurses;
-struct ncplane;
+#include <cstdint>
 
-/// @brief notcurses-based terminal frontend.
+/// @brief ncurses + Kitty graphics terminal frontend.
 class TerminalFrontend : public Frontend {
 public:
   TerminalFrontend();
@@ -18,10 +17,17 @@ public:
   void clear() override;
   std::pair<unsigned, unsigned> pixel_size() override;
   std::pair<unsigned, unsigned> cell_size() override;
-  void display() override;
+  void display(const Pixmap& pixmap) override;
   void statusline(const std::string& text) override;
 
 private:
-  struct notcurses* nc_;
-  struct ncplane* std_plane_;
+  void query_winsize();
+
+  bool in_tmux_ = false;
+  uint32_t next_image_id_ = 1;
+  uint32_t current_image_id_ = 0;
+  unsigned ws_col_ = 0;
+  unsigned ws_row_ = 0;
+  unsigned ws_xpixel_ = 0;
+  unsigned ws_ypixel_ = 0;
 };

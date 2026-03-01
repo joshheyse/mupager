@@ -1,61 +1,134 @@
 #include "terminal_frontend.h"
 
-#include <notcurses/notcurses.h>
-#include <spdlog/spdlog.h>
+#include "input_event.h"
+#include "kitty.h"
 
+#include <ncurses.h>
+#include <spdlog/spdlog.h>
+#include <sys/ioctl.h>
+
+#include <cstdio>
+#include <cstdlib>
 #include <stdexcept>
 
 TerminalFrontend::TerminalFrontend() {
-  notcurses_options opts{};
-  opts.flags = NCOPTION_SUPPRESS_BANNERS;
-  nc_ = notcurses_core_init(&opts, nullptr);
-  if (!nc_) {
-    throw std::runtime_error("notcurses_core_init failed");
-  }
-  std_plane_ = notcurses_stdplane(nc_);
+  in_tmux_ = std::getenv("TMUX") != nullptr;
+
+  initscr();
+  raw();
+  noecho();
+  keypad(stdscr, TRUE);
+  curs_set(0);
+  refresh(); // Required before get_wch; do it once here to avoid later flicker
+
+  query_winsize();
 }
 
 TerminalFrontend::~TerminalFrontend() {
-  if (nc_) {
-    notcurses_stop(nc_);
+  if (current_image_id_ > 0) {
+    std::string seq;
+    if (in_tmux_) {
+      seq = kitty::delete_image_tmux(current_image_id_);
+    }
+    else {
+      seq = kitty::delete_image(current_image_id_);
+    }
+    std::fwrite(seq.data(), 1, seq.size(), stdout);
+    std::fflush(stdout);
+  }
+  endwin();
+}
+
+void TerminalFrontend::query_winsize() {
+  struct winsize ws{};
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
+    ws_col_ = ws.ws_col;
+    ws_row_ = ws.ws_row;
+    ws_xpixel_ = ws.ws_xpixel;
+    ws_ypixel_ = ws.ws_ypixel;
   }
 }
 
 std::optional<InputEvent> TerminalFrontend::poll_input(int timeout_ms) {
-  struct timespec ts {};
-  if (timeout_ms >= 0) {
-    ts.tv_sec = timeout_ms / 1000;
-    ts.tv_nsec = (timeout_ms % 1000) * 1000000L;
-  }
-  ncinput ni{};
-  uint32_t id = notcurses_get(nc_, timeout_ms < 0 ? nullptr : &ts, &ni);
-  if (id == 0 || id == static_cast<uint32_t>(-1)) {
+  wtimeout(stdscr, timeout_ms);
+
+  wint_t wch = 0;
+  int rc = get_wch(&wch);
+
+  if (rc == ERR) {
     return std::nullopt;
   }
-  static constexpr EventType TYPE_MAP[] = {EventType::UNKNOWN, EventType::PRESS, EventType::REPEAT, EventType::RELEASE};
-  auto type = static_cast<int>(ni.evtype) < 4 ? TYPE_MAP[static_cast<int>(ni.evtype)] : EventType::UNKNOWN;
-  return InputEvent{ni.id, ni.modifiers, type};
+
+  if (rc == KEY_CODE_YES && wch == KEY_RESIZE) {
+    query_winsize();
+    return InputEvent{input::RESIZE, 0, EventType::PRESS};
+  }
+
+  auto id = static_cast<uint32_t>(wch);
+  return InputEvent{id, 0, EventType::PRESS};
 }
 
 void TerminalFrontend::clear() {
-  ncplane_erase(std_plane_);
-  notcurses_render(nc_);
+  if (current_image_id_ > 0) {
+    std::string seq;
+    if (in_tmux_) {
+      seq = kitty::delete_image_tmux(current_image_id_);
+    }
+    else {
+      seq = kitty::delete_image(current_image_id_);
+    }
+    std::fwrite(seq.data(), 1, seq.size(), stdout);
+    std::fflush(stdout);
+    current_image_id_ = 0;
+  }
+  erase();
+  refresh();
 }
 
 std::pair<unsigned, unsigned> TerminalFrontend::pixel_size() {
-  unsigned pxy = 0;
-  unsigned pxx = 0;
-  ncplane_pixel_geom(std_plane_, &pxy, &pxx, nullptr, nullptr, nullptr, nullptr);
-  return {pxy, pxx};
+  query_winsize();
+  return {ws_ypixel_, ws_xpixel_};
 }
 
 std::pair<unsigned, unsigned> TerminalFrontend::cell_size() {
-  unsigned celldimy = 0;
-  unsigned celldimx = 0;
-  ncplane_pixel_geom(std_plane_, nullptr, nullptr, &celldimy, &celldimx, nullptr, nullptr);
-  return {celldimy, celldimx};
+  query_winsize();
+  if (ws_row_ == 0 || ws_col_ == 0) {
+    return {0, 0};
+  }
+  return {ws_ypixel_ / ws_row_, ws_xpixel_ / ws_col_};
 }
 
-void TerminalFrontend::display() {}
+void TerminalFrontend::display(const Pixmap& pixmap) {
+  uint32_t image_id = next_image_id_++;
+
+  if (current_image_id_ > 0) {
+    std::string del;
+    if (in_tmux_) {
+      del = kitty::delete_image_tmux(current_image_id_);
+    }
+    else {
+      del = kitty::delete_image(current_image_id_);
+    }
+    std::fwrite(del.data(), 1, del.size(), stdout);
+  }
+
+  spdlog::info("display: pixmap {}x{}, kitty image_id={}", pixmap.width(), pixmap.height(), image_id);
+
+  std::string seq;
+  if (in_tmux_) {
+    auto [celly, cellx] = cell_size();
+    seq = kitty::encode_tmux(pixmap, image_id, static_cast<int>(cellx), static_cast<int>(celly));
+  }
+  else {
+    seq = kitty::encode(pixmap, image_id);
+  }
+
+  // Move cursor to top-left before writing image
+  std::fputs("\x1b[H", stdout);
+  std::fwrite(seq.data(), 1, seq.size(), stdout);
+  std::fflush(stdout);
+
+  current_image_id_ = image_id;
+}
 
 void TerminalFrontend::statusline(const std::string& /*text*/) {}

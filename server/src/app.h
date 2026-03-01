@@ -20,8 +20,11 @@ public:
 
 private:
   void handle_command(Command cmd);
+  void render();
 
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
   bool running_ = true;
+  int current_page_ = 0;
+  float zoom_ = 1.0f;
 };

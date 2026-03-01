@@ -1,5 +1,6 @@
-#include "document.h"
 #include "pixmap.h"
+
+#include "document.h"
 
 #include <doctest/doctest.h>
 

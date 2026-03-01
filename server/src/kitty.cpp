@@ -56,14 +56,17 @@ static constexpr size_t DIACRITICS_COUNT = sizeof(DIACRITICS) / sizeof(DIACRITIC
 static void append_utf8(std::string& out, uint32_t cp) {
   if (cp <= 0x7F) {
     out += static_cast<char>(cp);
-  } else if (cp <= 0x7FF) {
+  }
+  else if (cp <= 0x7FF) {
     out += static_cast<char>(0xC0 | (cp >> 6));
     out += static_cast<char>(0x80 | (cp & 0x3F));
-  } else if (cp <= 0xFFFF) {
+  }
+  else if (cp <= 0xFFFF) {
     out += static_cast<char>(0xE0 | (cp >> 12));
     out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
     out += static_cast<char>(0x80 | (cp & 0x3F));
-  } else {
+  }
+  else {
     out += static_cast<char>(0xF0 | (cp >> 18));
     out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
     out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
@@ -94,7 +97,8 @@ static std::string wrap_one(const std::string& seq) {
   for (char ch : seq) {
     if (ch == '\x1b') {
       inner += "\x1b\x1b";
-    } else {
+    }
+    else {
       inner += ch;
     }
   }
@@ -146,7 +150,8 @@ std::string encode(const Pixmap& pixmap, uint32_t image_id) {
       }
       chunk += ",m=" + std::string(last ? "0" : "1");
       first = false;
-    } else {
+    }
+    else {
       chunk += "m=" + std::string(last ? "0" : "1");
     }
     chunk += ";";
@@ -191,7 +196,8 @@ std::string encode_tmux(const Pixmap& pixmap, uint32_t image_id, int cell_width_
       chunk += ",c=" + std::to_string(cols) + ",r=" + std::to_string(rows);
       chunk += ",m=" + std::string(last ? "0" : "1");
       first = false;
-    } else {
+    }
+    else {
       chunk += "m=" + std::string(last ? "0" : "1");
     }
     chunk += ";";

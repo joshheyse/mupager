@@ -15,13 +15,6 @@
       system: let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [
-            (final: prev: {
-              notcurses = prev.notcurses.overrideAttrs (old: {
-                patches = (old.patches or []) ++ [./nix/notcurses-da1-fix.patch];
-              });
-            })
-          ];
         };
       in {
         devShells.default = pkgs.mkShell {
@@ -58,7 +51,6 @@
             # Libraries
             mupdf
             msgpack-cxx
-            notcurses
             ncurses
           ];
 

@@ -34,6 +34,23 @@ int Document::page_count() const {
   return fz_count_pages(ctx_.get(), doc_.get());
 }
 
+std::pair<float, float> Document::page_size(int page_num) const {
+  fz_context* raw_ctx = ctx_.get();
+  fz_page* page = nullptr;
+  fz_rect bounds;
+  fz_try(raw_ctx) {
+    page = fz_load_page(raw_ctx, doc_.get(), page_num);
+    bounds = fz_bound_page(raw_ctx, page);
+  }
+  fz_always(raw_ctx) {
+    fz_drop_page(raw_ctx, page);
+  }
+  fz_catch(raw_ctx) {
+    throw std::runtime_error("failed to get page size: " + std::string(fz_caught_message(raw_ctx)));
+  }
+  return {bounds.x1 - bounds.x0, bounds.y1 - bounds.y0};
+}
+
 Pixmap Document::render_page(int page_num, float zoom) const {
   fz_context* raw_ctx = ctx_.get();
   fz_page* page = nullptr;

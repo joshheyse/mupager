@@ -15,7 +15,7 @@ static std::string default_log_path() {
 
 Args::Args(int argc, char* argv[])
     : file{}
-    , log_level{"info"}
+    , log_level{"debug"}
     , log_file{default_log_path()} {
   CLI::App cli{"mupdf-server - terminal document viewer"};
   cli.add_option("file", file, "Document to open")->required();

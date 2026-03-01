@@ -1,6 +1,7 @@
 #pragma once
 
 #include "input_event.h"
+#include "pixmap.h"
 
 #include <optional>
 #include <string>
@@ -27,8 +28,9 @@ public:
   /// @return {cell_height_px, cell_width_px}.
   virtual std::pair<unsigned, unsigned> cell_size() = 0;
 
-  /// @brief Display a rendered page image. Stub for Phase 4+.
-  virtual void display() = 0;
+  /// @brief Display a rendered page image.
+  /// @param pixmap The rendered page pixmap to display.
+  virtual void display(const Pixmap& pixmap) = 0;
 
   /// @brief Update the status line. Stub for Phase 4+.
   virtual void statusline(const std::string& text) = 0;

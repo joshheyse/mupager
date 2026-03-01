@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 /// @brief Deleter for fz_context unique_ptr.
 struct ContextDeleter {
@@ -31,6 +32,11 @@ public:
 
   /// @brief Return the total number of pages.
   int page_count() const;
+
+  /// @brief Return the page dimensions in points at zoom=1.
+  /// @param page_num Zero-based page index.
+  /// @return {width, height}.
+  std::pair<float, float> page_size(int page_num) const;
 
   /// @brief Render a page to an RGB pixmap.
   /// @param page_num Zero-based page index.
