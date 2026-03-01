@@ -83,10 +83,13 @@ void TerminalFrontend::clear() {
   uploaded_ids_.clear();
   std::fflush(stdout);
 
-  // Resync ncurses with the actual terminal dimensions (handles resize)
-  endwin();
-  refresh();
   query_winsize();
+
+  // Update ncurses to the new terminal dimensions and force a full repaint.
+  // Avoids endwin()/refresh() which does an alternate-screen-buffer switch
+  // that wipes kitty graphics state.
+  resizeterm(ws_row_, ws_col_);
+  clearok(curscr, TRUE);
   erase();
   refresh();
 }
@@ -152,9 +155,7 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   if (in_tmux_) {
     erase();
     for (const auto& s : slices) {
-      // Move cursor to destination row
-      out += "\x1b[" + std::to_string(s.dst_row + 1) + ";1H";
-      // Compute which placeholder rows to show
+      out += "\x1b[" + std::to_string(s.dst_row + 1) + ";" + std::to_string(s.dst_col + 1) + "H";
       int first_cell_row = (s.src_y > 0 && s.img_rows > 0) ? s.src_y * s.img_rows / (s.src_h + s.src_y) : 0;
       out += kitty::placeholders(s.image_id, first_cell_row, s.dst_rows, s.img_cols);
     }
@@ -162,7 +163,7 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   else {
     out += kitty::delete_all_placements();
     for (const auto& s : slices) {
-      out += "\x1b[" + std::to_string(s.dst_row + 1) + ";1H";
+      out += "\x1b[" + std::to_string(s.dst_row + 1) + ";" + std::to_string(s.dst_col + 1) + "H";
       out += kitty::place(s.image_id, s.src_x, s.src_y, s.src_w, s.src_h);
     }
   }

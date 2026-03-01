@@ -13,6 +13,7 @@
 struct PageSlice {
   uint32_t image_id;              ///< Kitty image ID for this page.
   int src_x, src_y, src_w, src_h; ///< Source rect in page image (pixels).
+  int dst_col;                    ///< Horizontal cell offset for centering.
   int dst_row, dst_rows;          ///< Screen position and height (cell rows).
   int img_cols, img_rows;         ///< Image grid dimensions (for tmux placeholders).
 };

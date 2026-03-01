@@ -1,4 +1,4 @@
-project(mupdf-server VERSION 0.1.0 LANGUAGES CXX)
+project(mupager VERSION 0.1.0 LANGUAGES CXX)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MUPDF REQUIRED IMPORTED_TARGET mupdf)
@@ -35,18 +35,18 @@ target_link_libraries(server-lib
 
 # --- Executable ---
 
-add_executable(mupdf-server src/main.cpp)
+add_executable(mupager src/main.cpp)
 
-set_target_properties(mupdf-server PROPERTIES
+set_target_properties(mupager PROPERTIES
   VERSION ${PROJECT_VERSION}
   POSITION_INDEPENDENT_CODE ON
 )
 
-target_include_directories(mupdf-server
+target_include_directories(mupager
   PRIVATE ${MSGPACK_INCLUDE_DIR}
 )
 
-target_link_libraries(mupdf-server
+target_link_libraries(mupager
   PRIVATE server-lib
   PRIVATE tomlplusplus::tomlplusplus
 )

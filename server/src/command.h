@@ -12,5 +12,7 @@ enum class Command {
   GOTO_LAST_PAGE,
   PAGE_DOWN,
   PAGE_UP,
+  SCROLL_LEFT,
+  SCROLL_RIGHT,
   TOGGLE_VIEW_MODE,
 };

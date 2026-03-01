@@ -1,5 +1,5 @@
 {
-  description = "mupdf.nvim - Terminal document viewer";
+  description = "mupager - Terminal document viewer";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -18,7 +18,7 @@
         };
       in {
         devShells.default = pkgs.mkShell {
-          name = "mupdf-nvim";
+          name = "mupager";
 
           packages = with pkgs; [
             # Compilers

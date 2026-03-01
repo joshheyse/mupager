@@ -1,4 +1,4 @@
-# mupdf.nvim
+# mupager
 
 Terminal document viewer with Neovim integration. See PROJECT_DETAILS.md for full architecture.
 
@@ -40,4 +40,4 @@ Requires Nix flake dev shell (`direnv allow` or `nix develop`).
 
 - Format: stylua (120 col, 2-space indent, no call parens)
 - Lint: selene (neovim std)
-- Neovim plugin code lives in `nvim/lua/mupdf/`
+- Neovim plugin code lives in `nvim/lua/mupager/`

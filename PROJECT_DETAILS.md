@@ -1,4 +1,4 @@
-# mupdf.nvim: Terminal Document Viewer
+# mupager: Terminal Document Viewer
 
 ## Architecture
 

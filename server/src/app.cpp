@@ -10,24 +10,65 @@
 
 App::App(std::unique_ptr<Frontend> frontend, const Args& args)
     : frontend_(std::move(frontend))
-    , doc_(args.file)
-    , view_mode_(args.view_mode == "page" ? ViewMode::PAGE_WIDTH : ViewMode::CONTINUOUS) {
+    , doc_(args.file) {
+  if (args.view_mode == "page") {
+    view_mode_ = ViewMode::PAGE_WIDTH;
+  }
+  else if (args.view_mode == "page-height") {
+    view_mode_ = ViewMode::PAGE_HEIGHT;
+  }
+  else if (args.view_mode == "side-by-side") {
+    view_mode_ = ViewMode::SIDE_BY_SIDE;
+  }
   spdlog::info("opened document: {} pages, mode: {}", doc_.page_count(), args.view_mode);
 }
 
 void App::build_layout() {
   auto [pxy, pxx] = frontend_->pixel_size();
+  layout_pxy_ = pxy;
+  layout_pxx_ = pxx;
   int num_pages = doc_.page_count();
+  int vh = viewport_height();
+  int vw = static_cast<int>(pxx);
   layout_.resize(num_pages);
 
-  int gap = (view_mode_ == ViewMode::CONTINUOUS) ? PAGE_GAP_PX : 0;
-  int y = 0;
-  for (int i = 0; i < num_pages; ++i) {
-    auto [page_w, page_h] = doc_.page_size(i);
-    float zoom = static_cast<float>(pxx) / page_w;
-    int h = static_cast<int>(page_h * zoom);
-    layout_[i] = {y, h, zoom};
-    y += h + gap;
+  if (view_mode_ == ViewMode::PAGE_HEIGHT) {
+    for (int i = 0; i < num_pages; ++i) {
+      auto [page_w, page_h] = doc_.page_size(i);
+      float zoom = std::min(static_cast<float>(vw) / page_w, static_cast<float>(vh) / page_h);
+      layout_[i] = {i * vh, vh, zoom};
+    }
+  }
+  else if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
+    int half_w = vw / 2;
+    int y = 0;
+    for (int i = 0; i < num_pages; ++i) {
+      auto [page_w, page_h] = doc_.page_size(i);
+      bool is_last_odd = (i == num_pages - 1) && (i % 2 == 0);
+      int fit_w = is_last_odd ? vw : half_w;
+      float zoom = std::min(static_cast<float>(fit_w) / page_w, static_cast<float>(vh) / page_h);
+      if (i % 2 == 0) {
+        layout_[i] = {y, vh, zoom};
+      }
+      else {
+        layout_[i] = {layout_[i - 1].global_y, vh, zoom};
+        y += vh;
+      }
+    }
+    if (num_pages > 0 && num_pages % 2 != 0) {
+      y += vh;
+    }
+  }
+  else {
+    int gap = (view_mode_ == ViewMode::CONTINUOUS) ? PAGE_GAP_PX : 0;
+    int y = 0;
+    for (int i = 0; i < num_pages; ++i) {
+      auto [page_w, page_h] = doc_.page_size(i);
+      float zoom = static_cast<float>(vw) / page_w;
+      int h = static_cast<int>(page_h * zoom);
+      layout_[i] = {y, h, zoom};
+      y += h + gap;
+    }
   }
 }
 
@@ -135,11 +176,23 @@ void App::update_statusline() {
     }
   }
 
-  std::string mode_str = (view_mode_ == ViewMode::CONTINUOUS) ? "Continuous" : "Page-Width";
+  auto mode_str = [&]() -> const char* {
+    switch (view_mode_) {
+      case ViewMode::CONTINUOUS:
+        return "Continuous";
+      case ViewMode::PAGE_WIDTH:
+        return "Page-Width";
+      case ViewMode::PAGE_HEIGHT:
+        return "Page-Height";
+      case ViewMode::SIDE_BY_SIDE:
+        return "Side-by-Side";
+    }
+    return "";
+  }();
   std::string theme_str = (theme_ == Theme::DARK) ? "DARK" : "LIGHT";
   int page = current_page() + 1;
   int total = doc_.page_count();
-  std::string right = mode_str + " \xe2\x94\x82 " + theme_str + " \xe2\x94\x82 " + std::to_string(page) + "/" + std::to_string(total);
+  std::string right = std::string(mode_str) + " \xe2\x94\x82 " + theme_str + " \xe2\x94\x82 " + std::to_string(page) + "/" + std::to_string(total);
 
   frontend_->statusline(left, right);
 }
@@ -154,10 +207,18 @@ void App::update_viewport() {
   int vh = viewport_height();
   int vw = static_cast<int>(pxx);
   int num_pages = static_cast<int>(layout_.size());
+  int icelly = static_cast<int>(celly);
+  int icellx = static_cast<int>(cellx);
 
   // Find visible pages
   int first = page_at_y(scroll_y_);
   int last = first;
+
+  // In SIDE_BY_SIDE, snap back to pair start
+  if (view_mode_ == ViewMode::SIDE_BY_SIDE && first > 0 && layout_[first - 1].global_y == layout_[first].global_y) {
+    first = first - 1;
+  }
+
   for (int i = first; i < num_pages; ++i) {
     if (layout_[i].global_y >= scroll_y_ + vh) {
       break;
@@ -181,26 +242,61 @@ void App::update_viewport() {
     const auto& cached = it->second;
     const auto& lay = layout_[i];
 
-    // Page position relative to viewport
     int page_top = lay.global_y - scroll_y_;
-    int page_bottom = page_top + lay.pixel_height;
+
+    // Rendered page dimensions at this zoom
+    auto [page_w, page_h] = doc_.page_size(i);
+    int rendered_w = static_cast<int>(page_w * lay.zoom);
+    int rendered_h = static_cast<int>(page_h * lay.zoom);
+
+    // Where the actual rendered content starts in viewport coordinates.
+    // For centered modes this differs from page_top due to padding.
+    int content_top = page_top;
+    int content_bottom = page_top + rendered_h;
+    int dst_col = 0;
+
+    if (view_mode_ == ViewMode::PAGE_HEIGHT) {
+      int vert_pad = (vh - rendered_h) / 2;
+      content_top = page_top + vert_pad;
+      content_bottom = content_top + rendered_h;
+      dst_col = (vw - rendered_w) / 2 / icellx;
+    }
+    else if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
+      int vert_pad = (vh - rendered_h) / 2;
+      content_top = page_top + vert_pad;
+      content_bottom = content_top + rendered_h;
+      bool is_last_odd = (i == num_pages - 1) && (i % 2 == 0);
+      if (is_last_odd) {
+        dst_col = (vw - rendered_w) / 2 / icellx;
+      }
+      else if (i % 2 == 0) {
+        int half_w = vw / 2;
+        dst_col = (half_w - rendered_w) / 2 / icellx;
+      }
+      else {
+        int half_w = vw / 2;
+        dst_col = (half_w + (half_w - rendered_w) / 2) / icellx;
+      }
+    }
 
     // Clamp to viewport
-    int vis_top = std::max(page_top, 0);
-    int vis_bottom = std::min(page_bottom, vh);
+    int vis_top = std::max(content_top, 0);
+    int vis_bottom = std::min(content_bottom, vh);
     if (vis_top >= vis_bottom) {
       continue;
     }
 
-    // Source rect in page image
-    int src_y = vis_top - page_top;
+    // Source rect — offset into the rendered image, not the layout slot
+    int src_x = std::clamp(scroll_x_, 0, std::max(0, rendered_w - vw));
+    int src_y = vis_top - content_top;
+    int src_w = rendered_w;
     int src_h = vis_bottom - vis_top;
 
     // Destination in cell rows
-    int dst_row = vis_top / static_cast<int>(celly);
-    int dst_rows = (vis_bottom + static_cast<int>(celly) - 1) / static_cast<int>(celly) - dst_row;
+    int dst_row = vis_top / icelly;
+    int dst_rows = (vis_bottom + icelly - 1) / icelly - dst_row;
 
-    slices.push_back({cached.image_id, 0, src_y, vw, src_h, dst_row, dst_rows, cached.cell_cols, cached.cell_rows});
+    slices.push_back({cached.image_id, src_x, src_y, src_w, src_h, dst_col, dst_row, dst_rows, cached.cell_cols, cached.cell_rows});
   }
 
   frontend_->show_pages(slices);
@@ -225,15 +321,15 @@ void App::scroll(int dx, int dy) {
 
   int new_y = std::clamp(scroll_y_ + dy, 0, max_y);
 
-  // In PAGE mode, clamp scroll to stay within the current page
-  if (view_mode_ == ViewMode::PAGE_WIDTH) {
+  // In non-continuous modes, clamp scroll to stay within the current page
+  if (view_mode_ != ViewMode::CONTINUOUS) {
     int p = page_at_y(new_y);
     int page_top = layout_[p].global_y;
     int page_max = page_top + std::max(0, layout_[p].pixel_height - vh);
     new_y = std::clamp(new_y, page_top, page_max);
   }
 
-  int new_x = scroll_x_ + dx; // horizontal scroll not clamped yet
+  int new_x = std::max(0, scroll_x_ + dx);
 
   if (new_x == scroll_x_ && new_y == scroll_y_) {
     return;
@@ -268,6 +364,10 @@ void App::render() {
 void App::jump_to_page(int page) {
   int num_pages = static_cast<int>(layout_.size());
   page = std::clamp(page, 0, num_pages - 1);
+  // In SIDE_BY_SIDE, snap to even page index (pair start)
+  if (view_mode_ == ViewMode::SIDE_BY_SIDE && page % 2 != 0) {
+    page = page - 1;
+  }
   scroll_y_ = layout_[page].global_y;
 
   // Clamp
@@ -287,7 +387,14 @@ void App::run() {
   while (running_) {
     auto event = frontend_->poll_input(100);
     if (!event) {
-      pre_upload_adjacent();
+      auto [pxy, pxx] = frontend_->pixel_size();
+      if (pxy != layout_pxy_ || pxx != layout_pxx_) {
+        frontend_->clear();
+        render();
+      }
+      else {
+        pre_upload_adjacent();
+      }
       continue;
     }
 
@@ -366,6 +473,12 @@ void App::run() {
     else if (event->id == 0x02) { // Ctrl+B
       handle_command(Command::PAGE_UP);
     }
+    else if (event->id == 'h') {
+      handle_command(Command::SCROLL_LEFT);
+    }
+    else if (event->id == 'l') {
+      handle_command(Command::SCROLL_RIGHT);
+    }
     else if (event->id == 0x09) { // Tab
       handle_command(Command::TOGGLE_VIEW_MODE);
     }
@@ -428,7 +541,10 @@ void App::handle_command(Command cmd) {
         break;
       }
       int p = current_page();
-      if (view_mode_ == ViewMode::PAGE_WIDTH) {
+      if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
+        jump_to_page(p + 2);
+      }
+      else if (view_mode_ != ViewMode::CONTINUOUS) {
         jump_to_page(p + 1);
       }
       else {
@@ -441,7 +557,10 @@ void App::handle_command(Command cmd) {
         break;
       }
       int p = current_page();
-      if (view_mode_ == ViewMode::PAGE_WIDTH) {
+      if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
+        jump_to_page(p - 2);
+      }
+      else if (view_mode_ != ViewMode::CONTINUOUS) {
         jump_to_page(p - 1);
       }
       else {
@@ -449,9 +568,32 @@ void App::handle_command(Command cmd) {
       }
       break;
     }
+    case Command::SCROLL_LEFT: {
+      auto [celly, cellx] = frontend_->cell_size();
+      scroll(-static_cast<int>(cellx), 0);
+      break;
+    }
+    case Command::SCROLL_RIGHT: {
+      auto [celly, cellx] = frontend_->cell_size();
+      scroll(static_cast<int>(cellx), 0);
+      break;
+    }
     case Command::TOGGLE_VIEW_MODE: {
-      view_mode_ = (view_mode_ == ViewMode::CONTINUOUS) ? ViewMode::PAGE_WIDTH : ViewMode::CONTINUOUS;
-      spdlog::info("view mode: {}", view_mode_ == ViewMode::PAGE_WIDTH ? "page" : "continuous");
+      switch (view_mode_) {
+        case ViewMode::CONTINUOUS:
+          view_mode_ = ViewMode::PAGE_WIDTH;
+          break;
+        case ViewMode::PAGE_WIDTH:
+          view_mode_ = ViewMode::PAGE_HEIGHT;
+          break;
+        case ViewMode::PAGE_HEIGHT:
+          view_mode_ = ViewMode::SIDE_BY_SIDE;
+          break;
+        case ViewMode::SIDE_BY_SIDE:
+          view_mode_ = ViewMode::CONTINUOUS;
+          break;
+      }
+      scroll_x_ = 0;
       render();
       break;
     }

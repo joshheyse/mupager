@@ -27,8 +27,10 @@ struct CachedPage {
 
 /// @brief View mode for page display.
 enum class ViewMode {
-  CONTINUOUS, ///< Pages flow with gaps between them.
-  PAGE_WIDTH, ///< One page at a time, scroll clamped to page boundaries.
+  CONTINUOUS,  ///< Pages flow with gaps between them.
+  PAGE_WIDTH,  ///< One page at a time, fit to width.
+  PAGE_HEIGHT, ///< One page at a time, fit to height.
+  SIDE_BY_SIDE ///< Two pages displayed side by side.
 };
 
 /// @brief Color theme.
@@ -92,4 +94,6 @@ private:
 
   int viewport_first_page_ = 0;
   int viewport_last_page_ = 0;
+  unsigned layout_pxy_ = 0; ///< Pixel height used in last build_layout().
+  unsigned layout_pxx_ = 0; ///< Pixel width used in last build_layout().
 };

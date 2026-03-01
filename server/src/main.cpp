@@ -12,11 +12,11 @@
 int main(int argc, char* argv[]) {
   Args args(argc, argv);
 
-  auto logger = spdlog::basic_logger_mt("mupdf-server", args.log_file, true);
+  auto logger = spdlog::basic_logger_mt("mupager", args.log_file, true);
   spdlog::set_default_logger(logger);
   spdlog::set_level(spdlog::level::from_str(args.log_level));
   spdlog::flush_every(std::chrono::seconds(1));
-  spdlog::info("mupdf-server starting: {}", args.file);
+  spdlog::info("mupager starting: {}", args.file);
 
   try {
     auto frontend = std::make_unique<TerminalFrontend>();

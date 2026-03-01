@@ -4,29 +4,29 @@ Build order: standalone TUI server first, then Neovim integration.
 
 ## Dependencies
 
-| Library | Purpose | Source |
-|---------|---------|--------|
-| MuPDF | Document rendering | Nix (pkg-config) |
-| msgpack-cxx | Neovim RPC | Nix (header-only) |
-| notcurses | TUI framework, Kitty graphics via `ncvisual` + `NCBLIT_PIXEL` | Nix (pkg-config) |
-| toml++ | Config file parsing | CPM (header-only) |
-| CLI11 | Argument parsing | CPM (header-only) |
-| spdlog | Structured logging | CPM |
-| doctest | Unit testing | CPM |
+| Library     | Purpose                                                       | Source            |
+| ----------- | ------------------------------------------------------------- | ----------------- |
+| MuPDF       | Document rendering                                            | Nix (pkg-config)  |
+| msgpack-cxx | Neovim RPC                                                    | Nix (header-only) |
+| notcurses   | TUI framework, Kitty graphics via `ncvisual` + `NCBLIT_PIXEL` | Nix (pkg-config)  |
+| toml++      | Config file parsing                                           | CPM (header-only) |
+| CLI11       | Argument parsing                                              | CPM (header-only) |
+| spdlog      | Structured logging                                            | CPM               |
+| doctest     | Unit testing                                                  | CPM               |
 
 ## Testing Strategy
 
 Buffer-level unit tests only — no visual regression or golden image diffs. Trust MuPDF's rendering correctness; test the logic we write.
 
-| Layer | What's tested | Approach |
-|-------|--------------|----------|
-| `Document` | Open, page count, render returns valid pixmap, search returns quads, text extraction | Real MuPDF calls against `server/test/fixtures/test.pdf` |
-| `Pixmap` | RAII lifecycle, `invert_luminance` changes values | Synthetic + MuPDF-rendered buffers |
-| `Compositor` | Alpha-blend math produces correct pixel values | Small synthetic buffers (e.g. 10x10), assert exact output |
-| `PageCache` | LRU insert/get/evict, capacity limit, invalidation | Pure data structure, no MuPDF needed |
-| `KeyMap` | Single keys, `gg` sequence, count prefix `5G`, unknown keys | Feed `InputEvent`s, assert `Command` output |
-| `Config` | Parse valid TOML, defaults on missing fields, malformed file | Parse from string literal |
-| `Search` | Hit collection across pages, `n`/`N` index cycling/wrapping | Real MuPDF search on fixture PDF with known text content |
+| Layer        | What's tested                                                                        | Approach                                                  |
+| ------------ | ------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| `Document`   | Open, page count, render returns valid pixmap, search returns quads, text extraction | Real MuPDF calls against `server/test/fixtures/test.pdf`  |
+| `Pixmap`     | RAII lifecycle, `invert_luminance` changes values                                    | Synthetic + MuPDF-rendered buffers                        |
+| `Compositor` | Alpha-blend math produces correct pixel values                                       | Small synthetic buffers (e.g. 10x10), assert exact output |
+| `PageCache`  | LRU insert/get/evict, capacity limit, invalidation                                   | Pure data structure, no MuPDF needed                      |
+| `KeyMap`     | Single keys, `gg` sequence, count prefix `5G`, unknown keys                          | Feed `InputEvent`s, assert `Command` output               |
+| `Config`     | Parse valid TOML, defaults on missing fields, malformed file                         | Parse from string literal                                 |
+| `Search`     | Hit collection across pages, `n`/`N` index cycling/wrapping                          | Real MuPDF search on fixture PDF with known text content  |
 
 **Not unit tested** (validated by running the app): `TerminalFrontend`, `NeovimFrontend`, `App`, `KittyGraphics`.
 
@@ -85,6 +85,7 @@ private:
 ```
 
 Key MuPDF calls:
+
 - `fz_new_context(NULL, NULL, FZ_STORE_DEFAULT)` — create context
 - `fz_register_document_handlers(ctx)` — enable all format handlers
 - `fz_open_document(ctx, path)` — open any supported format
@@ -224,6 +225,7 @@ private:
 ```
 
 Key notcurses calls:
+
 - `notcurses_init(NULL, stdout)` — initialize
 - `notcurses_term_dim_yx(nc)` — cell dimensions
 - `ncplane_pixel_geom(plane, ...)` — pixel dimensions
@@ -287,9 +289,10 @@ struct Config {
 };
 ```
 
-Config file location: `$XDG_CONFIG_HOME/mupdf-server/config.toml` (fallback `~/.config/mupdf-server/config.toml`).
+Config file location: `$XDG_CONFIG_HOME/mupager/config.toml` (fallback `~/.config/mupager/config.toml`).
 
 Example:
+
 ```toml
 default_zoom = 1.0
 dark_mode = true
@@ -358,6 +361,7 @@ private:
 **Files:** `document.h`, `document.cpp`, `document.test.cpp`, `main.cpp`
 
 **MuPDF API:**
+
 ```cpp
 fz_context* ctx = fz_new_context(NULL, NULL, FZ_STORE_DEFAULT);
 fz_register_document_handlers(ctx);
@@ -366,6 +370,7 @@ int pages = fz_count_pages(ctx, doc);
 ```
 
 **Work:**
+
 - Implement `Document` class (constructor, destructor, `page_count()`)
 - CLI parsing with CLI11 (file positional arg)
 - spdlog initialization
@@ -382,6 +387,7 @@ int pages = fz_count_pages(ctx, doc);
 **Files:** `pixmap.h`, `pixmap.cpp`, `pixmap.test.cpp`, `document.cpp` (add `render_page`)
 
 **MuPDF API:**
+
 ```cpp
 fz_page* page = fz_load_page(ctx, doc, page_num);
 fz_matrix ctm = fz_scale(zoom, zoom);
@@ -391,6 +397,7 @@ fz_drop_page(ctx, page);
 ```
 
 **Work:**
+
 - Implement `Pixmap` RAII wrapper
 - `Document::render_page(page_num, zoom)` → `Pixmap`
 - Unit test: render page 0, check `width() > 0 && height() > 0`, check samples non-null
@@ -404,6 +411,7 @@ fz_drop_page(ctx, page);
 **Files:** `terminal_frontend.h`, `terminal_frontend.cpp`, `frontend.h`, `command.h`, `app.h`, `app.cpp`, `main.cpp`
 
 **notcurses API:**
+
 ```cpp
 struct notcurses_options opts = {};
 struct notcurses* nc = notcurses_init(&opts, stdout);
@@ -418,6 +426,7 @@ notcurses_stop(nc);
 ```
 
 **Work:**
+
 - Implement `TerminalFrontend` (init, input polling, cleanup)
 - Define `Command` enum (`Quit`, `ScrollDown`, `ScrollUp`, etc.)
 - Implement `App` skeleton with main loop: poll input → dispatch command → render
@@ -432,6 +441,7 @@ notcurses_stop(nc);
 **Files:** `terminal_frontend.cpp` (implement `display`), `app.cpp` (call render on startup)
 
 **notcurses API:**
+
 ```cpp
 // Create visual from raw pixel data (RGBA required by ncvisual)
 struct ncvisual* ncv = ncvisual_from_rgba(
@@ -449,6 +459,7 @@ ncvisual_destroy(ncv);
 ```
 
 **Work:**
+
 - Convert MuPDF RGB pixmap to RGBA (add alpha channel) for ncvisual
 - Implement `TerminalFrontend::display()` using `ncvisual_from_rgba` + `NCBLIT_PIXEL`
 - Scale rendered page to fit terminal pixel dimensions
@@ -465,6 +476,7 @@ ncvisual_destroy(ncv);
 **Files:** `key_map.h`, `key_map.cpp`, `app.cpp` (handle navigation commands)
 
 **Work:**
+
 - Implement `KeyMap` with default vim bindings
 - Handle count prefix for `{n}G`
 - `gg` requires multi-key sequence detection (timeout-based or immediate on second `g`)
@@ -481,6 +493,7 @@ ncvisual_destroy(ncv);
 **Files:** `page_cache.h`, `page_cache.cpp`, `page_cache.test.cpp`
 
 **Work:**
+
 - LRU cache with configurable capacity
 - Key: `(page_num, zoom_level)` — zoom as float, quantized to 2 decimal places for cache key stability
 - Pre-render adjacent pages in background (page ± 1)
@@ -489,6 +502,17 @@ ncvisual_destroy(ncv);
 
 ---
 
+### Phase 6a: PNG support
+
+Yes, PNG will be significantly more compact for PDF pages with mostly white backgrounds. PNG uses deflate internally, and it also applies per-row filters (sub, up, average, Paeth) before compression that exploit spatial redundancy. A mostly-white PDF page will compress extremely well since PNG's filtering + deflate will reduce large uniform regions to almost nothing.
+So your options from most to least compact for this workload:
+
+PNG (f=100) — best for your case. The filtering step is what gives PNG an edge over raw deflate on image data. Mostly-white PDFs will see massive compression ratios.
+Raw RGBA + zlib (f=32,o=z) — deflate without row filters. Still good but won't exploit vertical redundancy as well as PNG.
+Raw RGBA (f=32) — worst. A 1920×1080 RGBA page is ~8MB uncompressed, then base64 inflates it another 33%.
+
+Go with PNG. You're already decoding the PDF to a raster — just encode that to PNG in memory and send it with f=100. For mostly-white document pages you'll likely see 10-50x size reduction over raw RGBA.
+
 ### Phase 7: Zoom
 
 **Goal:** `+`/`-` zoom in/out, `0` fit-width.
@@ -496,6 +520,7 @@ ncvisual_destroy(ncv);
 **Files:** `app.cpp`
 
 **Work:**
+
 - Zoom steps: 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0
 - `0` computes fit-width: `zoom = terminal_pixel_width / page_width_at_zoom_1`
 - Zoom changes invalidate cache entries at old zoom level
@@ -510,11 +535,13 @@ ncvisual_destroy(ncv);
 **Files:** `pixmap.cpp` (add `invert_luminance`), `app.cpp`
 
 **MuPDF API:**
+
 ```cpp
 fz_invert_pixmap_luminance(ctx, pix);
 ```
 
 **Work:**
+
 - `Pixmap::invert_luminance()` calls MuPDF's luminance inversion
 - Apply after rendering, before compositing overlays
 - Dark mode pixmaps cached separately (dark mode flag in cache key)
@@ -529,6 +556,7 @@ fz_invert_pixmap_luminance(ctx, pix);
 **Files:** `search.h`, `search.cpp`, `search.test.cpp`, `app.cpp`
 
 **MuPDF API:**
+
 ```cpp
 fz_quad hits[512];
 int count = fz_search_page(ctx, page, needle, NULL, hits, 512);
@@ -537,6 +565,7 @@ int count = fz_search_page(ctx, page, needle, NULL, hits, 512);
 ```
 
 **Work:**
+
 - Search all pages, collect hits as `{page, fz_rect}`
 - `n` / `N` cycle through hits, jump to hit's page
 - Enter search mode with `/`, read text input, exit with Enter/Escape
@@ -551,6 +580,7 @@ int count = fz_search_page(ctx, page, needle, NULL, hits, 512);
 **Files:** `compositor.h`, `compositor.cpp`, `compositor.test.cpp`
 
 **Work:**
+
 - `Compositor::compose()` clones the cached pixmap and blends overlays
 - Search hits: yellow semi-transparent rects
 - Active hit: orange, higher opacity
@@ -571,6 +601,7 @@ int count = fz_search_page(ctx, page, needle, NULL, hits, 512);
 **Files:** `app.cpp`, `document.cpp` (add `extract_text`)
 
 **MuPDF API:**
+
 ```cpp
 // Structured text for extraction
 fz_stext_page* stext = fz_new_stext_page_from_page(ctx, page, NULL);
@@ -580,6 +611,7 @@ fz_drop_stext_page(ctx, stext);
 ```
 
 **Work:**
+
 - Track cursor position in page coordinates
 - Shift+arrow creates/extends selection rect
 - `v` enters visual mode (selection follows cursor movement)
@@ -596,9 +628,10 @@ fz_drop_stext_page(ctx, stext);
 **Files:** `statusline.h`, `statusline.cpp`, `config.h`, `config.cpp`, `config.test.cpp`
 
 **Work:**
+
 - Statusline: `page {n}/{total} | {zoom}% | {search_count} matches | {filename}`
 - Render via notcurses text on the bottom row (below the page image)
-- Config: load from `$XDG_CONFIG_HOME/mupdf-server/config.toml`
+- Config: load from `$XDG_CONFIG_HOME/mupager/config.toml`
 - Config test: parse a sample TOML string, verify fields
 
 ---
@@ -610,6 +643,7 @@ fz_drop_stext_page(ctx, stext);
 **Files:** `document.cpp` (add `table_of_contents`), `app.cpp`
 
 **MuPDF API:**
+
 ```cpp
 fz_outline* outline = fz_load_outline(ctx, doc);
 // Walk tree: outline->title, outline->page, outline->next, outline->down
@@ -617,6 +651,7 @@ fz_drop_outline(ctx, outline);
 ```
 
 **Work:**
+
 - `Document::table_of_contents()` walks the outline tree, returns flat list with indent levels
 - `t` opens a TOC overlay (rendered as text list on a semi-transparent background)
 - Arrow keys / `j`/`k` navigate, Enter jumps to selected page, `Escape` closes
@@ -631,6 +666,7 @@ fz_drop_outline(ctx, outline);
 **Files:** `neovim_frontend.h`, `neovim_frontend.cpp`, `kitty_graphics.h`, `kitty_graphics.cpp`
 
 **Work:**
+
 - `KittyGraphics` encoder: generate raw `\x1b_G...` escape sequences
   - Chunked base64 encoding (4096-byte chunks, `m=1`/`m=0`)
   - Image IDs for in-place replacement (no flicker)
@@ -639,7 +675,7 @@ fz_drop_outline(ctx, outline);
   - Send Kitty escapes via `nvim_chan_send(1, data)`
   - Receive input events from Neovim via RPC notifications
   - Query window dimensions via `nvim_win_get_width/height()`
-- Lua plugin (`nvim/lua/mupdf/`):
+- Lua plugin (`nvim/lua/mupager/`):
   - Launch server as a Neovim job
   - Set up keybinding forwarding
   - Handle buffer lifecycle (open/close)
@@ -650,6 +686,7 @@ fz_drop_outline(ctx, outline);
 ### CMakeLists.txt (root)
 
 Add CPM packages:
+
 ```cmake
 CPMAddPackage(
   NAME tomlplusplus
@@ -676,6 +713,7 @@ CPMAddPackage(
 ### flake.nix
 
 Add to dev shell packages:
+
 ```nix
 notcurses
 ```
@@ -683,9 +721,10 @@ notcurses
 ### server/CMakeLists.txt
 
 Add notcurses via pkg-config, link new CPM targets:
+
 ```cmake
 pkg_check_modules(NOTCURSES REQUIRED IMPORTED_TARGET notcurses++)
-target_link_libraries(mupdf-server
+target_link_libraries(mupager
   PRIVATE PkgConfig::MUPDF
   PRIVATE PkgConfig::NOTCURSES
   PRIVATE tomlplusplus::tomlplusplus
