@@ -28,9 +28,14 @@ public:
   /// @return {cell_height_px, cell_width_px}.
   virtual std::pair<unsigned, unsigned> cell_size() = 0;
 
-  /// @brief Display a rendered page image.
-  /// @param pixmap The rendered page pixmap to display.
+  /// @brief Upload a full page image to the terminal (no display).
+  /// @param pixmap The rendered page pixmap to upload.
   virtual void display(const Pixmap& pixmap) = 0;
+
+  /// @brief Show a viewport region of the previously uploaded image.
+  /// @param x Horizontal pixel offset into the image.
+  /// @param y Vertical pixel offset into the image.
+  virtual void show_region(int x, int y) = 0;
 
   /// @brief Update the status line. Stub for Phase 4+.
   virtual void statusline(const std::string& text) = 0;

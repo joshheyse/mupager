@@ -18,6 +18,7 @@ public:
   std::pair<unsigned, unsigned> pixel_size() override;
   std::pair<unsigned, unsigned> cell_size() override;
   void display(const Pixmap& pixmap) override;
+  void show_region(int x, int y) override;
   void statusline(const std::string& text) override;
 
 private:
@@ -30,4 +31,8 @@ private:
   unsigned ws_row_ = 0;
   unsigned ws_xpixel_ = 0;
   unsigned ws_ypixel_ = 0;
+
+  // Cached grid dimensions for tmux placeholder scrolling
+  int cached_cols_ = 0;
+  int cached_rows_ = 0;
 };

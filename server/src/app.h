@@ -21,6 +21,7 @@ public:
 private:
   void handle_command(Command cmd);
   void render();
+  void scroll(int dx, int dy);
 
   std::unique_ptr<Frontend> frontend_;
   Document doc_;

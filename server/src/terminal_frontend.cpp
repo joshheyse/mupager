@@ -2,6 +2,7 @@
 
 #include "input_event.h"
 #include "kitty.h"
+#include "stopwatch.h"
 
 #include <ncurses.h>
 #include <spdlog/spdlog.h>
@@ -112,23 +113,58 @@ void TerminalFrontend::display(const Pixmap& pixmap) {
     std::fwrite(del.data(), 1, del.size(), stdout);
   }
 
-  spdlog::info("display: pixmap {}x{}, kitty image_id={}", pixmap.width(), pixmap.height(), image_id);
+  spdlog::info("display: transmit pixmap {}x{}, kitty image_id={}", pixmap.width(), pixmap.height(), image_id);
+
+  std::string seq;
+  {
+    Stopwatch sw("kitty transmit encode");
+    if (in_tmux_) {
+      auto [celly, cellx] = cell_size();
+      cached_cols_ = (pixmap.width() + static_cast<int>(cellx) - 1) / static_cast<int>(cellx);
+      cached_rows_ = (pixmap.height() + static_cast<int>(celly) - 1) / static_cast<int>(celly);
+      seq = kitty::transmit_tmux(pixmap, image_id, cached_cols_, cached_rows_);
+    }
+    else {
+      seq = kitty::encode(pixmap, image_id, 1);
+    }
+  }
+
+  {
+    Stopwatch sw("fwrite " + std::to_string(seq.size() / 1024) + "KB");
+    std::fwrite(seq.data(), 1, seq.size(), stdout);
+    std::fflush(stdout);
+  }
+
+  current_image_id_ = image_id;
+}
+
+void TerminalFrontend::show_region(int x, int y) {
+  if (current_image_id_ == 0) {
+    return;
+  }
+
+  query_winsize();
+  int vw = static_cast<int>(ws_xpixel_);
+  int vh = static_cast<int>(ws_ypixel_);
 
   std::string seq;
   if (in_tmux_) {
     auto [celly, cellx] = cell_size();
-    seq = kitty::encode_tmux(pixmap, image_id, static_cast<int>(cellx), static_cast<int>(celly));
+    int first_row = (celly > 0) ? y / static_cast<int>(celly) : 0;
+    int visible_rows = (celly > 0) ? (vh + static_cast<int>(celly) - 1) / static_cast<int>(celly) : 0;
+    if (first_row + visible_rows > cached_rows_) {
+      visible_rows = cached_rows_ - first_row;
+    }
+    seq = kitty::placeholders(current_image_id_, first_row, visible_rows, cached_cols_);
   }
   else {
-    seq = kitty::encode(pixmap, image_id);
+    seq = kitty::place(current_image_id_, x, y, vw, vh);
   }
 
-  // Move cursor to top-left before writing image
+  Stopwatch sw("show_region");
   std::fputs("\x1b[H", stdout);
   std::fwrite(seq.data(), 1, seq.size(), stdout);
   std::fflush(stdout);
-
-  current_image_id_ = image_id;
 }
 
 void TerminalFrontend::statusline(const std::string& /*text*/) {}

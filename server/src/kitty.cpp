@@ -126,7 +126,7 @@ std::string wrap_tmux(const std::string& escape) {
   return result;
 }
 
-std::string encode(const Pixmap& pixmap, uint32_t image_id) {
+std::string encode(const Pixmap& pixmap, uint32_t image_id, uint32_t placement_id) {
   int w = pixmap.width();
   int h = pixmap.height();
 
@@ -144,9 +144,12 @@ std::string encode(const Pixmap& pixmap, uint32_t image_id) {
 
     std::string chunk = "\x1b_G";
     if (first) {
-      chunk += "a=T,t=d,f=24,s=" + std::to_string(w) + ",v=" + std::to_string(h);
+      chunk += "a=T,t=d,f=24,q=2,s=" + std::to_string(w) + ",v=" + std::to_string(h);
       if (image_id > 0) {
         chunk += ",i=" + std::to_string(image_id);
+      }
+      if (placement_id > 0) {
+        chunk += ",p=" + std::to_string(placement_id);
       }
       chunk += ",m=" + std::string(last ? "0" : "1");
       first = false;
@@ -163,6 +166,49 @@ std::string encode(const Pixmap& pixmap, uint32_t image_id) {
   }
 
   return result;
+}
+
+std::string transmit(const Pixmap& pixmap, uint32_t image_id) {
+  int w = pixmap.width();
+  int h = pixmap.height();
+
+  auto packed = pack_pixels(pixmap);
+  std::string b64 = base64::encode(packed);
+
+  std::string result;
+  size_t offset = 0;
+  bool first = true;
+
+  while (offset < b64.size()) {
+    size_t remaining = b64.size() - offset;
+    size_t chunk_len = (remaining < CHUNK_SIZE) ? remaining : CHUNK_SIZE;
+    bool last = (offset + chunk_len >= b64.size());
+
+    std::string chunk = "\x1b_G";
+    if (first) {
+      chunk += "a=t,t=d,f=24,q=2,s=" + std::to_string(w) + ",v=" + std::to_string(h);
+      chunk += ",i=" + std::to_string(image_id);
+      chunk += ",m=" + std::string(last ? "0" : "1");
+      first = false;
+    }
+    else {
+      chunk += "m=" + std::string(last ? "0" : "1");
+    }
+    chunk += ";";
+    chunk.append(b64, offset, chunk_len);
+    chunk += "\x1b\\";
+    result += chunk;
+
+    offset += chunk_len;
+  }
+
+  return result;
+}
+
+std::string place(uint32_t image_id, int src_x, int src_y, int src_w, int src_h) {
+  return "\x1b_Ga=p,q=2,i=" + std::to_string(image_id) + ",p=1" + ",x=" + std::to_string(src_x) +
+         ",y=" + std::to_string(src_y) + ",w=" + std::to_string(src_w) + ",h=" + std::to_string(src_h) +
+         "\x1b\\";
 }
 
 std::string delete_image(uint32_t image_id) {
@@ -241,6 +287,77 @@ std::string encode_tmux(const Pixmap& pixmap, uint32_t image_id, int cell_width_
 
   result += "\x1b[39m";
 
+  return result;
+}
+
+std::string transmit_tmux(const Pixmap& pixmap, uint32_t image_id, int cols, int rows) {
+  int w = pixmap.width();
+  int h = pixmap.height();
+
+  auto packed = pack_pixels(pixmap);
+  std::string b64 = base64::encode(packed);
+
+  std::string upload;
+  size_t offset = 0;
+  bool first = true;
+
+  while (offset < b64.size()) {
+    size_t remaining = b64.size() - offset;
+    size_t chunk_len = (remaining < CHUNK_SIZE) ? remaining : CHUNK_SIZE;
+    bool last = (offset + chunk_len >= b64.size());
+
+    std::string chunk = "\x1b_G";
+    if (first) {
+      chunk += "a=T,U=1,t=d,f=24,q=2,s=" + std::to_string(w) + ",v=" + std::to_string(h);
+      chunk += ",i=" + std::to_string(image_id);
+      chunk += ",c=" + std::to_string(cols) + ",r=" + std::to_string(rows);
+      chunk += ",m=" + std::string(last ? "0" : "1");
+      first = false;
+    }
+    else {
+      chunk += "m=" + std::string(last ? "0" : "1");
+    }
+    chunk += ";";
+    chunk.append(b64, offset, chunk_len);
+    chunk += "\x1b\\";
+    upload += chunk;
+
+    offset += chunk_len;
+  }
+
+  return wrap_tmux(upload);
+}
+
+std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num_cols) {
+  std::string result;
+
+  uint8_t id_b2 = (image_id >> 16) & 0xFF;
+  uint8_t id_b1 = (image_id >> 8) & 0xFF;
+  uint8_t id_b0 = image_id & 0xFF;
+  uint8_t id_b3 = (image_id >> 24) & 0xFF;
+
+  result += "\x1b[38:2:" + std::to_string(id_b2) + ":" + std::to_string(id_b1) + ":" + std::to_string(id_b0) + "m";
+
+  for (int r = 0; r < num_rows; ++r) {
+    int row = first_row + r;
+    for (int col = 0; col < num_cols; ++col) {
+      append_utf8(result, 0x10EEEE);
+      if (static_cast<size_t>(row) < DIACRITICS_COUNT) {
+        append_utf8(result, DIACRITICS[row]);
+      }
+      if (static_cast<size_t>(col) < DIACRITICS_COUNT) {
+        append_utf8(result, DIACRITICS[col]);
+      }
+      if (static_cast<size_t>(id_b3) < DIACRITICS_COUNT) {
+        append_utf8(result, DIACRITICS[id_b3]);
+      }
+    }
+    if (r < num_rows - 1) {
+      result += "\n\r";
+    }
+  }
+
+  result += "\x1b[39m";
   return result;
 }
 
