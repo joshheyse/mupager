@@ -211,7 +211,7 @@ std::string place(uint32_t image_id, int src_x, int src_y, int src_w, int src_h)
 }
 
 std::string delete_image(uint32_t image_id) {
-  return "\x1b_Ga=d,d=i,i=" + std::to_string(image_id) + "\x1b\\";
+  return "\x1b_Ga=d,d=i,q=2,i=" + std::to_string(image_id) + "\x1b\\";
 }
 
 std::string encode_tmux(const Pixmap& pixmap, uint32_t image_id, int cell_width_px, int cell_height_px) {
@@ -365,7 +365,7 @@ std::string delete_image_tmux(uint32_t image_id) {
 }
 
 std::string delete_all_placements() {
-  return "\x1b_Ga=d,d=a\x1b\\";
+  return "\x1b_Ga=d,d=a,q=2\x1b\\";
 }
 
 std::string delete_all_placements_tmux() {

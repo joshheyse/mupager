@@ -54,6 +54,7 @@ target_link_libraries(mupager
 # --- Tests ---
 
 set(SERVER_TEST_SOURCES
+  src/geometry.test.cpp
   src/document.test.cpp
   src/pixmap.test.cpp
   src/base64.test.cpp

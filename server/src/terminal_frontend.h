@@ -16,8 +16,7 @@ public:
 
   std::optional<InputEvent> poll_input(int timeout_ms) override;
   void clear() override;
-  std::pair<unsigned, unsigned> pixel_size() override;
-  std::pair<unsigned, unsigned> cell_size() override;
+  ClientInfo client_info() override;
   uint32_t upload_image(const Pixmap& pixmap, int cols, int rows) override;
   void free_image(uint32_t image_id) override;
   void show_pages(const std::vector<PageSlice>& slices) override;

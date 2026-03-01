@@ -3,7 +3,7 @@ default:
 
 # Configure the build directory
 init:
-    cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -S . -B build
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER="${CC:-cc}" -DCMAKE_CXX_COMPILER="${CXX:-c++}" -S . -B build
     ln -sf build/compile_commands.json compile_commands.json
     cmake --build build
 
@@ -18,6 +18,10 @@ ensure-init:
 # Build the project
 build: ensure-init
     cmake --build build
+
+# Run with test PDF (pass extra args after --)
+run *ARGS: build
+    SPDLOG_LEVEL=debug ./build/server/mupager server/test/fixtures/test.pdf {{ARGS}}
 
 # Remove and recreate the build directory
 clean:

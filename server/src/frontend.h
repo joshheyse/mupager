@@ -1,21 +1,20 @@
 #pragma once
 
+#include "geometry.h"
 #include "input_event.h"
 #include "pixmap.h"
 
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 /// @brief Describes how to display a slice of a page image on screen.
 struct PageSlice {
-  uint32_t image_id;              ///< Kitty image ID for this page.
-  int src_x, src_y, src_w, src_h; ///< Source rect in page image (pixels).
-  int dst_col;                    ///< Horizontal cell offset for centering.
-  int dst_row, dst_rows;          ///< Screen position and height (cell rows).
-  int img_cols, img_rows;         ///< Image grid dimensions (for tmux placeholders).
+  uint32_t image_id; ///< Kitty image ID for this page.
+  PixelRect src;     ///< Source rect in page image (pixels).
+  CellRect dst;      ///< Destination rect on screen (cells).
+  CellSize img_grid; ///< Image grid dimensions (for tmux placeholders).
 };
 
 /// @brief Abstract interface for the display frontend.
@@ -31,13 +30,8 @@ public:
   /// @brief Clear the screen and release all images.
   virtual void clear() = 0;
 
-  /// @brief Return the total pixel dimensions of the display region.
-  /// @return {height_px, width_px}.
-  virtual std::pair<unsigned, unsigned> pixel_size() = 0;
-
-  /// @brief Return the pixel dimensions of a single cell.
-  /// @return {cell_height_px, cell_width_px}.
-  virtual std::pair<unsigned, unsigned> cell_size() = 0;
+  /// @brief Query terminal state (pixel size, cell size, grid dimensions).
+  virtual ClientInfo client_info() = 0;
 
   /// @brief Upload a page image to the terminal without displaying it.
   /// @param pixmap The rendered page pixmap to upload.

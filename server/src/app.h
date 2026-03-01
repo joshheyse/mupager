@@ -4,7 +4,9 @@
 #include "command.h"
 #include "document.h"
 #include "frontend.h"
+#include "geometry.h"
 
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -13,16 +15,15 @@
 
 /// @brief Layout information for a single page in the continuous scroll.
 struct PageLayout {
-  int global_y;     ///< Where this page starts in global pixel coordinates.
-  int pixel_height; ///< Rendered height at current zoom.
-  float zoom;       ///< Width-fit zoom for this page.
+  PixelRect rect; ///< Page position and rendered size in global pixel coordinates.
+  float zoom;     ///< Width-fit zoom for this page.
 };
 
 /// @brief Cached upload state for a rendered page.
 struct CachedPage {
   uint32_t image_id;
-  int pixel_width, pixel_height;
-  int cell_cols, cell_rows;
+  PixelSize pixel_size; ///< Rendered pixel dimensions.
+  CellSize cell_grid;   ///< Grid dimensions in cells.
 };
 
 /// @brief View mode for page display.
@@ -71,14 +72,13 @@ private:
   void render();
   void jump_to_page(int page);
   int current_page() const;
-  int viewport_height();
+  int document_height() const;
   void update_statusline();
 
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
   bool running_ = true;
-  int scroll_x_ = 0;
-  int scroll_y_ = 0;
+  PixelPoint scroll_;
   bool pending_g_ = false;
   int pending_count_ = 0;
   ViewMode view_mode_ = ViewMode::CONTINUOUS;
@@ -94,6 +94,8 @@ private:
 
   int viewport_first_page_ = 0;
   int viewport_last_page_ = 0;
-  unsigned layout_pxy_ = 0; ///< Pixel height used in last build_layout().
-  unsigned layout_pxx_ = 0; ///< Pixel width used in last build_layout().
+  PixelSize layout_size_; ///< Terminal pixel size used in last build_layout().
+
+  std::string last_action_;
+  std::chrono::steady_clock::time_point last_action_time_;
 };

@@ -16,13 +16,13 @@
         pkgs = import nixpkgs {
           inherit system;
         };
+        isLinux = pkgs.stdenv.isLinux;
       in {
         devShells.default = pkgs.mkShell {
           name = "mupager";
 
           packages = with pkgs; [
             # Compilers
-            gcc14
             clang_19
             llvmPackages_19.bintools
 
@@ -30,10 +30,6 @@
             cmake
             ninja
             pkg-config
-
-            # Debugging / profiling
-            gdb
-            valgrind
 
             # C++ formatting / linting
             clang-tools
@@ -52,6 +48,11 @@
             mupdf
             msgpack-cxx
             ncurses
+          ] ++ lib.optionals isLinux [
+            # Linux-only tools
+            gcc14
+            gdb
+            valgrind
           ];
 
           shellHook = ''

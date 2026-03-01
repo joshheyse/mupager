@@ -7,6 +7,7 @@
 #include <ncurses.h>
 #include <spdlog/spdlog.h>
 #include <sys/ioctl.h>
+#include <unistd.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -85,26 +86,29 @@ void TerminalFrontend::clear() {
 
   query_winsize();
 
-  // Update ncurses to the new terminal dimensions and force a full repaint.
-  // Avoids endwin()/refresh() which does an alternate-screen-buffer switch
-  // that wipes kitty graphics state.
-  resizeterm(ws_row_, ws_col_);
+  // Update ncurses only when the terminal size actually changed.
+  // Calling resizeterm() unconditionally pushes KEY_RESIZE on macOS ncurses
+  // even when the size hasn't changed, causing an infinite resize loop.
+  if (static_cast<int>(ws_row_) != LINES || static_cast<int>(ws_col_) != COLS) {
+    resizeterm(ws_row_, ws_col_);
+  }
   clearok(curscr, TRUE);
   erase();
   refresh();
 }
 
-std::pair<unsigned, unsigned> TerminalFrontend::pixel_size() {
+ClientInfo TerminalFrontend::client_info() {
   query_winsize();
-  return {ws_ypixel_, ws_xpixel_};
-}
-
-std::pair<unsigned, unsigned> TerminalFrontend::cell_size() {
-  query_winsize();
-  if (ws_row_ == 0 || ws_col_ == 0) {
-    return {0, 0};
+  CellSize cell;
+  if (ws_row_ > 0 && ws_col_ > 0) {
+    cell = {static_cast<int>(ws_xpixel_ / ws_col_), static_cast<int>(ws_ypixel_ / ws_row_)};
   }
-  return {ws_ypixel_ / ws_row_, ws_xpixel_ / ws_col_};
+  return {
+      {static_cast<int>(ws_xpixel_), static_cast<int>(ws_ypixel_)},
+      cell,
+      static_cast<int>(ws_col_),
+      static_cast<int>(ws_row_),
+  };
 }
 
 uint32_t TerminalFrontend::upload_image(const Pixmap& pixmap, int cols, int rows) {
@@ -155,16 +159,16 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   if (in_tmux_) {
     erase();
     for (const auto& s : slices) {
-      out += "\x1b[" + std::to_string(s.dst_row + 1) + ";" + std::to_string(s.dst_col + 1) + "H";
-      int first_cell_row = (s.src_y > 0 && s.img_rows > 0) ? s.src_y * s.img_rows / (s.src_h + s.src_y) : 0;
-      out += kitty::placeholders(s.image_id, first_cell_row, s.dst_rows, s.img_cols);
+      out += "\x1b[" + std::to_string(s.dst.y + 1) + ";" + std::to_string(s.dst.x + 1) + "H";
+      int first_cell_row = (s.src.y > 0 && s.img_grid.height > 0) ? s.src.y * s.img_grid.height / (s.src.height + s.src.y) : 0;
+      out += kitty::placeholders(s.image_id, first_cell_row, s.dst.height, s.img_grid.width);
     }
   }
   else {
     out += kitty::delete_all_placements();
     for (const auto& s : slices) {
-      out += "\x1b[" + std::to_string(s.dst_row + 1) + ";" + std::to_string(s.dst_col + 1) + "H";
-      out += kitty::place(s.image_id, s.src_x, s.src_y, s.src_w, s.src_h);
+      out += "\x1b[" + std::to_string(s.dst.y + 1) + ";" + std::to_string(s.dst.x + 1) + "H";
+      out += kitty::place(s.image_id, s.src.x, s.src.y, s.src.width, s.src.height);
     }
   }
 
