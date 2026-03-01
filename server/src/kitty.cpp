@@ -3,7 +3,6 @@
 #include "base64.h"
 #include "pixmap.h"
 
-#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -102,10 +101,6 @@ static std::string wrap_one(const std::string& seq) {
   return "\x1bPtmux;" + inner + "\x1b\\";
 }
 
-bool in_tmux() {
-  return std::getenv("TMUX") != nullptr;
-}
-
 std::string wrap_tmux(const std::string& escape) {
   // Each APC sequence (\x1b_G...\x1b\\) must be wrapped individually.
   // Base64 payload never contains ESC, so \x1b_ safely marks APC starts.
@@ -132,7 +127,7 @@ std::string encode(const Pixmap& pixmap, uint32_t image_id) {
   int h = pixmap.height();
 
   auto packed = pack_pixels(pixmap);
-  std::string b64 = base64::encode(packed.data(), packed.size());
+  std::string b64 = base64::encode(packed);
 
   std::string result;
   size_t offset = 0;
@@ -176,7 +171,7 @@ std::string encode_tmux(const Pixmap& pixmap, uint32_t image_id, int cell_width_
   int rows = (h + cell_height_px - 1) / cell_height_px;
 
   auto packed = pack_pixels(pixmap);
-  std::string b64 = base64::encode(packed.data(), packed.size());
+  std::string b64 = base64::encode(packed);
 
   // Build chunked transmit+display with Unicode placeholders (matches kitten icat).
   // First chunk: a=T (transmit+display), U=1 (unicode placeholders), q=2 (suppress responses)

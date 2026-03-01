@@ -6,8 +6,9 @@ namespace base64 {
 
 static constexpr char TABLE[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-std::string encode(const unsigned char* data, size_t len) {
+std::string encode(std::span<const unsigned char> data) {
   std::string out;
+  size_t len = data.size();
   out.reserve(4 * ((len + 2) / 3));
 
   size_t i = 0;
@@ -36,7 +37,7 @@ std::string encode(const unsigned char* data, size_t len) {
 }
 
 std::string encode(const std::string& data) {
-  return encode(reinterpret_cast<const unsigned char*>(data.data()), data.size());
+  return encode(std::span(reinterpret_cast<const unsigned char*>(data.data()), data.size()));
 }
 
 } // namespace base64

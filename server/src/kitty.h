@@ -8,9 +8,6 @@ class Pixmap;
 /// Kitty graphics protocol escape sequence encoding.
 namespace kitty {
 
-/// @brief Return true if running inside tmux (checks $TMUX).
-bool in_tmux();
-
 /// @brief Wrap APC escape sequences in DCS passthrough for tmux.
 /// Each APC sequence is individually wrapped with doubled ESC bytes.
 std::string wrap_tmux(const std::string& escape);

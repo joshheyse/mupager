@@ -19,20 +19,20 @@ All graphics commands use APC (Application Programming Command) sequences:
 
 ## Key Parameters
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `a` | `t` | Action: `t` transmit, `T` transmit+display, `p` place, `d` delete |
-| `t` | `d` | Medium: `d` direct (inline base64), `f` file, `s` shared memory |
-| `f` | `32` | Pixel format: `24` RGB, `32` RGBA, `100` PNG |
-| `s` | | Image width in pixels |
-| `v` | | Image height in pixels |
-| `i` | `0` | Image ID |
-| `m` | `0` | More data: `1` = more chunks follow, `0` = final chunk |
-| `q` | `0` | Quiet: `0` = send response, `2` = suppress all responses |
-| `U` | `0` | Unicode placeholders: `1` = create virtual placement |
-| `c` | | Columns for virtual placement grid |
-| `r` | | Rows for virtual placement grid |
-| `d` | `a` | Delete target: `i` = by image ID, `a` = all |
+| Key | Default | Description                                                       |
+| --- | ------- | ----------------------------------------------------------------- |
+| `a` | `t`     | Action: `t` transmit, `T` transmit+display, `p` place, `d` delete |
+| `t` | `d`     | Medium: `d` direct (inline base64), `f` file, `s` shared memory   |
+| `f` | `32`    | Pixel format: `24` RGB, `32` RGBA, `100` PNG                      |
+| `s` |         | Image width in pixels                                             |
+| `v` |         | Image height in pixels                                            |
+| `i` | `0`     | Image ID                                                          |
+| `m` | `0`     | More data: `1` = more chunks follow, `0` = final chunk            |
+| `q` | `0`     | Quiet: `0` = send response, `2` = suppress all responses          |
+| `U` | `0`     | Unicode placeholders: `1` = create virtual placement              |
+| `c` |         | Columns for virtual placement grid                                |
+| `r` |         | Rows for virtual placement grid                                   |
+| `d` | `a`     | Delete target: `i` = by image ID, `a` = all                       |
 
 ## Chunking
 
@@ -164,6 +164,7 @@ U+10EEEE RowDiac ColDiac IDDiac  U+10EEEE RowDiac ColDiac IDDiac ...  ← last r
 ## Deleting Images
 
 Direct:
+
 ```
 \x1b_Ga=d,d=i,i=ID\x1b\\
 ```

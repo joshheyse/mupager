@@ -2,7 +2,7 @@ project(mupdf-server VERSION 0.1.0 LANGUAGES CXX)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MUPDF REQUIRED IMPORTED_TARGET mupdf)
-pkg_check_modules(NOTCURSES REQUIRED IMPORTED_TARGET notcurses++)
+pkg_check_modules(NOTCURSES REQUIRED IMPORTED_TARGET notcurses-core)
 
 find_path(MSGPACK_INCLUDE_DIR NAMES msgpack.hpp REQUIRED)
 
@@ -13,7 +13,8 @@ set(SERVER_LIB_SOURCES
   src/pixmap.cpp
   src/base64.cpp
   src/kitty.cpp
-  src/terminal.cpp
+  src/terminal_frontend.cpp
+  src/app.cpp
 )
 
 add_library(server-lib STATIC ${SERVER_LIB_SOURCES})
@@ -26,6 +27,8 @@ target_include_directories(server-lib
 
 target_link_libraries(server-lib
   PUBLIC PkgConfig::MUPDF
+  PUBLIC PkgConfig::NOTCURSES
+  PUBLIC spdlog::spdlog
 )
 
 # --- Executable ---
@@ -43,10 +46,8 @@ target_include_directories(mupdf-server
 
 target_link_libraries(mupdf-server
   PRIVATE server-lib
-  PRIVATE PkgConfig::NOTCURSES
   PRIVATE tomlplusplus::tomlplusplus
   PRIVATE CLI11::CLI11
-  PRIVATE spdlog::spdlog
 )
 
 # --- Tests ---
@@ -56,7 +57,6 @@ set(SERVER_TEST_SOURCES
   src/pixmap.test.cpp
   src/base64.test.cpp
   src/kitty.test.cpp
-  src/terminal.test.cpp
 )
 
 add_executable(ServerTests ${SERVER_TEST_SOURCES})

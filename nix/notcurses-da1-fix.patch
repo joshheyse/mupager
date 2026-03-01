@@ -1,0 +1,21 @@
+Fix DA1 parsing for tmux 3.4+ with sixel support.
+
+tmux sends CSI?1;2;4c (three parameters) which the existing parser
+cannot handle, causing notcurses_init to block indefinitely.
+
+Backport of https://github.com/dankamongmen/notcurses/pull/2908
+
+--- a/src/lib/in.c
++++ b/src/lib/in.c
+@@ -1848,6 +1848,11 @@
+     { "[?4;6c", da1_cb, }, // CSI ? 4 ; 6 c ("VT132 with Advanced Video and Graphics")
+     // CSI ? 1 2 ; Ps c ("VT125")
+     // CSI ? 6 0 ; Ps c (kmscon)
++    { "[?1;2;\\Dc", da1_attrs_cb, }, // CSI ? 1 ; 2 ; Ps c (VT100 extended, tmux 3.4+ sixel)
++    { "[?62;\\Dc", da1_attrs_cb, },  // CSI ? 6 2 ; Ps c ("VT220", Ghostty)
++    { "[?63;\\Dc", da1_attrs_cb, },  // CSI ? 6 3 ; Ps c ("VT320")
++    { "[?64;\\Dc", da1_attrs_cb, },  // CSI ? 6 4 ; Ps c ("VT420", iTerm2)
++    { "[?65;\\Dc", da1_attrs_cb, },  // CSI ? 6 5 ; Ps c ("VT520", WezTerm)
+     // CSI ? 6 2 ; Ps c ("VT220")
+     // CSI ? 6 3 ; Ps c ("VT320")
+     // CSI ? 6 4 ; Ps c ("VT420")

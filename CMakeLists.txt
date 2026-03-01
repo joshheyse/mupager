@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.26)
 project(mupdf-nvim VERSION 0.1.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Werror -ggdb -Wno-error=unused-parameter")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Werror -ggdb -Wno-error=unused-parameter -Wno-error=#warnings")
 
 set(BUILD_SHARED_LIBS OFF)
 
@@ -38,15 +38,6 @@ CPMAddPackage(
   GIT_TAG v1.15.0
   SYSTEM TRUE
 )
-
-include(CheckIPOSupported)
-check_ipo_supported(RESULT lto_supported OUTPUT lto_error)
-if(lto_supported)
-  message(STATUS "IPO / LTO enabled")
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-else()
-  message(STATUS "IPO / LTO not supported: <${lto_error}>")
-endif()
 
 enable_testing()
 
