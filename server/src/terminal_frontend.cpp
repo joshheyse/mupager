@@ -20,23 +20,23 @@ TerminalFrontend::TerminalFrontend() {
   noecho();
   keypad(stdscr, TRUE);
   curs_set(0);
-  refresh(); // Required before get_wch; do it once here to avoid later flicker
+  refresh();
 
   query_winsize();
 }
 
 TerminalFrontend::~TerminalFrontend() {
-  if (current_image_id_ > 0) {
+  for (uint32_t id : uploaded_ids_) {
     std::string seq;
     if (in_tmux_) {
-      seq = kitty::delete_image_tmux(current_image_id_);
+      seq = kitty::delete_image_tmux(id);
     }
     else {
-      seq = kitty::delete_image(current_image_id_);
+      seq = kitty::delete_image(id);
     }
     std::fwrite(seq.data(), 1, seq.size(), stdout);
-    std::fflush(stdout);
   }
+  std::fflush(stdout);
   endwin();
 }
 
@@ -70,18 +70,23 @@ std::optional<InputEvent> TerminalFrontend::poll_input(int timeout_ms) {
 }
 
 void TerminalFrontend::clear() {
-  if (current_image_id_ > 0) {
+  for (uint32_t id : uploaded_ids_) {
     std::string seq;
     if (in_tmux_) {
-      seq = kitty::delete_image_tmux(current_image_id_);
+      seq = kitty::delete_image_tmux(id);
     }
     else {
-      seq = kitty::delete_image(current_image_id_);
+      seq = kitty::delete_image(id);
     }
     std::fwrite(seq.data(), 1, seq.size(), stdout);
-    std::fflush(stdout);
-    current_image_id_ = 0;
   }
+  uploaded_ids_.clear();
+  std::fflush(stdout);
+
+  // Resync ncurses with the actual terminal dimensions (handles resize)
+  endwin();
+  refresh();
+  query_winsize();
   erase();
   refresh();
 }
@@ -99,33 +104,19 @@ std::pair<unsigned, unsigned> TerminalFrontend::cell_size() {
   return {ws_ypixel_ / ws_row_, ws_xpixel_ / ws_col_};
 }
 
-void TerminalFrontend::display(const Pixmap& pixmap) {
+uint32_t TerminalFrontend::upload_image(const Pixmap& pixmap, int cols, int rows) {
   uint32_t image_id = next_image_id_++;
 
-  if (current_image_id_ > 0) {
-    std::string del;
-    if (in_tmux_) {
-      del = kitty::delete_image_tmux(current_image_id_);
-    }
-    else {
-      del = kitty::delete_image(current_image_id_);
-    }
-    std::fwrite(del.data(), 1, del.size(), stdout);
-  }
-
-  spdlog::info("display: transmit pixmap {}x{}, kitty image_id={}", pixmap.width(), pixmap.height(), image_id);
+  spdlog::info("upload_image: {}x{} px, kitty image_id={}", pixmap.width(), pixmap.height(), image_id);
 
   std::string seq;
   {
     Stopwatch sw("kitty transmit encode");
     if (in_tmux_) {
-      auto [celly, cellx] = cell_size();
-      cached_cols_ = (pixmap.width() + static_cast<int>(cellx) - 1) / static_cast<int>(cellx);
-      cached_rows_ = (pixmap.height() + static_cast<int>(celly) - 1) / static_cast<int>(celly);
-      seq = kitty::transmit_tmux(pixmap, image_id, cached_cols_, cached_rows_);
+      seq = kitty::transmit_tmux(pixmap, image_id, cols, rows);
     }
     else {
-      seq = kitty::encode(pixmap, image_id, 1);
+      seq = kitty::transmit(pixmap, image_id);
     }
   }
 
@@ -135,36 +126,53 @@ void TerminalFrontend::display(const Pixmap& pixmap) {
     std::fflush(stdout);
   }
 
-  current_image_id_ = image_id;
+  uploaded_ids_.insert(image_id);
+  return image_id;
 }
 
-void TerminalFrontend::show_region(int x, int y) {
-  if (current_image_id_ == 0) {
+void TerminalFrontend::free_image(uint32_t image_id) {
+  if (uploaded_ids_.count(image_id) == 0) {
     return;
   }
-
-  query_winsize();
-  int vw = static_cast<int>(ws_xpixel_);
-  int vh = static_cast<int>(ws_ypixel_);
-
   std::string seq;
   if (in_tmux_) {
-    auto [celly, cellx] = cell_size();
-    int first_row = (celly > 0) ? y / static_cast<int>(celly) : 0;
-    int visible_rows = (celly > 0) ? (vh + static_cast<int>(celly) - 1) / static_cast<int>(celly) : 0;
-    if (first_row + visible_rows > cached_rows_) {
-      visible_rows = cached_rows_ - first_row;
-    }
-    seq = kitty::placeholders(current_image_id_, first_row, visible_rows, cached_cols_);
+    seq = kitty::delete_image_tmux(image_id);
   }
   else {
-    seq = kitty::place(current_image_id_, x, y, vw, vh);
+    seq = kitty::delete_image(image_id);
   }
-
-  Stopwatch sw("show_region");
-  std::fputs("\x1b[H", stdout);
   std::fwrite(seq.data(), 1, seq.size(), stdout);
   std::fflush(stdout);
+  uploaded_ids_.erase(image_id);
+}
+
+void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
+  std::string out;
+
+  if (in_tmux_) {
+    erase();
+    for (const auto& s : slices) {
+      // Move cursor to destination row
+      out += "\x1b[" + std::to_string(s.dst_row + 1) + ";1H";
+      // Compute which placeholder rows to show
+      int first_cell_row = (s.src_y > 0 && s.img_rows > 0) ? s.src_y * s.img_rows / (s.src_h + s.src_y) : 0;
+      out += kitty::placeholders(s.image_id, first_cell_row, s.dst_rows, s.img_cols);
+    }
+  }
+  else {
+    out += kitty::delete_all_placements();
+    for (const auto& s : slices) {
+      out += "\x1b[" + std::to_string(s.dst_row + 1) + ";1H";
+      out += kitty::place(s.image_id, s.src_x, s.src_y, s.src_w, s.src_h);
+    }
+  }
+
+  std::fwrite(out.data(), 1, out.size(), stdout);
+  std::fflush(stdout);
+
+  if (in_tmux_) {
+    refresh();
+  }
 }
 
 void TerminalFrontend::statusline(const std::string& /*text*/) {}

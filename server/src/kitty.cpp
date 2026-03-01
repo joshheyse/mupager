@@ -206,9 +206,8 @@ std::string transmit(const Pixmap& pixmap, uint32_t image_id) {
 }
 
 std::string place(uint32_t image_id, int src_x, int src_y, int src_w, int src_h) {
-  return "\x1b_Ga=p,q=2,i=" + std::to_string(image_id) + ",p=1" + ",x=" + std::to_string(src_x) +
-         ",y=" + std::to_string(src_y) + ",w=" + std::to_string(src_w) + ",h=" + std::to_string(src_h) +
-         "\x1b\\";
+  return "\x1b_Ga=p,q=2,i=" + std::to_string(image_id) + ",p=1" + ",x=" + std::to_string(src_x) + ",y=" + std::to_string(src_y) + ",w=" + std::to_string(src_w)
+         + ",h=" + std::to_string(src_h) + "\x1b\\";
 }
 
 std::string delete_image(uint32_t image_id) {
@@ -363,6 +362,14 @@ std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num
 
 std::string delete_image_tmux(uint32_t image_id) {
   return wrap_tmux(delete_image(image_id));
+}
+
+std::string delete_all_placements() {
+  return "\x1b_Ga=d,d=a\x1b\\";
+}
+
+std::string delete_all_placements_tmux() {
+  return wrap_tmux(delete_all_placements());
 }
 
 } // namespace kitty

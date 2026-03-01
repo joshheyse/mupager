@@ -48,4 +48,10 @@ std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num
 /// @brief Return a DCS-wrapped escape sequence that deletes the image with the given ID.
 std::string delete_image_tmux(uint32_t image_id);
 
+/// @brief Delete all image placements (but keep images in memory).
+std::string delete_all_placements();
+
+/// @brief DCS-wrapped version of delete_all_placements for tmux.
+std::string delete_all_placements_tmux();
+
 } // namespace kitty

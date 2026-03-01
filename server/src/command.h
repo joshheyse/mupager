@@ -8,4 +8,6 @@ enum class Command {
   SCROLL_UP,
   HALF_PAGE_DOWN,
   HALF_PAGE_UP,
+  GOTO_FIRST_PAGE,
+  GOTO_LAST_PAGE,
 };
