@@ -43,6 +43,9 @@
             # Task runner
             just
 
+            # Terminal graphics testing
+            kitty
+
             # Libraries
             mupdf
             msgpack-cxx

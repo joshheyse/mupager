@@ -1,11 +1,16 @@
 #include "document.h"
+#include "kitty.h"
+#include "pixmap.h"
+#include "terminal.h"
 
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
 #include <filesystem>
+#include <iostream>
 #include <string>
+#include <thread>
 
 #include <CLI/CLI.hpp>
 
@@ -39,6 +44,20 @@ int main(int argc, char* argv[]) {
   try {
     Document doc(file);
     spdlog::info("opened document: {} pages", doc.page_count());
+
+    Pixmap pix = doc.render_page(0, 1.0f);
+    spdlog::info("rendered page 0: {}x{}", pix.width(), pix.height());
+
+    std::string encoded;
+    if (kitty::in_tmux()) {
+      auto cs = terminal::cell_size();
+      encoded = kitty::encode_tmux(pix, 1, cs.width_px, cs.height_px);
+    } else {
+      encoded = kitty::encode(pix);
+    }
+    std::cout << encoded << std::flush;
+
+    std::this_thread::sleep_for(std::chrono::seconds(5));
   }
   catch (const std::exception& e) {
     spdlog::error("{}", e.what());

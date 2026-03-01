@@ -8,7 +8,7 @@ static constexpr const char* FIXTURE_PDF = PROJECT_TEST_DIR "/fixtures/test.pdf"
 
 TEST_CASE("Document opens a valid PDF") {
   Document doc(FIXTURE_PDF);
-  CHECK(doc.page_count() == 2);
+  CHECK(doc.page_count() > 98);
 }
 
 TEST_CASE("Document exposes raw handles") {

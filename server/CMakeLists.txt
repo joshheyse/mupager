@@ -13,6 +13,7 @@ set(SERVER_LIB_SOURCES
   src/pixmap.cpp
   src/base64.cpp
   src/kitty.cpp
+  src/terminal.cpp
 )
 
 add_library(server-lib STATIC ${SERVER_LIB_SOURCES})
@@ -55,6 +56,7 @@ set(SERVER_TEST_SOURCES
   src/pixmap.test.cpp
   src/base64.test.cpp
   src/kitty.test.cpp
+  src/terminal.test.cpp
 )
 
 add_executable(ServerTests ${SERVER_TEST_SOURCES})
