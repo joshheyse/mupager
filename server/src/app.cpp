@@ -9,8 +9,9 @@
 
 App::App(std::unique_ptr<Frontend> frontend, const Args& args)
     : frontend_(std::move(frontend))
-    , doc_(args.file) {
-  spdlog::info("opened document: {} pages", doc_.page_count());
+    , doc_(args.file)
+    , view_mode_(args.view_mode == "page" ? ViewMode::PAGE : ViewMode::CONTINUOUS) {
+  spdlog::info("opened document: {} pages, mode: {}", doc_.page_count(), args.view_mode);
 }
 
 void App::build_layout() {
@@ -18,13 +19,14 @@ void App::build_layout() {
   int num_pages = doc_.page_count();
   layout_.resize(num_pages);
 
+  int gap = (view_mode_ == ViewMode::CONTINUOUS) ? PAGE_GAP_PX : 0;
   int y = 0;
   for (int i = 0; i < num_pages; ++i) {
     auto [page_w, page_h] = doc_.page_size(i);
     float zoom = static_cast<float>(pxx) / page_w;
     int h = static_cast<int>(page_h * zoom);
     layout_[i] = {y, h, zoom};
-    y += h + PAGE_GAP_PX;
+    y += h + gap;
   }
 }
 
@@ -176,6 +178,10 @@ void App::update_viewport() {
   frontend_->show_pages(slices);
 }
 
+int App::current_page() const {
+  return page_at_y(scroll_y_);
+}
+
 void App::scroll(int dx, int dy) {
   if (layout_.empty()) {
     return;
@@ -190,6 +196,15 @@ void App::scroll(int dx, int dy) {
   int max_y = std::max(0, total_height - vh);
 
   int new_y = std::clamp(scroll_y_ + dy, 0, max_y);
+
+  // In PAGE mode, clamp scroll to stay within the current page
+  if (view_mode_ == ViewMode::PAGE) {
+    int p = page_at_y(new_y);
+    int page_top = layout_[p].global_y;
+    int page_max = page_top + std::max(0, layout_[p].pixel_height - vh);
+    new_y = std::clamp(new_y, page_top, page_max);
+  }
+
   int new_x = scroll_x_ + dx; // horizontal scroll not clamped yet
 
   if (new_x == scroll_x_ && new_y == scroll_y_) {
@@ -319,6 +334,15 @@ void App::run() {
     else if (event->id == 'u') {
       handle_command(Command::HALF_PAGE_UP);
     }
+    else if (event->id == 0x06) { // Ctrl+F
+      handle_command(Command::PAGE_DOWN);
+    }
+    else if (event->id == 0x02) { // Ctrl+B
+      handle_command(Command::PAGE_UP);
+    }
+    else if (event->id == 0x09) { // Tab
+      handle_command(Command::TOGGLE_VIEW_MODE);
+    }
     else if (event->id == input::RESIZE) {
       handle_command(Command::RESIZE);
     }
@@ -374,6 +398,38 @@ void App::handle_command(Command cmd) {
         scroll_y_ = std::max(0, total_height - vh);
         update_viewport();
       }
+      break;
+    }
+    case Command::PAGE_DOWN: {
+      if (layout_.empty()) {
+        break;
+      }
+      int p = current_page();
+      if (view_mode_ == ViewMode::PAGE) {
+        jump_to_page(p + 1);
+      }
+      else {
+        scroll(0, layout_[p].pixel_height);
+      }
+      break;
+    }
+    case Command::PAGE_UP: {
+      if (layout_.empty()) {
+        break;
+      }
+      int p = current_page();
+      if (view_mode_ == ViewMode::PAGE) {
+        jump_to_page(p - 1);
+      }
+      else {
+        scroll(0, -layout_[p].pixel_height);
+      }
+      break;
+    }
+    case Command::TOGGLE_VIEW_MODE: {
+      view_mode_ = (view_mode_ == ViewMode::CONTINUOUS) ? ViewMode::PAGE : ViewMode::CONTINUOUS;
+      spdlog::info("view mode: {}", view_mode_ == ViewMode::PAGE ? "page" : "continuous");
+      render();
       break;
     }
   }

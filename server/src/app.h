@@ -24,6 +24,12 @@ struct CachedPage {
   int cell_cols, cell_rows;
 };
 
+/// @brief View mode for page display.
+enum class ViewMode {
+  CONTINUOUS, ///< Pages flow with gaps between them.
+  PAGE,       ///< One page at a time, scroll clamped to page boundaries.
+};
+
 /// @brief Main application controller.
 class App {
 public:
@@ -48,6 +54,7 @@ private:
   void scroll(int dx, int dy);
   void render();
   void jump_to_page(int page);
+  int current_page() const;
 
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
@@ -56,6 +63,7 @@ private:
   int scroll_y_ = 0;
   bool pending_g_ = false;
   int pending_count_ = 0;
+  ViewMode view_mode_ = ViewMode::CONTINUOUS;
 
   std::vector<PageLayout> layout_;
   std::unordered_map<int, CachedPage> page_cache_;

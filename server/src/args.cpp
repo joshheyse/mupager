@@ -16,10 +16,12 @@ static std::string default_log_path() {
 Args::Args(int argc, char* argv[])
     : file{}
     , log_level{"debug"}
-    , log_file{default_log_path()} {
+    , log_file{default_log_path()}
+    , view_mode{"continuous"} {
   CLI::App cli{"mupdf-server - terminal document viewer"};
   cli.add_option("file", file, "Document to open")->required();
   cli.add_option("--log-level", log_level, "Log level (trace, debug, info, warn, error, critical)");
   cli.add_option("--log-file", log_file, "Log file path");
+  cli.add_option("--view-mode", view_mode, "View mode (continuous, page)")->check(CLI::IsMember({"continuous", "page"}));
   cli.parse(argc, argv);
 }
