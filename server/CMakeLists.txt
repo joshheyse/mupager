@@ -9,6 +9,7 @@ find_path(MSGPACK_INCLUDE_DIR NAMES msgpack.hpp REQUIRED)
 # --- Server library (shared between exe and tests) ---
 
 set(SERVER_LIB_SOURCES
+  src/args.cpp
   src/document.cpp
   src/pixmap.cpp
   src/base64.cpp
@@ -29,6 +30,7 @@ target_link_libraries(server-lib
   PUBLIC PkgConfig::MUPDF
   PUBLIC PkgConfig::NOTCURSES
   PUBLIC spdlog::spdlog
+  PRIVATE CLI11::CLI11
 )
 
 # --- Executable ---
@@ -47,7 +49,6 @@ target_include_directories(mupdf-server
 target_link_libraries(mupdf-server
   PRIVATE server-lib
   PRIVATE tomlplusplus::tomlplusplus
-  PRIVATE CLI11::CLI11
 )
 
 # --- Tests ---
