@@ -10,6 +10,7 @@ find_path(MSGPACK_INCLUDE_DIR NAMES msgpack.hpp REQUIRED)
 
 set(SERVER_LIB_SOURCES
   src/document.cpp
+  src/pixmap.cpp
 )
 
 add_library(server-lib STATIC ${SERVER_LIB_SOURCES})
@@ -49,6 +50,7 @@ target_link_libraries(mupdf-server
 
 set(SERVER_TEST_SOURCES
   src/document.test.cpp
+  src/pixmap.test.cpp
 )
 
 add_executable(ServerTests ${SERVER_TEST_SOURCES})

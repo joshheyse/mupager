@@ -2,39 +2,63 @@
 
 #include <stdexcept>
 
+void ContextDeleter::operator()(fz_context* ctx) const {
+  fz_drop_context(ctx);
+}
+
+void DocumentDeleter::operator()(fz_document* doc) const {
+  fz_drop_document(ctx, doc);
+}
+
 Document::Document(const std::string& path)
     : ctx_(nullptr)
-    , doc_(nullptr) {
-  ctx_ = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
-  if (!ctx_) {
+    , doc_(nullptr, DocumentDeleter{nullptr}) {
+  fz_context* raw_ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+  if (!raw_ctx) {
     throw std::runtime_error("failed to create mupdf context");
   }
+  ctx_.reset(raw_ctx);
 
-  fz_register_document_handlers(ctx_);
+  fz_register_document_handlers(raw_ctx);
 
-  fz_try(ctx_) {
-    doc_ = fz_open_document(ctx_, path.c_str());
+  fz_try(raw_ctx) {
+    doc_ = {fz_open_document(raw_ctx, path.c_str()), DocumentDeleter{raw_ctx}};
   }
-  fz_catch(ctx_) {
-    std::string msg = fz_caught_message(ctx_);
-    fz_drop_context(ctx_);
+  fz_catch(raw_ctx) {
+    std::string msg = fz_caught_message(raw_ctx);
     throw std::runtime_error("failed to open document: " + msg);
   }
 }
 
-Document::~Document() {
-  fz_drop_document(ctx_, doc_);
-  fz_drop_context(ctx_);
+int Document::page_count() const {
+  return fz_count_pages(ctx_.get(), doc_.get());
 }
 
-int Document::page_count() const {
-  return fz_count_pages(ctx_, doc_);
+Pixmap Document::render_page(int page_num, float zoom) const {
+  fz_context* raw_ctx = ctx_.get();
+  fz_page* page = nullptr;
+  fz_pixmap* pix = nullptr;
+
+  fz_try(raw_ctx) {
+    page = fz_load_page(raw_ctx, doc_.get(), page_num);
+    fz_matrix ctm = fz_scale(zoom, zoom);
+    pix = fz_new_pixmap_from_page(raw_ctx, page, ctm, fz_device_rgb(raw_ctx), 0);
+  }
+  fz_always(raw_ctx) {
+    fz_drop_page(raw_ctx, page);
+  }
+  fz_catch(raw_ctx) {
+    std::string msg = fz_caught_message(raw_ctx);
+    throw std::runtime_error("failed to render page: " + msg);
+  }
+
+  return Pixmap(raw_ctx, pix);
 }
 
 fz_context* Document::ctx() const {
-  return ctx_;
+  return ctx_.get();
 }
 
 fz_document* Document::raw() const {
-  return doc_;
+  return doc_.get();
 }
