@@ -27,4 +27,6 @@ private:
   bool running_ = true;
   int current_page_ = 0;
   float zoom_ = 1.0f;
+  int scroll_x_ = 0;
+  int scroll_y_ = 0;
 };

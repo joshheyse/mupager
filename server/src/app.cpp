@@ -14,7 +14,7 @@ void App::render() {
   auto [pxy, pxx] = frontend_->pixel_size();
   auto [page_w, page_h] = doc_.page_size(current_page_);
   zoom_ = static_cast<float>(pxx) / page_w;
-  auto pixmap = doc_.render_page(current_page_, zoom_);
+  auto pixmap = doc_.render_page(current_page_, zoom_, scroll_x_, scroll_y_, static_cast<int>(pxx), static_cast<int>(pxy));
   frontend_->display(pixmap);
 }
 

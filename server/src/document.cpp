@@ -72,6 +72,33 @@ Pixmap Document::render_page(int page_num, float zoom) const {
   return Pixmap(raw_ctx, pix);
 }
 
+Pixmap Document::render_page(int page_num, float zoom, int x_offset, int y_offset, int viewport_w, int viewport_h) const {
+  fz_context* raw_ctx = ctx_.get();
+  fz_page* page = nullptr;
+  fz_pixmap* pix = nullptr;
+
+  fz_try(raw_ctx) {
+    page = fz_load_page(raw_ctx, doc_.get(), page_num);
+    fz_matrix ctm = fz_scale(zoom, zoom);
+    fz_irect clip = {x_offset, y_offset, x_offset + viewport_w, y_offset + viewport_h};
+    pix = fz_new_pixmap_with_bbox(raw_ctx, fz_device_rgb(raw_ctx), clip, nullptr, 0);
+    fz_clear_pixmap_with_value(raw_ctx, pix, 255);
+    fz_device* dev = fz_new_draw_device_with_bbox(raw_ctx, fz_identity, pix, &clip);
+    fz_run_page(raw_ctx, page, dev, ctm, nullptr);
+    fz_close_device(raw_ctx, dev);
+    fz_drop_device(raw_ctx, dev);
+  }
+  fz_always(raw_ctx) {
+    fz_drop_page(raw_ctx, page);
+  }
+  fz_catch(raw_ctx) {
+    std::string msg = fz_caught_message(raw_ctx);
+    throw std::runtime_error("failed to render page: " + msg);
+  }
+
+  return Pixmap(raw_ctx, pix);
+}
+
 fz_context* Document::ctx() const {
   return ctx_.get();
 }

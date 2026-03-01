@@ -44,6 +44,15 @@ public:
   /// @throws std::runtime_error if page_num is out of range.
   Pixmap render_page(int page_num, float zoom) const;
 
+  /// @brief Render a sub-region of a page to an RGB pixmap.
+  /// @param page_num Zero-based page index.
+  /// @param zoom Scale factor (1.0 = 72 DPI).
+  /// @param x_offset Horizontal pixel offset into the zoomed page.
+  /// @param y_offset Vertical pixel offset into the zoomed page.
+  /// @param viewport_w Viewport width in pixels.
+  /// @param viewport_h Viewport height in pixels.
+  Pixmap render_page(int page_num, float zoom, int x_offset, int y_offset, int viewport_w, int viewport_h) const;
+
   /// @brief Return the underlying MuPDF context.
   fz_context* ctx() const;
 
