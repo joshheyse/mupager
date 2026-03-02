@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstring>
 #include <string>
 
 App::App(std::unique_ptr<Frontend> frontend, const Args& args)
@@ -30,8 +31,7 @@ void App::build_layout() {
   auto vp = client.viewport_pixel();
   int vh = vp.height;
   int vw = vp.width;
-  spdlog::debug("build_layout: pixel={}x{} vp={}x{} cell={}x{} pages={}", client.pixel.width, client.pixel.height, vw,
-                vh, client.cell.width, client.cell.height, num_pages);
+  spdlog::debug("build_layout: pixel={} vp={} cell={} pages={}", client.pixel, vp, client.cell, num_pages);
   layout_.resize(num_pages);
 
   if (view_mode_ == ViewMode::PAGE_HEIGHT) {
@@ -64,7 +64,11 @@ void App::build_layout() {
     }
   }
   else {
-    int gap = (view_mode_ == ViewMode::CONTINUOUS) ? PAGE_GAP_PX : 0;
+    int cell_h = client.cell.height;
+    int gap = 0;
+    if (view_mode_ == ViewMode::CONTINUOUS && cell_h > 0) {
+      gap = std::max(1, (PAGE_GAP_PX + cell_h - 1) / cell_h) * cell_h;
+    }
     int y = 0;
     for (int i = 0; i < num_pages; ++i) {
       auto [page_w, page_h] = doc_.page_size(i);
@@ -223,8 +227,7 @@ void App::update_viewport() {
   int vh = vp.height;
   int vw = vp.width;
   int num_pages = static_cast<int>(layout_.size());
-  spdlog::debug("update_viewport: scroll=({},{}) vp={}x{} cell={}x{}", scroll_.x, scroll_.y, vw, vh, client.cell.width,
-                client.cell.height);
+  spdlog::debug("update_viewport: scroll={} vp={} cell={}", scroll_, vp, client.cell);
 
   // Find visible pages
   int first = page_at_y(scroll_.y);
@@ -394,22 +397,99 @@ void App::jump_to_page(int page) {
   update_viewport();
 }
 
+static const char* command_label(Command cmd) {
+  switch (cmd) {
+    case Command::QUIT:
+      return "Quit";
+    case Command::RESIZE:
+      return "Resize";
+    case Command::SCROLL_DOWN:
+      return "Scroll Down";
+    case Command::SCROLL_UP:
+      return "Scroll Up";
+    case Command::HALF_PAGE_DOWN:
+      return "Half Page Down";
+    case Command::HALF_PAGE_UP:
+      return "Half Page Up";
+    case Command::GOTO_FIRST_PAGE:
+      return "First Page";
+    case Command::GOTO_LAST_PAGE:
+      return "Last Page";
+    case Command::PAGE_DOWN:
+      return "Page Down";
+    case Command::PAGE_UP:
+      return "Page Up";
+    case Command::SCROLL_LEFT:
+      return "Scroll Left";
+    case Command::SCROLL_RIGHT:
+      return "Scroll Right";
+    case Command::TOGGLE_VIEW_MODE:
+      return "Toggle View";
+    case Command::TOGGLE_THEME:
+      return "Toggle Theme";
+  }
+  return "";
+}
+
+/// @brief A simple key-to-command binding dispatched from the main event loop.
+struct KeyBinding {
+  uint32_t key;      ///< Key ID (character code or control code).
+  Command command;   ///< Command to dispatch.
+  const char* label; ///< Display label for the help overlay.
+};
+
+/// @brief Display-only help entry for bindings with special dispatch logic.
+struct HelpEntry {
+  const char* key_label;   ///< Key combination display string.
+  const char* description; ///< What the binding does.
+};
+
+/// Simple key-to-command bindings (order determines help display order).
+static const KeyBinding KEY_BINDINGS[] = {
+    {'j', Command::SCROLL_DOWN, "j"},
+    {'k', Command::SCROLL_UP, "k"},
+    {'d', Command::HALF_PAGE_DOWN, "d"},
+    {'u', Command::HALF_PAGE_UP, "u"},
+    {0x06, Command::PAGE_DOWN, "Ctrl+F"},
+    {0x02, Command::PAGE_UP, "Ctrl+B"},
+    {'h', Command::SCROLL_LEFT, "h"},
+    {'l', Command::SCROLL_RIGHT, "l"},
+    {0x09, Command::TOGGLE_VIEW_MODE, "Tab"},
+    {'t', Command::TOGGLE_THEME, "t"},
+    {'q', Command::QUIT, "q"},
+};
+
+/// Bindings with special dispatch logic (multi-key sequences, modes).
+static const HelpEntry SPECIAL_HELP[] = {
+    {"gg", "First Page"},
+    {"G", "Last Page"},
+    {"[n]gg / [n]G", "Go to Page n"},
+    {"?", "Toggle Help"},
+};
+
 void App::run() {
   frontend_->clear();
   render();
+  last_activity_time_ = std::chrono::steady_clock::now();
 
   while (running_) {
     auto event = frontend_->poll_input(100);
     if (!event) {
       auto client = frontend_->client_info();
       if (client.pixel != layout_size_) {
-        spdlog::info("idle resize: pixel {}x{} -> {}x{}", layout_size_.width, layout_size_.height, client.pixel.width,
-                     client.pixel.height);
+        spdlog::info("idle resize: pixel {} -> {}", layout_size_, client.pixel);
         frontend_->clear();
         render();
+        last_activity_time_ = std::chrono::steady_clock::now();
       }
       else {
-        pre_upload_adjacent();
+        // Defer pre-uploads until the user has been idle long enough.
+        // Each upload blocks input for hundreds of ms, so avoid starting
+        // one right after a render or keypress.
+        auto idle = std::chrono::steady_clock::now() - last_activity_time_;
+        if (idle >= std::chrono::milliseconds(300)) {
+          pre_upload_adjacent();
+        }
         if (!last_action_.empty() && std::chrono::steady_clock::now() - last_action_time_ >= std::chrono::seconds(1)) {
           last_action_.clear();
           update_statusline();
@@ -418,10 +498,21 @@ void App::run() {
       continue;
     }
 
+    last_activity_time_ = std::chrono::steady_clock::now();
+
     spdlog::debug("input: id={} (0x{:x}) modifiers={} type={}", event->id, event->id, event->modifiers, static_cast<int>(event->type));
     bool is_press = event->type == EventType::PRESS || event->type == EventType::UNKNOWN;
 
     if (!is_press) {
+      continue;
+    }
+
+    // Dismiss help overlay on any key
+    if (input_mode_ == InputMode::HELP) {
+      input_mode_ = InputMode::NORMAL;
+      frontend_->clear_overlay();
+      update_viewport();
+      update_statusline();
       continue;
     }
 
@@ -472,72 +563,26 @@ void App::run() {
     pending_g_ = false;
     pending_count_ = 0;
 
-    if (event->id == 'q' && event->modifiers == 0) {
-      handle_command(Command::QUIT);
+    // Dispatch simple key bindings from the table
+    bool handled = false;
+    for (const auto& kb : KEY_BINDINGS) {
+      if (event->id == kb.key) {
+        handle_command(kb.command);
+        handled = true;
+        break;
+      }
     }
-    else if (event->id == 'j') {
-      handle_command(Command::SCROLL_DOWN);
-    }
-    else if (event->id == 'k') {
-      handle_command(Command::SCROLL_UP);
-    }
-    else if (event->id == 'd') {
-      handle_command(Command::HALF_PAGE_DOWN);
-    }
-    else if (event->id == 'u') {
-      handle_command(Command::HALF_PAGE_UP);
-    }
-    else if (event->id == 0x06) { // Ctrl+F
-      handle_command(Command::PAGE_DOWN);
-    }
-    else if (event->id == 0x02) { // Ctrl+B
-      handle_command(Command::PAGE_UP);
-    }
-    else if (event->id == 'h') {
-      handle_command(Command::SCROLL_LEFT);
-    }
-    else if (event->id == 'l') {
-      handle_command(Command::SCROLL_RIGHT);
-    }
-    else if (event->id == 0x09) { // Tab
-      handle_command(Command::TOGGLE_VIEW_MODE);
-    }
-    else if (event->id == input::RESIZE) {
-      handle_command(Command::RESIZE);
-    }
-  }
-}
 
-static const char* command_label(Command cmd) {
-  switch (cmd) {
-    case Command::QUIT:
-      return "Quit";
-    case Command::RESIZE:
-      return "Resize";
-    case Command::SCROLL_DOWN:
-      return "Scroll Down";
-    case Command::SCROLL_UP:
-      return "Scroll Up";
-    case Command::HALF_PAGE_DOWN:
-      return "Half Page Down";
-    case Command::HALF_PAGE_UP:
-      return "Half Page Up";
-    case Command::GOTO_FIRST_PAGE:
-      return "First Page";
-    case Command::GOTO_LAST_PAGE:
-      return "Last Page";
-    case Command::PAGE_DOWN:
-      return "Page Down";
-    case Command::PAGE_UP:
-      return "Page Up";
-    case Command::SCROLL_LEFT:
-      return "Scroll Left";
-    case Command::SCROLL_RIGHT:
-      return "Scroll Right";
-    case Command::TOGGLE_VIEW_MODE:
-      return "Toggle View";
+    if (!handled) {
+      if (event->id == '?') {
+        input_mode_ = InputMode::HELP;
+        show_help();
+      }
+      else if (event->id == input::RESIZE) {
+        handle_command(Command::RESIZE);
+      }
+    }
   }
-  return "";
 }
 
 void App::handle_command(Command cmd) {
@@ -551,7 +596,7 @@ void App::handle_command(Command cmd) {
       break;
     case Command::RESIZE: {
       auto client = frontend_->client_info();
-      spdlog::info("resize: {}x{} px, {}x{} cell", client.pixel.width, client.pixel.height, client.cell.width, client.cell.height);
+      spdlog::info("resize: {} px, {} cell", client.pixel, client.cell);
       frontend_->clear();
       render();
       break;
@@ -653,5 +698,42 @@ void App::handle_command(Command cmd) {
       render();
       break;
     }
+    case Command::TOGGLE_THEME: {
+      theme_ = (theme_ == Theme::DARK) ? Theme::LIGHT : Theme::DARK;
+      frontend_->clear();
+      render();
+      break;
+    }
   }
+}
+
+void App::show_help() {
+  // Find the widest key label for alignment
+  int max_key_len = 0;
+  for (const auto& kb : KEY_BINDINGS) {
+    max_key_len = std::max(max_key_len, static_cast<int>(std::strlen(kb.label)));
+  }
+  for (const auto& he : SPECIAL_HELP) {
+    max_key_len = std::max(max_key_len, static_cast<int>(std::strlen(he.key_label)));
+  }
+
+  auto format_line = [&](const char* key, const char* desc) {
+    std::string line = key;
+    line += std::string(max_key_len - static_cast<int>(std::strlen(key)) + 3, ' ');
+    line += desc;
+    return line;
+  };
+
+  std::vector<std::string> lines;
+  lines.emplace_back("Key Bindings");
+  lines.emplace_back("");
+
+  for (const auto& kb : KEY_BINDINGS) {
+    lines.push_back(format_line(kb.label, command_label(kb.command)));
+  }
+  for (const auto& he : SPECIAL_HELP) {
+    lines.push_back(format_line(he.key_label, he.description));
+  }
+
+  frontend_->show_overlay(lines);
 }

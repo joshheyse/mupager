@@ -33,7 +33,7 @@ Requires Nix flake dev shell (`direnv allow` or `nix develop`).
 - Dependencies via CPM (doctest) and Nix (mupdf, msgpack-cxx)
 - All classes and public APIs should have doxygen documentation
 - Source File header comments are not needed
-- Obvious single line comments are not needed
+- Obvious single line comments are not needed, leave doxygen single line comments like those on members
 - Section break comments are not needed
 
 ### Lua

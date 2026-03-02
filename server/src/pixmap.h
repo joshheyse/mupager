@@ -3,6 +3,7 @@
 #include <mupdf/fitz.h>
 
 #include <memory>
+#include <vector>
 
 /// @brief Deleter for fz_pixmap unique_ptr.
 struct PixmapDeleter {
@@ -33,6 +34,12 @@ public:
 
   /// @copydoc samples()
   const unsigned char* samples() const;
+
+  /// @brief Pack pixels into a contiguous buffer with stride padding removed.
+  std::vector<unsigned char> pack_pixels() const;
+
+  /// @brief Encode pixmap as PNG data.
+  std::vector<unsigned char> png_data() const;
 
 private:
   std::unique_ptr<fz_pixmap, PixmapDeleter> pix_;

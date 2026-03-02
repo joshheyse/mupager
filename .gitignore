@@ -2,7 +2,6 @@ build/
 .cache
 .direnv/
 compile_commands.json
-.clangd
 .null-*
 result
 roblox.yml

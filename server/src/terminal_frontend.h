@@ -21,6 +21,8 @@ public:
   void free_image(uint32_t image_id) override;
   void show_pages(const std::vector<PageSlice>& slices) override;
   void statusline(const std::string& left, const std::string& right) override;
+  void show_overlay(const std::vector<std::string>& lines) override;
+  void clear_overlay() override;
 
 private:
   void query_winsize();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <format>
 
 /// @brief 2D size with width and height.
 /// @tparam T Numeric type (int, float, etc.)
@@ -127,6 +128,47 @@ using PixelRect = Rect<int>;
 using CellSize = Size<int>;
 using CellRect = Rect<int>;
 using DocSize = Size<float>;
+
+/// @brief std::formatter for Size<T>: "WxH"
+template <typename T>
+struct std::formatter<Size<T>> : std::formatter<T> {
+  template <typename FormatContext>
+  auto format(const Size<T>& s, FormatContext& ctx) const {
+    std::formatter<T>::format(s.width, ctx);
+    std::format_to(ctx.out(), "x");
+    return std::formatter<T>::format(s.height, ctx);
+  }
+};
+
+/// @brief std::formatter for Point<T>: "(X,Y)"
+template <typename T>
+struct std::formatter<Point<T>> : std::formatter<T> {
+  template <typename FormatContext>
+  auto format(const Point<T>& p, FormatContext& ctx) const {
+    std::format_to(ctx.out(), "(");
+    std::formatter<T>::format(p.x, ctx);
+    std::format_to(ctx.out(), ",");
+    std::formatter<T>::format(p.y, ctx);
+    return std::format_to(ctx.out(), ")");
+  }
+};
+
+/// @brief std::formatter for Rect<T>: "(X,Y WxH)"
+template <typename T>
+struct std::formatter<Rect<T>> : std::formatter<T> {
+  template <typename FormatContext>
+  auto format(const Rect<T>& r, FormatContext& ctx) const {
+    std::format_to(ctx.out(), "(");
+    std::formatter<T>::format(r.x, ctx);
+    std::format_to(ctx.out(), ",");
+    std::formatter<T>::format(r.y, ctx);
+    std::format_to(ctx.out(), " ");
+    std::formatter<T>::format(r.width, ctx);
+    std::format_to(ctx.out(), "x");
+    std::formatter<T>::format(r.height, ctx);
+    return std::format_to(ctx.out(), ")");
+  }
+};
 
 /// @brief Bundles terminal state into one query result.
 struct ClientInfo {

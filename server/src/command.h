@@ -15,4 +15,5 @@ enum class Command {
   SCROLL_LEFT,
   SCROLL_RIGHT,
   TOGGLE_VIEW_MODE,
+  TOGGLE_THEME,
 };

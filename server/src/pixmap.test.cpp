@@ -52,6 +52,27 @@ TEST_CASE("pixmap is move-constructible") {
   CHECK(pix2.samples() != nullptr);
 }
 
+TEST_CASE("pack_pixels produces tightly packed buffer") {
+  Document doc(FIXTURE_PDF);
+  Pixmap pix = doc.render_page(0, 1.0f);
+  auto packed = pix.pack_pixels();
+
+  size_t expected = static_cast<size_t>(pix.width()) * pix.height() * pix.components();
+  CHECK(packed.size() == expected);
+}
+
+TEST_CASE("png_data returns valid PNG") {
+  Document doc(FIXTURE_PDF);
+  Pixmap pix = doc.render_page(0, 1.0f);
+  auto data = pix.png_data();
+
+  REQUIRE(data.size() >= 8);
+  CHECK(data[0] == 0x89);
+  CHECK(data[1] == 'P');
+  CHECK(data[2] == 'N');
+  CHECK(data[3] == 'G');
+}
+
 TEST_CASE("render_page throws on out-of-range page") {
   Document doc(FIXTURE_PDF);
   CHECK_THROWS_AS(doc.render_page(-1, 1.0f), std::runtime_error);

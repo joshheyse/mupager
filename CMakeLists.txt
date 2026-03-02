@@ -37,14 +37,10 @@ CPMAddPackage(
   GITHUB_REPOSITORY gabime/spdlog
   GIT_TAG v1.15.0
   SYSTEM TRUE
+  OPTIONS "SPDLOG_USE_STD_FORMAT ON"
 )
 
 enable_testing()
 
 add_subdirectory(server)
 
-# Generate .clangd pointing at compile_commands.json in build/
-file(WRITE "${CMAKE_SOURCE_DIR}/.clangd"
-"CompileFlags:
-  CompilationDatabase: build/
-")

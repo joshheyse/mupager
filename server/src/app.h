@@ -44,7 +44,8 @@ enum class Theme {
 enum class InputMode {
   NORMAL,
   COMMAND,
-  SEARCH
+  SEARCH,
+  HELP
 };
 
 /// @brief Main application controller.
@@ -74,6 +75,7 @@ private:
   int current_page() const;
   int document_height() const;
   void update_statusline();
+  void show_help();
 
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
@@ -98,4 +100,5 @@ private:
 
   std::string last_action_;
   std::chrono::steady_clock::time_point last_action_time_;
+  std::chrono::steady_clock::time_point last_activity_time_; ///< Last render or input event, for deferring pre-uploads.
 };
