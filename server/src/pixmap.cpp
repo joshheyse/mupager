@@ -48,6 +48,19 @@ std::vector<unsigned char> Pixmap::pack_pixels() const {
   return packed;
 }
 
+void Pixmap::invert() {
+  int h = height();
+  int s = stride();
+  int row_bytes = width() * components();
+  unsigned char* data = samples();
+  for (int y = 0; y < h; ++y) {
+    unsigned char* row = data + y * s;
+    for (int x = 0; x < row_bytes; ++x) {
+      row[x] = 255 - row[x];
+    }
+  }
+}
+
 std::vector<unsigned char> Pixmap::png_data() const {
   fz_context* ctx = pix_.get_deleter().ctx;
   fz_buffer* buf = fz_new_buffer_from_pixmap_as_png(ctx, pix_.get(), fz_default_color_params);

@@ -119,6 +119,10 @@ void App::ensure_pages_uploaded(int first, int last) {
       return doc_.render_page(i, zoom);
     }();
 
+    if (theme_ == Theme::DARK) {
+      pixmap.invert();
+    }
+
     int cols = (pixmap.width() + client.cell.width - 1) / client.cell.width;
     int rows = (pixmap.height() + client.cell.height - 1) / client.cell.height;
 

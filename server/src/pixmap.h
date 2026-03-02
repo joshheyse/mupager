@@ -38,6 +38,9 @@ public:
   /// @brief Pack pixels into a contiguous buffer with stride padding removed.
   std::vector<unsigned char> pack_pixels() const;
 
+  /// @brief Invert all pixel values in place (255 - value per channel).
+  void invert();
+
   /// @brief Encode pixmap as PNG data.
   std::vector<unsigned char> png_data() const;
 
