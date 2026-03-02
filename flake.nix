@@ -17,6 +17,11 @@
           inherit system;
         };
         isLinux = pkgs.stdenv.isLinux;
+
+        # Wrap clangd with --query-driver so it discovers Nix compiler system includes
+        wrapped-clangd = pkgs.writeShellScriptBin "clangd" ''
+          exec ${pkgs.clang-tools}/bin/clangd --query-driver="/nix/store/*/bin/*" "$@"
+        '';
       in {
         devShells.default = pkgs.mkShell {
           name = "mupager";
@@ -31,8 +36,9 @@
             ninja
             pkg-config
 
-            # C++ formatting / linting
+            # C++ formatting / linting / LSP
             clang-tools
+            wrapped-clangd
 
             # Lua formatting / linting
             stylua
@@ -59,6 +65,7 @@
             export CC=clang
             export CXX=clang++
             unset NIX_ENFORCE_NO_NATIVE
+            export PATH="${wrapped-clangd}/bin:$PATH"
           '';
         };
       }

@@ -43,10 +43,8 @@ enable_testing()
 
 add_subdirectory(server)
 
-# Generate .clangd with query-driver matching the configured compiler
+# Generate .clangd pointing at compile_commands.json in build/
 file(WRITE "${CMAKE_SOURCE_DIR}/.clangd"
 "CompileFlags:
   CompilationDatabase: build/
-  Add:
-    - --query-driver=${CMAKE_CXX_COMPILER}
 ")
