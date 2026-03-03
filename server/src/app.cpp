@@ -201,6 +201,8 @@ void App::ensure_pages_uploaded(int first, int last) {
       }
     }
 
+    frontend_->statusline("Rendering page " + std::to_string(i + 1) + "...", "");
+
     Pixmap pixmap = [&] {
       Stopwatch sw("mupdf render page " + std::to_string(i) + " zoom=" + std::to_string(render_zoom) + " os=" + std::to_string(os));
       return doc_.render_page(i, render_zoom);
@@ -253,6 +255,7 @@ void App::pre_upload_adjacent() {
     }
     // Upload one page per idle cycle
     ensure_pages_uploaded(page, page);
+    update_statusline();
     return;
   }
 }
