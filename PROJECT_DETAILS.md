@@ -225,6 +225,12 @@ All dependencies available in nixpkgs:
 | `n`/`N` | Next/previous search result |
 | `v` | Enter visual/selection mode |
 | `y` | Yank selected text |
+| `:` | Enter command mode |
+| `:q` | Quit |
+| `:goto N` / `:N` | Go to page N |
+| `:set theme dark/light` | Change theme |
+| `:set mode continuous/page-width/page-height/side-by-side` | Change view mode |
+| `:set oversample auto/never/1/2/4` | Change oversample |
 | `q` | Quit |
 | `t` | Open table of contents picker |
 

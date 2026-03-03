@@ -630,6 +630,7 @@ static const HelpEntry SPECIAL_HELP[] = {
     {"gg", "First Page"},
     {"G", "Last Page"},
     {"[n]gg / [n]G", "Go to Page n"},
+    {":", "Command Mode"},
     {"?", "Toggle Help"},
 };
 
@@ -679,6 +680,40 @@ void App::run() {
       frontend_->clear_overlay();
       update_viewport();
       update_statusline();
+      continue;
+    }
+
+    // Enter command mode on ':'
+    if (input_mode_ == InputMode::NORMAL && event->id == ':') {
+      input_mode_ = InputMode::COMMAND;
+      command_input_.clear();
+      update_statusline();
+      continue;
+    }
+
+    // Command mode text input
+    if (input_mode_ == InputMode::COMMAND) {
+      if (event->id == 27) { // Escape
+        input_mode_ = InputMode::NORMAL;
+        command_input_.clear();
+        update_statusline();
+      }
+      else if (event->id == '\n' || event->id == '\r') {
+        execute_command();
+        input_mode_ = InputMode::NORMAL;
+        command_input_.clear();
+        update_statusline();
+      }
+      else if (event->id == 127 || event->id == 8 || event->id == input::BACKSPACE) {
+        if (!command_input_.empty()) {
+          command_input_.pop_back();
+        }
+        update_statusline();
+      }
+      else if (event->id >= 32 && event->id < 127) { // Printable ASCII
+        command_input_ += static_cast<char>(event->id);
+        update_statusline();
+      }
       continue;
     }
 
@@ -906,6 +941,144 @@ void App::handle_command(Command cmd) {
       handle_zoom_change(old);
       break;
     }
+  }
+}
+
+void App::execute_command() {
+  std::string cmd = command_input_;
+
+  // Trim leading/trailing whitespace
+  auto start = cmd.find_first_not_of(' ');
+  if (start == std::string::npos) {
+    return;
+  }
+  cmd = cmd.substr(start);
+  auto end = cmd.find_last_not_of(' ');
+  cmd = cmd.substr(0, end + 1);
+
+  // Bare number → goto page
+  try {
+    size_t pos = 0;
+    int page = std::stoi(cmd, &pos);
+    if (pos == cmd.size()) {
+      jump_to_page(page - 1);
+      return;
+    }
+  }
+  catch (...) {
+  }
+
+  // Split into command name + args
+  auto space = cmd.find(' ');
+  std::string name = (space != std::string::npos) ? cmd.substr(0, space) : cmd;
+  std::string args = (space != std::string::npos) ? cmd.substr(space + 1) : "";
+
+  // Trim args
+  auto args_start = args.find_first_not_of(' ');
+  if (args_start != std::string::npos) {
+    args = args.substr(args_start);
+  }
+
+  if (name == "goto" || name == "g") {
+    try {
+      int page = std::stoi(args);
+      jump_to_page(page - 1);
+    }
+    catch (...) {
+      last_action_ = "Invalid page number";
+      last_action_time_ = std::chrono::steady_clock::now();
+    }
+  }
+  else if (name == "q" || name == "quit") {
+    running_ = false;
+  }
+  else if (name == "set") {
+    auto key_space = args.find(' ');
+    std::string key = (key_space != std::string::npos) ? args.substr(0, key_space) : args;
+    std::string value = (key_space != std::string::npos) ? args.substr(key_space + 1) : "";
+
+    // Trim value
+    auto val_start = value.find_first_not_of(' ');
+    if (val_start != std::string::npos) {
+      value = value.substr(val_start);
+    }
+    auto val_end = value.find_last_not_of(' ');
+    if (val_end != std::string::npos) {
+      value = value.substr(0, val_end + 1);
+    }
+
+    if (key == "theme") {
+      if (value == "dark") {
+        theme_ = Theme::DARK;
+        frontend_->clear();
+        render();
+      }
+      else if (value == "light") {
+        theme_ = Theme::LIGHT;
+        frontend_->clear();
+        render();
+      }
+      else {
+        last_action_ = "Unknown theme: " + value;
+        last_action_time_ = std::chrono::steady_clock::now();
+      }
+    }
+    else if (key == "mode") {
+      ViewMode new_mode = view_mode_;
+      if (value == "continuous") {
+        new_mode = ViewMode::CONTINUOUS;
+      }
+      else if (value == "page-width") {
+        new_mode = ViewMode::PAGE_WIDTH;
+      }
+      else if (value == "page-height") {
+        new_mode = ViewMode::PAGE_HEIGHT;
+      }
+      else if (value == "side-by-side") {
+        new_mode = ViewMode::SIDE_BY_SIDE;
+      }
+      else {
+        last_action_ = "Unknown mode: " + value;
+        last_action_time_ = std::chrono::steady_clock::now();
+        return;
+      }
+      view_mode_ = new_mode;
+      user_zoom_ = 1.0f;
+      scroll_.x = 0;
+      render();
+    }
+    else if (key == "oversample") {
+      if (value == "auto") {
+        oversample_setting_ = Oversample::AUTO;
+      }
+      else if (value == "never") {
+        oversample_setting_ = Oversample::NEVER;
+      }
+      else if (value == "1") {
+        oversample_setting_ = Oversample::X1;
+      }
+      else if (value == "2") {
+        oversample_setting_ = Oversample::X2;
+      }
+      else if (value == "4") {
+        oversample_setting_ = Oversample::X4;
+      }
+      else {
+        last_action_ = "Unknown oversample: " + value;
+        last_action_time_ = std::chrono::steady_clock::now();
+        return;
+      }
+      frontend_->clear();
+      render();
+    }
+    else {
+      last_action_ = "Unknown setting: " + key;
+      last_action_time_ = std::chrono::steady_clock::now();
+    }
+  }
+  else {
+    last_action_ = "Unknown: " + name;
+    last_action_time_ = std::chrono::steady_clock::now();
   }
 }
 

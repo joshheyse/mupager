@@ -78,6 +78,7 @@ private:
   int document_height() const;
   void update_statusline();
   void show_help();
+  void execute_command();
   int effective_oversample() const;
   void handle_zoom_change(float old_zoom);
 

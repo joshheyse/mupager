@@ -61,9 +61,14 @@ std::optional<InputEvent> TerminalFrontend::poll_input(int timeout_ms) {
     return std::nullopt;
   }
 
-  if (rc == KEY_CODE_YES && wch == KEY_RESIZE) {
-    query_winsize();
-    return InputEvent{input::RESIZE, 0, EventType::PRESS};
+  if (rc == KEY_CODE_YES) {
+    if (wch == KEY_RESIZE) {
+      query_winsize();
+      return InputEvent{input::RESIZE, 0, EventType::PRESS};
+    }
+    if (wch == KEY_BACKSPACE) {
+      return InputEvent{input::BACKSPACE, 0, EventType::PRESS};
+    }
   }
 
   auto id = static_cast<uint32_t>(wch);

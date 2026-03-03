@@ -5,6 +5,7 @@
 /// @brief Project-level input constants, decoupled from any terminal library.
 namespace input {
 static constexpr uint32_t RESIZE = 0xFFFF'FF00;
+static constexpr uint32_t BACKSPACE = 0xFFFF'FF01;
 } // namespace input
 
 /// @brief Input event types.
