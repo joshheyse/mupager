@@ -25,6 +25,7 @@ Args::Args(int argc, char* argv[])
       ->check(CLI::IsMember({"continuous", "page", "page-height", "side-by-side"}));
   std::string oversample_str = "auto";
   cli.add_option("--oversample", oversample_str, "Oversample strategy (auto, never, 1, 2, 4)")->check(CLI::IsMember({"auto", "never", "1", "2", "4"}));
+  cli.add_option("--mode", mode, "Frontend mode (terminal, neovim)")->check(CLI::IsMember({"terminal", "neovim"}));
   cli.parse(argc, argv);
 
   if (!log_opt->count()) {

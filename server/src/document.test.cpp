@@ -4,7 +4,7 @@
 
 #include <stdexcept>
 
-static constexpr const char* FIXTURE_PDF = PROJECT_TEST_DIR "/fixtures/test.pdf";
+static constexpr const char* FIXTURE_PDF = PROJECT_FIXTURE_DIR "/test.pdf";
 
 TEST_CASE("Document opens a valid PDF") {
   Document doc(FIXTURE_PDF);

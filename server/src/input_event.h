@@ -14,6 +14,7 @@ static constexpr uint32_t HOME = 0xFFFF'FF06;
 static constexpr uint32_t END = 0xFFFF'FF07;
 static constexpr uint32_t ARROW_LEFT = 0xFFFF'FF08;
 static constexpr uint32_t ARROW_RIGHT = 0xFFFF'FF09;
+static constexpr uint32_t RPC_COMMAND = 0xFFFF'FF0A; ///< Sentinel: an RPC command is queued.
 } // namespace input
 
 /// @brief Input event types.

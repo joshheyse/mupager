@@ -1,6 +1,9 @@
 #include "app.h"
 #include "args.h"
+#include "neovim_frontend.h"
+#include "neovim_loop.h"
 #include "terminal_frontend.h"
+#include "terminal_loop.h"
 
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
@@ -16,12 +19,21 @@ int main(int argc, char* argv[]) {
   spdlog::set_default_logger(logger);
   spdlog::set_level(spdlog::level::from_str(args.log_level));
   spdlog::flush_every(std::chrono::seconds(1));
-  spdlog::info("mupager starting: {}", args.file);
+  spdlog::info("mupager starting: {} (mode: {})", args.file, args.mode);
 
   try {
-    auto frontend = std::make_unique<TerminalFrontend>();
-    App app(std::move(frontend), args);
-    app.run();
+    if (args.mode == "neovim") {
+      auto frontend = std::make_unique<NeovimFrontend>();
+      auto* nvim = frontend.get();
+      App app(std::move(frontend), args);
+      run_neovim(app, *nvim);
+    }
+    else {
+      auto frontend = std::make_unique<TerminalFrontend>();
+      auto* term = frontend.get();
+      App app(std::move(frontend), args);
+      run_terminal(app, *term);
+    }
   }
   catch (const std::exception& e) {
     spdlog::error("{}", e.what());

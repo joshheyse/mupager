@@ -3,6 +3,7 @@
 #include "geometry.h"
 #include "input_event.h"
 #include "pixmap.h"
+#include "rpc_command.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -88,4 +89,10 @@ public:
   /// @brief Whether the frontend supports Kitty image viewporting (source-rect cropping on place).
   /// Tmux unicode placeholders cannot viewport, so this returns false in tmux mode.
   virtual bool supports_image_viewporting() const = 0;
+
+  /// @brief Pop a queued RPC command (Neovim frontend only).
+  /// @return The next command, or nullopt if the queue is empty.
+  virtual std::optional<RpcCommand> pop_command() {
+    return std::nullopt;
+  }
 };

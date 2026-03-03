@@ -6,7 +6,7 @@
 
 #include <stdexcept>
 
-static constexpr const char* FIXTURE_PDF = PROJECT_TEST_DIR "/fixtures/test.pdf";
+static constexpr const char* FIXTURE_PDF = PROJECT_FIXTURE_DIR "/test.pdf";
 
 TEST_CASE("render_page produces valid pixmap") {
   Document doc(FIXTURE_PDF);

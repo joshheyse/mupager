@@ -1,8 +1,8 @@
 #include "app.h"
 
 #include "base64.h"
-#include "input_event.h"
 #include "stopwatch.h"
+#include "terminal_input.h"
 
 #include <spdlog/spdlog.h>
 
@@ -643,429 +643,303 @@ void App::jump_to_page(int page) {
   update_viewport();
 }
 
-static const char* command_label(Command cmd) {
-  switch (cmd) {
-    case Command::QUIT:
-      return "Quit";
-    case Command::RESIZE:
-      return "Resize";
-    case Command::SCROLL_DOWN:
-      return "Scroll Down";
-    case Command::SCROLL_UP:
-      return "Scroll Up";
-    case Command::HALF_PAGE_DOWN:
-      return "Half Page Down";
-    case Command::HALF_PAGE_UP:
-      return "Half Page Up";
-    case Command::GOTO_FIRST_PAGE:
-      return "First Page";
-    case Command::GOTO_LAST_PAGE:
-      return "Last Page";
-    case Command::PAGE_DOWN:
-      return "Page Down";
-    case Command::PAGE_UP:
-      return "Page Up";
-    case Command::SCROLL_LEFT:
-      return "Scroll Left";
-    case Command::SCROLL_RIGHT:
-      return "Scroll Right";
-    case Command::TOGGLE_VIEW_MODE:
-      return "Toggle View";
-    case Command::TOGGLE_THEME:
-      return "Toggle Theme";
-    case Command::ZOOM_IN:
-      return "Zoom In";
-    case Command::ZOOM_OUT:
-      return "Zoom Out";
-    case Command::ZOOM_RESET:
-      return "Fit Width";
-    case Command::JUMP_BACK:
-      return "Jump Back";
-    case Command::JUMP_FORWARD:
-      return "Jump Forward";
-  }
-  return "";
-}
-
-/// @brief A simple key-to-command binding dispatched from the main event loop.
-struct KeyBinding {
-  uint32_t key;      ///< Key ID (character code or control code).
-  Command command;   ///< Command to dispatch.
-  const char* label; ///< Display label for the help overlay.
-};
-
-/// @brief Display-only help entry for bindings with special dispatch logic.
-struct HelpEntry {
-  const char* key_label;   ///< Key combination display string.
-  const char* description; ///< What the binding does.
-};
-
-/// Simple key-to-command bindings (order determines help display order).
-static const KeyBinding KEY_BINDINGS[] = {
-    {'j', Command::SCROLL_DOWN, "j"},     {input::ARROW_DOWN, Command::SCROLL_DOWN, "\xe2\x86\x93"},
-    {'k', Command::SCROLL_UP, "k"},       {input::ARROW_UP, Command::SCROLL_UP, "\xe2\x86\x91"},
-    {'d', Command::HALF_PAGE_DOWN, "d"},  {'u', Command::HALF_PAGE_UP, "u"},
-    {0x06, Command::PAGE_DOWN, "Ctrl+F"}, {0x02, Command::PAGE_UP, "Ctrl+B"},
-    {'h', Command::SCROLL_LEFT, "h"},     {input::ARROW_LEFT, Command::SCROLL_LEFT, "\xe2\x86\x90"},
-    {'l', Command::SCROLL_RIGHT, "l"},    {input::ARROW_RIGHT, Command::SCROLL_RIGHT, "\xe2\x86\x92"},
-    {'+', Command::ZOOM_IN, "+"},         {'=', Command::ZOOM_IN, "="},
-    {'-', Command::ZOOM_OUT, "-"},        {'0', Command::ZOOM_RESET, "0"},
-    {'w', Command::ZOOM_RESET, "w"},      {0x09, Command::TOGGLE_VIEW_MODE, "Tab"},
-    {'t', Command::TOGGLE_THEME, "t"},    {'q', Command::QUIT, "q"},
-};
-
-/// Bindings with special dispatch logic (multi-key sequences, modes).
-static const HelpEntry SPECIAL_HELP[] = {
-    {"gg", "First Page"},
-    {"G", "Last Page"},
-    {"[n]gg / [n]G", "Go to Page n"},
-    {"H", "Jump Back"},
-    {"L", "Jump Forward"},
-    {"f", "Link Hints"},
-    {":", "Command Mode"},
-    {":reload", "Reload Document"},
-    {"/", "Search"},
-    {"n", "Next Match"},
-    {"N", "Previous Match"},
-    {"o", "Table of Contents"},
-    {"e", "Toggle Sidebar TOC"},
-    {"?", "Toggle Help"},
-};
-
-void App::run() {
+void App::initialize() {
   frontend_->clear();
   render();
   last_activity_time_ = std::chrono::steady_clock::now();
+}
 
-  while (running_) {
-    auto event = frontend_->poll_input(100);
-    if (!event) {
-      auto client = frontend_->client_info();
-      if (client.pixel != layout_size_) {
-        spdlog::info("idle resize: pixel {} -> {}", layout_size_, client.pixel);
-        frontend_->clear();
-        render();
-        last_activity_time_ = std::chrono::steady_clock::now();
-      }
-      else {
-        // Defer pre-uploads until the user has been idle long enough.
-        // Each upload blocks input for hundreds of ms, so avoid starting
-        // one right after a render or keypress.
-        auto idle = std::chrono::steady_clock::now() - last_activity_time_;
-        if (idle >= std::chrono::milliseconds(300)) {
-          pre_upload_adjacent();
-        }
-        if (last_action_.expired()) {
-          last_action_.clear();
-          update_statusline();
-        }
-      }
-      continue;
+void App::idle_tick() {
+  auto client = frontend_->client_info();
+  if (client.pixel != layout_size_) {
+    spdlog::info("idle resize: pixel {} -> {}", layout_size_, client.pixel);
+    handle_command(cmd::Resize{});
+  }
+  else {
+    auto idle = std::chrono::steady_clock::now() - last_activity_time_;
+    if (idle >= std::chrono::milliseconds(300)) {
+      pre_upload_adjacent();
     }
-
-    last_activity_time_ = std::chrono::steady_clock::now();
-
-    spdlog::debug("input: id={} (0x{:x}) modifiers={} type={}", event->id, event->id, event->modifiers, static_cast<int>(event->type));
-    bool is_press = event->type == EventType::PRESS || event->type == EventType::UNKNOWN;
-
-    if (!is_press) {
-      continue;
-    }
-
-    // Dismiss help overlay on any key
-    if (input_mode_ == InputMode::HELP) {
-      input_mode_ = InputMode::NORMAL;
-      frontend_->clear_overlay();
-      update_viewport();
+    if (last_action_.expired()) {
+      last_action_.clear();
       update_statusline();
-      continue;
     }
+  }
+}
 
-    // Outline mode input
-    if (input_mode_ == InputMode::OUTLINE) {
-      if (event->id == 27 || event->id == 'q') { // Escape or q
-        input_mode_ = InputMode::NORMAL;
-        frontend_->clear_overlay();
-        update_viewport();
-        update_statusline();
-      }
-      else if (event->id == 0x0E || event->id == input::ARROW_DOWN) { // Ctrl+N or Down
-        outline_navigate(1);
-      }
-      else if (event->id == 0x10 || event->id == input::ARROW_UP) { // Ctrl+P or Up
-        outline_navigate(-1);
-      }
-      else if (event->id == input::PAGE_DOWN) {
-        int page_size = std::max(1, frontend_->client_info().rows * 3 / 4 - 4);
-        outline_navigate(page_size);
-      }
-      else if (event->id == input::PAGE_UP) {
-        int page_size = std::max(1, frontend_->client_info().rows * 3 / 4 - 4);
-        outline_navigate(-page_size);
-      }
-      else if (event->id == input::HOME) {
-        outline_navigate(-static_cast<int>(filtered_indices_.size()));
-      }
-      else if (event->id == input::END) {
-        outline_navigate(static_cast<int>(filtered_indices_.size()));
-      }
-      else if (event->id == '\n' || event->id == '\r') {
-        outline_jump();
-      }
-      else if (event->id == 127 || event->id == 8 || event->id == input::BACKSPACE) {
-        if (!outline_filter_.empty()) {
-          outline_filter_.pop_back();
-          outline_apply_filter();
-          show_outline();
+const Outline& App::outline() {
+  if (outline_.empty()) {
+    outline_ = doc_.load_outline();
+  }
+  return outline_;
+}
+
+std::vector<PageLink> App::visible_links() const {
+  std::vector<PageLink> all_links;
+  for (int p = viewport_first_page_; p <= viewport_last_page_; ++p) {
+    auto page_links = doc_.load_links(p);
+    all_links.insert(all_links.end(), page_links.begin(), page_links.end());
+  }
+  return all_links;
+}
+
+void App::handle_command(const RpcCommand& cmd) {
+  last_activity_time_ = std::chrono::steady_clock::now();
+
+  std::visit(
+      [&](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+
+        if constexpr (std::is_same_v<T, cmd::Quit>) {
+          spdlog::info("quit");
+          running_ = false;
         }
-      }
-      else if (event->id >= 32 && event->id < 127) {
-        outline_filter_ += static_cast<char>(event->id);
-        outline_apply_filter();
-        show_outline();
-      }
-      continue;
-    }
-
-    // Sidebar mode input
-    if (input_mode_ == InputMode::SIDEBAR) {
-      if (event->id == 27) { // Escape → unfocus, sidebar stays
-        input_mode_ = InputMode::NORMAL;
-        sidebar_filter_.clear();
-        sidebar_apply_filter();
-        update_sidebar();
-        update_statusline();
-      }
-      else if (event->id == 'q' || event->id == 'e') { // q or e → close sidebar
-        input_mode_ = InputMode::NORMAL;
-        sidebar_visible_ = false;
-        sidebar_filter_.clear();
-        frontend_->clear();
-        render();
-      }
-      else if (event->id == 0x0E || event->id == input::ARROW_DOWN) {
-        sidebar_navigate(1);
-      }
-      else if (event->id == 0x10 || event->id == input::ARROW_UP) {
-        sidebar_navigate(-1);
-      }
-      else if (event->id == input::PAGE_DOWN) {
-        int page_size = std::max(1, frontend_->client_info().rows - 3);
-        sidebar_navigate(page_size);
-      }
-      else if (event->id == input::PAGE_UP) {
-        int page_size = std::max(1, frontend_->client_info().rows - 3);
-        sidebar_navigate(-page_size);
-      }
-      else if (event->id == input::HOME) {
-        sidebar_navigate(-static_cast<int>(sidebar_filtered_.size()));
-      }
-      else if (event->id == input::END) {
-        sidebar_navigate(static_cast<int>(sidebar_filtered_.size()));
-      }
-      else if (event->id == '\n' || event->id == '\r') {
-        sidebar_jump();
-      }
-      else if (event->id == 127 || event->id == 8 || event->id == input::BACKSPACE) {
-        if (!sidebar_filter_.empty()) {
-          sidebar_filter_.pop_back();
-          sidebar_apply_filter();
-          update_sidebar();
-          update_statusline();
-        }
-      }
-      else if (event->id >= 32 && event->id < 127) {
-        sidebar_filter_ += static_cast<char>(event->id);
-        sidebar_apply_filter();
-        update_sidebar();
-        update_statusline();
-      }
-      continue;
-    }
-
-    // Link hints mode input
-    if (input_mode_ == InputMode::LINK_HINTS) {
-      if (event->id == 27) { // Escape
-        exit_link_hints();
-      }
-      else if (event->id >= 'a' && event->id <= 'z') {
-        link_hint_input_ += static_cast<char>(event->id);
-
-        // Find matching hints
-        std::vector<ActiveLinkHint> matches;
-        for (const auto& hint : link_hints_) {
-          if (hint.label.substr(0, link_hint_input_.size()) == link_hint_input_) {
-            matches.push_back(hint);
-          }
-        }
-
-        if (matches.size() == 1) {
-          follow_link(matches[0].link);
-        }
-        else if (matches.empty()) {
-          exit_link_hints();
-        }
-        else {
-          render_link_hints();
-        }
-      }
-      continue;
-    }
-
-    // Enter command mode on ':'
-    if (input_mode_ == InputMode::NORMAL && event->id == ':') {
-      input_mode_ = InputMode::COMMAND;
-      command_input_.clear();
-      update_statusline();
-      continue;
-    }
-
-    // Enter search mode on '/'
-    if (input_mode_ == InputMode::NORMAL && event->id == '/') {
-      input_mode_ = InputMode::SEARCH;
-      search_term_.clear();
-      update_statusline();
-      continue;
-    }
-
-    // Search mode text input
-    if (input_mode_ == InputMode::SEARCH) {
-      if (event->id == 27) { // Escape
-        input_mode_ = InputMode::NORMAL;
-        search_term_.clear();
-        update_statusline();
-      }
-      else if (event->id == '\n' || event->id == '\r') {
-        execute_search();
-        input_mode_ = InputMode::NORMAL;
-        update_statusline();
-      }
-      else if (event->id == 127 || event->id == 8 || event->id == input::BACKSPACE) {
-        if (!search_term_.empty()) {
-          search_term_.pop_back();
-        }
-        update_statusline();
-      }
-      else if (event->id >= 32 && event->id < 127) {
-        search_term_ += static_cast<char>(event->id);
-        update_statusline();
-      }
-      continue;
-    }
-
-    // Command mode text input
-    if (input_mode_ == InputMode::COMMAND) {
-      if (event->id == 27) { // Escape
-        input_mode_ = InputMode::NORMAL;
-        command_input_.clear();
-        update_statusline();
-      }
-      else if (event->id == '\n' || event->id == '\r') {
-        execute_command();
-        input_mode_ = InputMode::NORMAL;
-        command_input_.clear();
-        update_statusline();
-      }
-      else if (event->id == 127 || event->id == 8 || event->id == input::BACKSPACE) {
-        if (!command_input_.empty()) {
-          command_input_.pop_back();
-        }
-        update_statusline();
-      }
-      else if (event->id >= 32 && event->id < 127) { // Printable ASCII
-        command_input_ += static_cast<char>(event->id);
-        update_statusline();
-      }
-      continue;
-    }
-
-    // Digits accumulate a count prefix (like vim)
-    if (event->id >= '1' && event->id <= '9') {
-      pending_count_ = pending_count_ * 10 + static_cast<int>(event->id - '0');
-      pending_g_ = false;
-      continue;
-    }
-    if (event->id == '0' && pending_count_ > 0) {
-      pending_count_ = pending_count_ * 10;
-      pending_g_ = false;
-      continue;
-    }
-
-    // Handle gg / {count}gg
-    if (event->id == 'g' && event->modifiers == 0) {
-      if (pending_g_) {
-        pending_g_ = false;
-        if (pending_count_ > 0) {
-          jump_to_page(pending_count_ - 1);
-          pending_count_ = 0;
-        }
-        else {
-          handle_command(Command::GOTO_FIRST_PAGE);
-        }
-      }
-      else {
-        pending_g_ = true;
-      }
-      continue;
-    }
-
-    // Handle G / {count}G
-    if (event->id == 'G' && event->modifiers == 0) {
-      if (pending_count_ > 0) {
-        jump_to_page(pending_count_ - 1);
-        pending_count_ = 0;
-      }
-      else {
-        handle_command(Command::GOTO_LAST_PAGE);
-      }
-      pending_g_ = false;
-      continue;
-    }
-
-    // Any other key resets pending state
-    pending_g_ = false;
-    pending_count_ = 0;
-
-    // Dispatch simple key bindings from the table
-    bool handled = false;
-    for (const auto& kb : KEY_BINDINGS) {
-      if (event->id == kb.key) {
-        handle_command(kb.command);
-        handled = true;
-        break;
-      }
-    }
-
-    if (!handled) {
-      if (event->id == '?') {
-        input_mode_ = InputMode::HELP;
-        show_help();
-      }
-      else if (event->id == 'o') {
-        if (outline_.empty()) {
-          outline_ = doc_.load_outline();
-        }
-        if (outline_.empty()) {
-          last_action_.set("No outline");
-        }
-        else {
-          input_mode_ = InputMode::OUTLINE;
-          outline_cursor_ = 0;
-          outline_scroll_ = 0;
-          outline_filter_.clear();
-          outline_apply_filter();
-          show_outline();
-        }
-      }
-      else if (event->id == 'e') {
-        if (sidebar_visible_) {
-          // Toggle off
-          sidebar_visible_ = false;
-          sidebar_filter_.clear();
+        else if constexpr (std::is_same_v<T, cmd::Resize>) {
+          auto client = frontend_->client_info();
+          spdlog::info("resize: {} px, {} cell", client.pixel, client.cell);
           frontend_->clear();
           render();
         }
-        else {
+        else if constexpr (std::is_same_v<T, cmd::ScrollDown>) {
+          auto client = frontend_->client_info();
+          int count = std::max(1, arg.count);
+          scroll(0, client.cell.height * count);
+        }
+        else if constexpr (std::is_same_v<T, cmd::ScrollUp>) {
+          auto client = frontend_->client_info();
+          int count = std::max(1, arg.count);
+          scroll(0, -client.cell.height * count);
+        }
+        else if constexpr (std::is_same_v<T, cmd::HalfPageDown>) {
+          auto client = frontend_->client_info();
+          scroll(0, client.viewport_pixel().height / 2);
+        }
+        else if constexpr (std::is_same_v<T, cmd::HalfPageUp>) {
+          auto client = frontend_->client_info();
+          scroll(0, -client.viewport_pixel().height / 2);
+        }
+        else if constexpr (std::is_same_v<T, cmd::PageDown>) {
+          if (!layout_.empty()) {
+            int p = current_page();
+            if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
+              jump_to_page(p + 2);
+            }
+            else if (view_mode_ != ViewMode::CONTINUOUS) {
+              jump_to_page(p + 1);
+            }
+            else {
+              scroll(0, layout_[p].rect.height);
+            }
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::PageUp>) {
+          if (!layout_.empty()) {
+            int p = current_page();
+            if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
+              jump_to_page(p - 2);
+            }
+            else if (view_mode_ != ViewMode::CONTINUOUS) {
+              jump_to_page(p - 1);
+            }
+            else {
+              scroll(0, -layout_[p].rect.height);
+            }
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::ScrollLeft>) {
+          auto client = frontend_->client_info();
+          int count = std::max(1, arg.count);
+          scroll(-client.cell.width * count, 0);
+        }
+        else if constexpr (std::is_same_v<T, cmd::ScrollRight>) {
+          auto client = frontend_->client_info();
+          int count = std::max(1, arg.count);
+          scroll(client.cell.width * count, 0);
+        }
+        else if constexpr (std::is_same_v<T, cmd::GotoPage>) {
+          jump_to_page(arg.page - 1);
+        }
+        else if constexpr (std::is_same_v<T, cmd::GotoFirstPage>) {
+          spdlog::info("goto first page");
+          jump_to_page(0);
+        }
+        else if constexpr (std::is_same_v<T, cmd::GotoLastPage>) {
+          spdlog::info("goto last page (bottom)");
+          if (!layout_.empty()) {
+            auto client = frontend_->client_info();
+            int vh = client.viewport_pixel().height;
+            int total_height = document_height();
+            push_jump_history();
+            scroll_.y = std::max(0, total_height - vh);
+            update_viewport();
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::ZoomIn>) {
+          static constexpr float LEVELS[] = {1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
+          float old = user_zoom_;
+          for (float lvl : LEVELS) {
+            if (lvl > user_zoom_ + 0.01f) {
+              user_zoom_ = lvl;
+              break;
+            }
+          }
+          spdlog::info("zoom in: {:.0f}%", user_zoom_ * 100.0f);
+          handle_zoom_change(old);
+        }
+        else if constexpr (std::is_same_v<T, cmd::ZoomOut>) {
+          static constexpr float LEVELS[] = {1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
+          float old = user_zoom_;
+          float best = 1.0f;
+          for (float lvl : LEVELS) {
+            if (lvl < user_zoom_ - 0.01f) {
+              best = lvl;
+            }
+          }
+          user_zoom_ = best;
+          spdlog::info("zoom out: {:.0f}%", user_zoom_ * 100.0f);
+          handle_zoom_change(old);
+        }
+        else if constexpr (std::is_same_v<T, cmd::ZoomReset>) {
+          float old = user_zoom_;
+          user_zoom_ = 1.0f;
+          scroll_.x = 0;
+          spdlog::info("zoom reset: 100%");
+          handle_zoom_change(old);
+        }
+        else if constexpr (std::is_same_v<T, cmd::ToggleViewMode>) {
+          switch (view_mode_) {
+            case ViewMode::CONTINUOUS:
+              view_mode_ = ViewMode::PAGE_WIDTH;
+              break;
+            case ViewMode::PAGE_WIDTH:
+              view_mode_ = ViewMode::PAGE_HEIGHT;
+              break;
+            case ViewMode::PAGE_HEIGHT:
+              view_mode_ = ViewMode::SIDE_BY_SIDE;
+              break;
+            case ViewMode::SIDE_BY_SIDE:
+              view_mode_ = ViewMode::CONTINUOUS;
+              break;
+          }
+          user_zoom_ = 1.0f;
+          scroll_.x = 0;
+          render();
+        }
+        else if constexpr (std::is_same_v<T, cmd::SetViewMode>) {
+          command_input_ = "set mode " + arg.mode;
+          execute_command();
+          command_input_.clear();
+        }
+        else if constexpr (std::is_same_v<T, cmd::ToggleTheme>) {
+          theme_ = (theme_ == Theme::DARK) ? Theme::LIGHT : Theme::DARK;
+          frontend_->clear();
+          render();
+        }
+        else if constexpr (std::is_same_v<T, cmd::SetTheme>) {
+          command_input_ = "set theme " + arg.theme;
+          execute_command();
+          command_input_.clear();
+        }
+        else if constexpr (std::is_same_v<T, cmd::SetOversample>) {
+          command_input_ = "set oversample " + arg.strategy;
+          execute_command();
+          command_input_.clear();
+        }
+        else if constexpr (std::is_same_v<T, cmd::Reload>) {
+          command_input_ = "reload";
+          execute_command();
+          command_input_.clear();
+        }
+        else if constexpr (std::is_same_v<T, cmd::JumpBack>) {
+          if (!jump_history_.empty()) {
+            if (jump_index_ < 0) {
+              jump_history_.push_back({scroll_.x, scroll_.y});
+              jump_index_ = static_cast<int>(jump_history_.size()) - 2;
+            }
+            else if (jump_index_ > 0) {
+              --jump_index_;
+            }
+            else {
+              return;
+            }
+            scroll_.x = jump_history_[jump_index_].scroll_x;
+            scroll_.y = jump_history_[jump_index_].scroll_y;
+            update_viewport();
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::JumpForward>) {
+          if (jump_index_ >= 0) {
+            ++jump_index_;
+            if (jump_index_ >= static_cast<int>(jump_history_.size()) - 1) {
+              scroll_.x = jump_history_.back().scroll_x;
+              scroll_.y = jump_history_.back().scroll_y;
+              jump_history_.pop_back();
+              jump_index_ = -1;
+            }
+            else {
+              scroll_.x = jump_history_[jump_index_].scroll_x;
+              scroll_.y = jump_history_[jump_index_].scroll_y;
+            }
+            update_viewport();
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::Search>) {
+          search_term_ = arg.term;
+          execute_search();
+        }
+        else if constexpr (std::is_same_v<T, cmd::SearchNext>) {
+          if (!search_results_.empty()) {
+            search_navigate(1);
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::SearchPrev>) {
+          if (!search_results_.empty()) {
+            search_navigate(-1);
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::ClearSearch>) {
+          clear_search();
+        }
+        else if constexpr (std::is_same_v<T, cmd::EnterLinkHints>) {
+          enter_link_hints();
+        }
+        else if constexpr (std::is_same_v<T, cmd::LinkHintKey>) {
+          if (input_mode_ == InputMode::LINK_HINTS) {
+            link_hint_input_ += arg.ch;
+            std::vector<ActiveLinkHint> matches;
+            for (const auto& hint : link_hints_) {
+              if (hint.label.substr(0, link_hint_input_.size()) == link_hint_input_) {
+                matches.push_back(hint);
+              }
+            }
+            if (matches.size() == 1) {
+              follow_link(matches[0].link);
+            }
+            else if (matches.empty()) {
+              exit_link_hints();
+            }
+            else {
+              render_link_hints();
+            }
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::LinkHintCancel>) {
+          if (input_mode_ == InputMode::LINK_HINTS) {
+            exit_link_hints();
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::GetOutline>) {
+          if (outline_.empty()) {
+            outline_ = doc_.load_outline();
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::GetLinks>) {
+          // Data is fetched by the caller via visible_links()
+        }
+        else if constexpr (std::is_same_v<T, cmd::GetState>) {
+          // Data is fetched by the caller via view_state()
+        }
+        else if constexpr (std::is_same_v<T, cmd::OpenOutline>) {
           if (outline_.empty()) {
             outline_ = doc_.load_outline();
           }
@@ -1073,245 +947,170 @@ void App::run() {
             last_action_.set("No outline");
           }
           else {
-            // Show sidebar + focus it
-            sidebar_visible_ = true;
-            sidebar_scroll_ = 0;
-            input_mode_ = InputMode::SIDEBAR;
+            input_mode_ = InputMode::OUTLINE;
+            outline_cursor_ = 0;
+            outline_scroll_ = 0;
+            outline_filter_.clear();
+            outline_apply_filter();
+            show_outline_popup();
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::OutlineNavigate>) {
+          outline_navigate(arg.delta);
+        }
+        else if constexpr (std::is_same_v<T, cmd::OutlineFilterChar>) {
+          outline_filter_ += arg.ch;
+          outline_apply_filter();
+          show_outline_popup();
+        }
+        else if constexpr (std::is_same_v<T, cmd::OutlineFilterBackspace>) {
+          if (!outline_filter_.empty()) {
+            outline_filter_.pop_back();
+            outline_apply_filter();
+            show_outline_popup();
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::OutlineJump>) {
+          outline_jump();
+        }
+        else if constexpr (std::is_same_v<T, cmd::CloseOutline>) {
+          input_mode_ = InputMode::NORMAL;
+          frontend_->clear_overlay();
+          update_viewport();
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::ToggleSidebar>) {
+          if (sidebar_visible_) {
+            sidebar_visible_ = false;
             sidebar_filter_.clear();
-            sidebar_apply_filter();
-            int active = active_outline_index();
-            if (active >= 0) {
-              for (int fi = 0; fi < static_cast<int>(sidebar_filtered_.size()); ++fi) {
-                if (sidebar_filtered_[fi] == active) {
-                  sidebar_cursor_ = fi;
-                  break;
-                }
-              }
-            }
             frontend_->clear();
             render();
           }
+          else {
+            if (outline_.empty()) {
+              outline_ = doc_.load_outline();
+            }
+            if (outline_.empty()) {
+              last_action_.set("No outline");
+            }
+            else {
+              sidebar_visible_ = true;
+              sidebar_scroll_ = 0;
+              input_mode_ = InputMode::SIDEBAR;
+              sidebar_filter_.clear();
+              sidebar_apply_filter();
+              int active = active_outline_index();
+              if (active >= 0) {
+                for (int fi = 0; fi < static_cast<int>(sidebar_filtered_.size()); ++fi) {
+                  if (sidebar_filtered_[fi] == active) {
+                    sidebar_cursor_ = fi;
+                    break;
+                  }
+                }
+              }
+              frontend_->clear();
+              render();
+            }
+          }
         }
-      }
-      else if (event->id == 'H') {
-        handle_command(Command::JUMP_BACK);
-      }
-      else if (event->id == 'L') {
-        handle_command(Command::JUMP_FORWARD);
-      }
-      else if (event->id == 'f') {
-        enter_link_hints();
-      }
-      else if (event->id == 'n' && !search_results_.empty()) {
-        search_navigate(1);
-      }
-      else if (event->id == 'N' && !search_results_.empty()) {
-        search_navigate(-1);
-      }
-      else if (event->id == 27 && !search_results_.empty()) { // Escape clears search
-        clear_search();
-      }
-      else if (event->id == input::RESIZE) {
-        handle_command(Command::RESIZE);
-      }
-    }
-  }
-}
-
-void App::handle_command(Command cmd) {
-  last_action_.set(command_label(cmd));
-
-  switch (cmd) {
-    case Command::QUIT:
-      spdlog::info("quit");
-      running_ = false;
-      break;
-    case Command::RESIZE: {
-      auto client = frontend_->client_info();
-      spdlog::info("resize: {} px, {} cell", client.pixel, client.cell);
-      frontend_->clear();
-      render();
-      break;
-    }
-    case Command::SCROLL_DOWN: {
-      auto client = frontend_->client_info();
-      scroll(0, client.cell.height);
-      break;
-    }
-    case Command::SCROLL_UP: {
-      auto client = frontend_->client_info();
-      scroll(0, -client.cell.height);
-      break;
-    }
-    case Command::HALF_PAGE_DOWN: {
-      auto client = frontend_->client_info();
-      scroll(0, client.viewport_pixel().height / 2);
-      break;
-    }
-    case Command::HALF_PAGE_UP: {
-      auto client = frontend_->client_info();
-      scroll(0, -client.viewport_pixel().height / 2);
-      break;
-    }
-    case Command::GOTO_FIRST_PAGE: {
-      spdlog::info("goto first page");
-      jump_to_page(0);
-      break;
-    }
-    case Command::GOTO_LAST_PAGE: {
-      spdlog::info("goto last page (bottom)");
-      if (!layout_.empty()) {
-        auto client = frontend_->client_info();
-        int vh = client.viewport_pixel().height;
-        int total_height = document_height();
-        scroll_.y = std::max(0, total_height - vh);
-        update_viewport();
-      }
-      break;
-    }
-    case Command::PAGE_DOWN: {
-      if (layout_.empty()) {
-        break;
-      }
-      int p = current_page();
-      if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
-        jump_to_page(p + 2);
-      }
-      else if (view_mode_ != ViewMode::CONTINUOUS) {
-        jump_to_page(p + 1);
-      }
-      else {
-        scroll(0, layout_[p].rect.height);
-      }
-      break;
-    }
-    case Command::PAGE_UP: {
-      if (layout_.empty()) {
-        break;
-      }
-      int p = current_page();
-      if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
-        jump_to_page(p - 2);
-      }
-      else if (view_mode_ != ViewMode::CONTINUOUS) {
-        jump_to_page(p - 1);
-      }
-      else {
-        scroll(0, -layout_[p].rect.height);
-      }
-      break;
-    }
-    case Command::SCROLL_LEFT: {
-      auto client = frontend_->client_info();
-      scroll(-client.cell.width, 0);
-      break;
-    }
-    case Command::SCROLL_RIGHT: {
-      auto client = frontend_->client_info();
-      scroll(client.cell.width, 0);
-      break;
-    }
-    case Command::TOGGLE_VIEW_MODE: {
-      switch (view_mode_) {
-        case ViewMode::CONTINUOUS:
-          view_mode_ = ViewMode::PAGE_WIDTH;
-          break;
-        case ViewMode::PAGE_WIDTH:
-          view_mode_ = ViewMode::PAGE_HEIGHT;
-          break;
-        case ViewMode::PAGE_HEIGHT:
-          view_mode_ = ViewMode::SIDE_BY_SIDE;
-          break;
-        case ViewMode::SIDE_BY_SIDE:
-          view_mode_ = ViewMode::CONTINUOUS;
-          break;
-      }
-      user_zoom_ = 1.0f;
-      scroll_.x = 0;
-      render();
-      break;
-    }
-    case Command::TOGGLE_THEME: {
-      theme_ = (theme_ == Theme::DARK) ? Theme::LIGHT : Theme::DARK;
-      frontend_->clear();
-      render();
-      break;
-    }
-    case Command::ZOOM_IN: {
-      static constexpr float LEVELS[] = {1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
-      float old = user_zoom_;
-      for (float lvl : LEVELS) {
-        if (lvl > user_zoom_ + 0.01f) {
-          user_zoom_ = lvl;
-          break;
+        else if constexpr (std::is_same_v<T, cmd::SidebarUnfocus>) {
+          input_mode_ = InputMode::NORMAL;
+          sidebar_filter_.clear();
+          sidebar_apply_filter();
+          update_sidebar();
+          update_statusline();
         }
-      }
-      spdlog::info("zoom in: {:.0f}%", user_zoom_ * 100.0f);
-      handle_zoom_change(old);
-      break;
-    }
-    case Command::ZOOM_OUT: {
-      static constexpr float LEVELS[] = {1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
-      float old = user_zoom_;
-      float best = 1.0f;
-      for (float lvl : LEVELS) {
-        if (lvl < user_zoom_ - 0.01f) {
-          best = lvl;
+        else if constexpr (std::is_same_v<T, cmd::SidebarClose>) {
+          input_mode_ = InputMode::NORMAL;
+          sidebar_visible_ = false;
+          sidebar_filter_.clear();
+          frontend_->clear();
+          render();
         }
-      }
-      user_zoom_ = best;
-      spdlog::info("zoom out: {:.0f}%", user_zoom_ * 100.0f);
-      handle_zoom_change(old);
-      break;
-    }
-    case Command::ZOOM_RESET: {
-      float old = user_zoom_;
-      user_zoom_ = 1.0f;
-      scroll_.x = 0;
-      spdlog::info("zoom reset: 100%");
-      handle_zoom_change(old);
-      break;
-    }
-    case Command::JUMP_BACK: {
-      if (jump_history_.empty()) {
-        break;
-      }
-      if (jump_index_ < 0) {
-        // At head: save current position, then go to previous
-        jump_history_.push_back({scroll_.x, scroll_.y});
-        jump_index_ = static_cast<int>(jump_history_.size()) - 2;
-      }
-      else if (jump_index_ > 0) {
-        --jump_index_;
-      }
-      else {
-        break;
-      }
-      scroll_.x = jump_history_[jump_index_].scroll_x;
-      scroll_.y = jump_history_[jump_index_].scroll_y;
-      update_viewport();
-      break;
-    }
-    case Command::JUMP_FORWARD: {
-      if (jump_index_ < 0) {
-        break;
-      }
-      ++jump_index_;
-      if (jump_index_ >= static_cast<int>(jump_history_.size()) - 1) {
-        // Reached the saved "current" entry — pop it and reset
-        scroll_.x = jump_history_.back().scroll_x;
-        scroll_.y = jump_history_.back().scroll_y;
-        jump_history_.pop_back();
-        jump_index_ = -1;
-      }
-      else {
-        scroll_.x = jump_history_[jump_index_].scroll_x;
-        scroll_.y = jump_history_[jump_index_].scroll_y;
-      }
-      update_viewport();
-      break;
-    }
-  }
+        else if constexpr (std::is_same_v<T, cmd::SidebarNavigate>) {
+          sidebar_navigate(arg.delta);
+        }
+        else if constexpr (std::is_same_v<T, cmd::SidebarFilterChar>) {
+          sidebar_filter_ += arg.ch;
+          sidebar_apply_filter();
+          update_sidebar();
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::SidebarFilterBackspace>) {
+          if (!sidebar_filter_.empty()) {
+            sidebar_filter_.pop_back();
+            sidebar_apply_filter();
+            update_sidebar();
+            update_statusline();
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::SidebarJump>) {
+          sidebar_jump();
+        }
+        else if constexpr (std::is_same_v<T, cmd::EnterCommandMode>) {
+          input_mode_ = InputMode::COMMAND;
+          command_input_.clear();
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::CommandChar>) {
+          command_input_ += arg.ch;
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::CommandBackspace>) {
+          if (!command_input_.empty()) {
+            command_input_.pop_back();
+          }
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::CommandExecute>) {
+          execute_command();
+          input_mode_ = InputMode::NORMAL;
+          command_input_.clear();
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::CommandCancel>) {
+          input_mode_ = InputMode::NORMAL;
+          command_input_.clear();
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::EnterSearchMode>) {
+          input_mode_ = InputMode::SEARCH;
+          search_term_.clear();
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::SearchChar>) {
+          search_term_ += arg.ch;
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::SearchBackspace>) {
+          if (!search_term_.empty()) {
+            search_term_.pop_back();
+          }
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::SearchExecute>) {
+          execute_search();
+          input_mode_ = InputMode::NORMAL;
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::SearchCancel>) {
+          input_mode_ = InputMode::NORMAL;
+          search_term_.clear();
+          update_statusline();
+        }
+        else if constexpr (std::is_same_v<T, cmd::ShowHelp>) {
+          input_mode_ = InputMode::HELP;
+          show_help();
+        }
+        else if constexpr (std::is_same_v<T, cmd::DismissOverlay>) {
+          input_mode_ = InputMode::NORMAL;
+          frontend_->clear_overlay();
+          update_viewport();
+          update_statusline();
+        }
+      },
+      cmd
+  );
 }
 
 void App::execute_command() {
@@ -1499,13 +1298,11 @@ void App::execute_command() {
 }
 
 void App::show_help() {
-  // Find the widest key label for alignment
+  const auto& bindings = get_help_bindings();
+
   int max_key_len = 0;
-  for (const auto& kb : KEY_BINDINGS) {
-    max_key_len = std::max(max_key_len, static_cast<int>(std::strlen(kb.label)));
-  }
-  for (const auto& he : SPECIAL_HELP) {
-    max_key_len = std::max(max_key_len, static_cast<int>(std::strlen(he.key_label)));
+  for (const auto& hb : bindings) {
+    max_key_len = std::max(max_key_len, static_cast<int>(std::strlen(hb.key_label)));
   }
 
   auto format_line = [&](const char* key, const char* desc) {
@@ -1519,11 +1316,8 @@ void App::show_help() {
   lines.emplace_back("Key Bindings");
   lines.emplace_back("");
 
-  for (const auto& kb : KEY_BINDINGS) {
-    lines.push_back(format_line(kb.label, command_label(kb.command)));
-  }
-  for (const auto& he : SPECIAL_HELP) {
-    lines.push_back(format_line(he.key_label, he.description));
+  for (const auto& hb : bindings) {
+    lines.push_back(format_line(hb.key_label, hb.description));
   }
 
   frontend_->show_overlay(lines);
@@ -1565,7 +1359,7 @@ void App::outline_navigate(int delta) {
     return;
   }
   outline_cursor_ = std::clamp(outline_cursor_ + delta, 0, static_cast<int>(filtered_indices_.size()) - 1);
-  show_outline();
+  show_outline_popup();
 }
 
 void App::outline_jump() {
@@ -1580,7 +1374,7 @@ void App::outline_jump() {
   update_statusline();
 }
 
-void App::show_outline() {
+void App::show_outline_popup() {
   auto client = frontend_->client_info();
 
   // Fixed 75% of terminal dimensions (minus status bar row and gap row)
@@ -2066,4 +1860,32 @@ void App::update_sidebar() {
 
     frontend_->show_sidebar(lines, highlight_line, sidebar_cols, false);
   }
+}
+
+ViewState App::view_state() const {
+  auto mode_str = [&]() -> std::string {
+    switch (view_mode_) {
+      case ViewMode::CONTINUOUS:
+        return "continuous";
+      case ViewMode::PAGE_WIDTH:
+        return "page-width";
+      case ViewMode::PAGE_HEIGHT:
+        return "page-height";
+      case ViewMode::SIDE_BY_SIDE:
+        return "side-by-side";
+    }
+    return "";
+  }();
+
+  return {
+      current_page() + 1,
+      doc_.page_count(),
+      static_cast<int>(user_zoom_ * 100.0f + 0.5f),
+      mode_str,
+      (theme_ == Theme::DARK) ? "dark" : "light",
+      search_term_,
+      search_current_ >= 0 ? search_current_ + 1 : 0,
+      static_cast<int>(search_results_.size()),
+      input_mode_ == InputMode::LINK_HINTS,
+  };
 }

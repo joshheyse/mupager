@@ -1,11 +1,11 @@
 #pragma once
 
 #include "args.h"
-#include "command.h"
 #include "document.h"
 #include "frontend.h"
 #include "geometry.h"
 #include "outline.h"
+#include "rpc_command.h"
 
 #include <chrono>
 #include <cstdint>
@@ -111,7 +111,23 @@ private:
   std::chrono::steady_clock::time_point time_;
 };
 
-/// @brief Main application controller.
+/// @brief Serializable view state for RPC notifications.
+struct ViewState {
+  int current_page; ///< 1-based current page.
+  int total_pages;  ///< Total number of pages.
+  int zoom_percent; ///< Zoom as percentage (100 = fit-to-width).
+  std::string view_mode;
+  std::string theme;
+  std::string search_term;
+  int search_current; ///< 1-based index of current match (0 = none).
+  int search_total;   ///< Total number of search matches.
+  bool link_hints_active;
+};
+
+/// @brief Main application controller — pure command processor.
+///
+/// Commands in, state updates out. No event loop, no input parsing,
+/// no knowledge of which frontend is running.
 class App {
 public:
   /// @brief Construct the application.
@@ -119,13 +135,37 @@ public:
   /// @param args Parsed command line arguments.
   App(std::unique_ptr<Frontend> frontend, const Args& args);
 
-  /// @brief Run the main event loop until quit.
-  void run();
+  /// @brief Perform first render (extracted from old run() preamble).
+  void initialize();
+
+  /// @brief Sole entry point for all state mutations.
+  void handle_command(const RpcCommand& cmd);
+
+  /// @brief Handle idle tasks: pre-upload, flash expiry, resize detection.
+  void idle_tick();
+
+  /// @brief Whether the application is still running.
+  bool is_running() const {
+    return running_;
+  }
+
+  /// @brief Current input mode.
+  InputMode input_mode() const {
+    return input_mode_;
+  }
+
+  /// @brief Compute the current view state for RPC notifications.
+  ViewState view_state() const;
+
+  /// @brief Get the document outline (loads on first call).
+  const Outline& outline();
+
+  /// @brief Collect links from currently visible pages.
+  std::vector<PageLink> visible_links() const;
 
 private:
   static constexpr int PAGE_GAP_PX = 16;
 
-  void handle_command(Command cmd);
   void build_layout();
   int page_at_y(int y) const;
   void update_viewport();
@@ -142,7 +182,7 @@ private:
   void execute_command();
   int effective_oversample() const;
   void handle_zoom_change(float old_zoom);
-  void show_outline();
+  void show_outline_popup();
   void outline_apply_filter();
   void outline_navigate(int delta);
   void outline_jump();
@@ -174,8 +214,6 @@ private:
   Document doc_;
   bool running_ = true;
   PixelPoint scroll_;
-  bool pending_g_ = false;
-  int pending_count_ = 0;
   ViewMode view_mode_ = ViewMode::CONTINUOUS;
   Theme theme_ = Theme::DARK;
   InputMode input_mode_ = InputMode::NORMAL;

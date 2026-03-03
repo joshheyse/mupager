@@ -16,6 +16,7 @@ struct Args {
   std::string log_level;
   std::string log_file;
   std::string view_mode;
+  std::string mode = "terminal"; ///< Frontend mode: "terminal" or "neovim".
   Oversample oversample = Oversample::AUTO;
 
   Args(int argc, char* argv[]);

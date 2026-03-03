@@ -15,6 +15,11 @@ set(SERVER_LIB_SOURCES
   src/base64.cpp
   src/kitty.cpp
   src/terminal_frontend.cpp
+  src/neovim_frontend.cpp
+  src/rpc_transport.cpp
+  src/terminal_input.cpp
+  src/terminal_loop.cpp
+  src/neovim_loop.cpp
   src/app.cpp
 )
 
@@ -64,7 +69,7 @@ set(SERVER_TEST_SOURCES
 add_executable(ServerTests ${SERVER_TEST_SOURCES})
 
 target_compile_definitions(ServerTests
-  PRIVATE PROJECT_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test"
+  PRIVATE PROJECT_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
 target_include_directories(ServerTests

@@ -7,7 +7,7 @@
 
 #include <string>
 
-static constexpr const char* FIXTURE_PDF = PROJECT_TEST_DIR "/fixtures/test.pdf";
+static constexpr const char* FIXTURE_PDF = PROJECT_FIXTURE_DIR "/test.pdf";
 
 TEST_CASE("kitty encode starts with ESC_G and ends with ST") {
   Document doc(FIXTURE_PDF);
