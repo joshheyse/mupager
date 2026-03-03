@@ -25,6 +25,7 @@ struct CachedPage {
   PixelSize pixel_size; ///< Rendered pixel dimensions.
   CellSize cell_grid;   ///< Grid dimensions in cells.
   int oversample;       ///< Oversample factor this was rendered at (0 = exact zoom, no viewporting).
+  float render_zoom;    ///< Actual zoom passed to MuPDF (for cache invalidation in NEVER mode).
 };
 
 /// @brief View mode for page display.

@@ -32,7 +32,7 @@ void App::build_layout() {
   auto vp = client.viewport_pixel();
   int vh = vp.height;
   int vw = vp.width;
-  spdlog::debug("build_layout: pixel={} vp={} cell={} pages={}", client.pixel, vp, client.cell, num_pages);
+  spdlog::debug("build_layout: pixel={} vp={} cell={} pages={} zoom={:.2f}", client.pixel, vp, client.cell, num_pages, user_zoom_);
   layout_.resize(num_pages);
 
   if (view_mode_ == ViewMode::PAGE_HEIGHT) {
@@ -40,7 +40,8 @@ void App::build_layout() {
       auto [page_w, page_h] = doc_.page_size(i);
       float zoom = std::min(static_cast<float>(vw) / page_w, static_cast<float>(vh) / page_h);
       int rendered_w = static_cast<int>(page_w * zoom);
-      layout_[i] = {{0, i * vh, rendered_w, vh}, zoom};
+      int slot_h = std::max(vh, static_cast<int>(page_h * zoom * user_zoom_));
+      layout_[i] = {{0, i * slot_h, rendered_w, slot_h}, zoom};
     }
   }
   else if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
@@ -52,16 +53,18 @@ void App::build_layout() {
       int fit_w = is_last_odd ? vw : half_w;
       float zoom = std::min(static_cast<float>(fit_w) / page_w, static_cast<float>(vh) / page_h);
       int rendered_w = static_cast<int>(page_w * zoom);
+      int slot_h = std::max(vh, static_cast<int>(page_h * zoom * user_zoom_));
       if (i % 2 == 0) {
-        layout_[i] = {{0, y, rendered_w, vh}, zoom};
+        layout_[i] = {{0, y, rendered_w, slot_h}, zoom};
       }
       else {
-        layout_[i] = {{0, layout_[i - 1].rect.y, rendered_w, vh}, zoom};
-        y += vh;
+        layout_[i] = {{0, layout_[i - 1].rect.y, rendered_w, slot_h}, zoom};
+        y += slot_h;
       }
     }
     if (num_pages > 0 && num_pages % 2 != 0) {
-      y += vh;
+      int last_slot_h = layout_[num_pages - 1].rect.height;
+      y += last_slot_h;
     }
   }
   else {
@@ -74,7 +77,7 @@ void App::build_layout() {
     for (int i = 0; i < num_pages; ++i) {
       auto [page_w, page_h] = doc_.page_size(i);
       float zoom = static_cast<float>(vw) / page_w;
-      int h = static_cast<int>(page_h * zoom);
+      int h = static_cast<int>(page_h * zoom * user_zoom_);
       layout_[i] = {{0, y, vw, h}, zoom};
       y += h + gap;
     }
@@ -106,7 +109,7 @@ int App::effective_oversample() const {
   Oversample setting = oversample_setting_;
 
   if (setting == Oversample::AUTO) {
-    setting = frontend_->supports_image_viewporting() ? Oversample::X2 : Oversample::NEVER;
+    setting = frontend_->supports_image_viewporting() ? Oversample::X1 : Oversample::NEVER;
   }
 
   if (setting == Oversample::NEVER) {
@@ -138,20 +141,28 @@ int App::effective_oversample() const {
 void App::handle_zoom_change(float old_zoom) {
   auto client = frontend_->client_info();
   int vw = client.viewport_pixel().width;
+  int vh = client.viewport_pixel().height;
 
-  // Adjust scroll_.x to keep viewport center stable
+  // Scale scroll positions to match the new zoom
   if (old_zoom > 0.0f && user_zoom_ != old_zoom) {
     float ratio = user_zoom_ / old_zoom;
+    scroll_.y = static_cast<int>(scroll_.y * ratio);
     scroll_.x = static_cast<int>((scroll_.x + vw / 2) * ratio - vw / 2);
   }
 
-  // Clamp scroll_.x
+  // Rebuild layout with new zoom
+  build_layout();
+
+  // Clamp scroll
   if (user_zoom_ <= 1.0f) {
     scroll_.x = 0;
   }
   else {
     scroll_.x = std::max(0, scroll_.x);
   }
+  int total_height = document_height();
+  int max_y = std::max(0, total_height - vh);
+  scroll_.y = std::clamp(scroll_.y, 0, max_y);
 
   update_viewport();
 }
@@ -167,17 +178,15 @@ void App::ensure_pages_uploaded(int first, int last) {
   for (int i = first; i <= last; ++i) {
     float base_zoom = layout_[i].zoom;
 
+    float render_zoom = (os == 0) ? base_zoom * user_zoom_ : base_zoom * os;
+
     auto it = page_cache_.find(i);
     if (it != page_cache_.end()) {
       if (os == 0) {
-        // NEVER mode: check if cached at the correct exact zoom
-        auto [page_w, page_h] = doc_.page_size(i);
-        int expected_w = static_cast<int>(page_w * base_zoom * user_zoom_);
-        int expected_h = static_cast<int>(page_h * base_zoom * user_zoom_);
-        if (it->second.pixel_size.width == expected_w && it->second.pixel_size.height == expected_h) {
+        // NEVER mode: re-render only if zoom changed
+        if (it->second.render_zoom == render_zoom) {
           continue;
         }
-        // Mismatch — re-render
         frontend_->free_image(it->second.image_id);
         page_cache_.erase(it);
       }
@@ -192,8 +201,6 @@ void App::ensure_pages_uploaded(int first, int last) {
       }
     }
 
-    float render_zoom = (os == 0) ? base_zoom * user_zoom_ : base_zoom * os;
-
     Pixmap pixmap = [&] {
       Stopwatch sw("mupdf render page " + std::to_string(i) + " zoom=" + std::to_string(render_zoom) + " os=" + std::to_string(os));
       return doc_.render_page(i, render_zoom);
@@ -207,7 +214,7 @@ void App::ensure_pages_uploaded(int first, int last) {
     int rows = (pixmap.height() + client.cell.height - 1) / client.cell.height;
 
     uint32_t image_id = frontend_->upload_image(pixmap, cols, rows);
-    page_cache_[i] = {image_id, {pixmap.width(), pixmap.height()}, {cols, rows}, os};
+    page_cache_[i] = {image_id, {pixmap.width(), pixmap.height()}, {cols, rows}, os, render_zoom};
   }
 }
 
@@ -337,8 +344,8 @@ void App::update_viewport() {
   viewport_first_page_ = first;
   viewport_last_page_ = last;
 
-  ensure_pages_uploaded(first, last);
   evict_distant_pages(first, last);
+  ensure_pages_uploaded(first, last);
 
   // Build PageSlice vector
   std::vector<PageSlice> slices;
@@ -371,16 +378,14 @@ void App::update_viewport() {
     int dst_col = 0;
 
     if (view_mode_ == ViewMode::PAGE_HEIGHT) {
-      int base_h = static_cast<int>(page_h * lay.zoom);
-      int vert_pad = (vh - base_h) / 2;
+      int vert_pad = std::max(0, (lay.rect.height - zoomed_h) / 2);
       content_top = page_top + vert_pad;
       if (zoomed_w < vw) {
         dst_col = (vw - zoomed_w) / 2 / client.cell.width;
       }
     }
     else if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
-      int base_h = static_cast<int>(page_h * lay.zoom);
-      int vert_pad = (vh - base_h) / 2;
+      int vert_pad = std::max(0, (lay.rect.height - zoomed_h) / 2);
       content_top = page_top + vert_pad;
       bool is_last_odd = (i == num_pages - 1) && (i % 2 == 0);
       if (is_last_odd) {
@@ -864,15 +869,28 @@ void App::handle_command(Command cmd) {
       break;
     }
     case Command::ZOOM_IN: {
+      static constexpr float LEVELS[] = {1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
       float old = user_zoom_;
-      user_zoom_ = std::min(user_zoom_ * 1.25f, 8.0f);
+      for (float lvl : LEVELS) {
+        if (lvl > user_zoom_ + 0.01f) {
+          user_zoom_ = lvl;
+          break;
+        }
+      }
       spdlog::info("zoom in: {:.0f}%", user_zoom_ * 100.0f);
       handle_zoom_change(old);
       break;
     }
     case Command::ZOOM_OUT: {
+      static constexpr float LEVELS[] = {1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
       float old = user_zoom_;
-      user_zoom_ = std::max(user_zoom_ / 1.25f, 1.0f);
+      float best = 1.0f;
+      for (float lvl : LEVELS) {
+        if (lvl < user_zoom_ - 0.01f) {
+          best = lvl;
+        }
+      }
+      user_zoom_ = best;
       spdlog::info("zoom out: {:.0f}%", user_zoom_ * 100.0f);
       handle_zoom_change(old);
       break;

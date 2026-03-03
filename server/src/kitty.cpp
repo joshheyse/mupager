@@ -592,6 +592,7 @@ std::string place(uint32_t image_id, int src_x, int src_y, int src_w, int src_h)
 std::string delete_image(uint32_t image_id) {
   DeleteCommand cmd;
   cmd.target = DeleteTarget::BY_ID;
+  cmd.free = true;
   cmd.image_id = image_id;
   return cmd.serialize();
 }

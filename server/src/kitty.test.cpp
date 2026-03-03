@@ -57,7 +57,7 @@ TEST_CASE("kitty encode large image produces multiple chunks") {
 }
 
 TEST_CASE("kitty delete_image") {
-  CHECK(kitty::delete_image(7) == "\x1b_Ga=d,d=i,q=2,i=7\x1b\\");
+  CHECK(kitty::delete_image(7) == "\x1b_Ga=d,d=I,q=2,i=7\x1b\\");
 }
 
 TEST_CASE("kitty wrap_tmux doubles ESC bytes and adds DCS passthrough") {
