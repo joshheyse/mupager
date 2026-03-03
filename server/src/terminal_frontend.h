@@ -23,6 +23,7 @@ public:
   void statusline(const std::string& left, const std::string& right) override;
   void show_overlay(const std::vector<std::string>& lines) override;
   void clear_overlay() override;
+  void show_sidebar(const std::vector<std::string>& lines, int highlight_line, int width_cols, bool focused) override;
   bool supports_image_viewporting() const override;
 
 private:

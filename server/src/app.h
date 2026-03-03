@@ -9,6 +9,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <format>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -49,7 +50,49 @@ enum class InputMode {
   COMMAND,
   SEARCH,
   HELP,
-  OUTLINE
+  OUTLINE,
+  SIDEBAR
+};
+
+/// @brief A temporary status message that auto-expires after a fixed duration.
+struct FlashMessage {
+  static constexpr auto DURATION = std::chrono::seconds(1);
+
+  /// @brief Set the flash message text.
+  void set(std::string msg) {
+    text_ = std::move(msg);
+    time_ = std::chrono::steady_clock::now();
+  }
+
+  /// @brief Set the flash message with std::format-style arguments.
+  template <typename... Args>
+  void set(std::format_string<Args...> fmt, Args&&... args) {
+    text_ = std::format(fmt, std::forward<Args>(args)...);
+    time_ = std::chrono::steady_clock::now();
+  }
+
+  /// @brief The raw message text (may be expired).
+  const std::string& text() const {
+    return text_;
+  }
+
+  /// @brief True if a message is set and hasn't expired.
+  bool active() const {
+    return !text_.empty() && std::chrono::steady_clock::now() - time_ < DURATION;
+  }
+
+  /// @brief True if a message was set but has expired.
+  bool expired() const {
+    return !text_.empty() && std::chrono::steady_clock::now() - time_ >= DURATION;
+  }
+
+  void clear() {
+    text_.clear();
+  }
+
+private:
+  std::string text_;
+  std::chrono::steady_clock::time_point time_;
 };
 
 /// @brief Main application controller.
@@ -89,6 +132,13 @@ private:
   void outline_jump();
   static bool fuzzy_match(const std::string& text, const std::string& pattern);
 
+  int sidebar_effective_width() const;
+  int active_outline_index() const;
+  void update_sidebar();
+  void sidebar_apply_filter();
+  void sidebar_navigate(int delta);
+  void sidebar_jump();
+
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
   bool running_ = true;
@@ -118,7 +168,13 @@ private:
   int outline_scroll_ = 0;
   std::string outline_filter_;
 
-  std::string last_action_;
-  std::chrono::steady_clock::time_point last_action_time_;
+  bool sidebar_visible_ = false;
+  int sidebar_width_cols_ = 0; ///< 0 = use default 20%.
+  int sidebar_cursor_ = 0;
+  int sidebar_scroll_ = 0;
+  std::string sidebar_filter_;
+  std::vector<int> sidebar_filtered_;
+
+  FlashMessage last_action_;
   std::chrono::steady_clock::time_point last_activity_time_; ///< Last render or input event, for deferring pre-uploads.
 };

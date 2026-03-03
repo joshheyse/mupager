@@ -61,6 +61,13 @@ public:
   /// @brief Clear the overlay (no-op if repainting handles it).
   virtual void clear_overlay() = 0;
 
+  /// @brief Show a sidebar panel on the left edge of the screen.
+  /// @param lines Lines to display in the sidebar.
+  /// @param highlight_line Index of the highlighted line (-1 for none).
+  /// @param width_cols Width of the sidebar in columns.
+  /// @param focused Whether the sidebar has input focus (affects highlight style).
+  virtual void show_sidebar(const std::vector<std::string>& lines, int highlight_line, int width_cols, bool focused) = 0;
+
   /// @brief Whether the frontend supports Kitty image viewporting (source-rect cropping on place).
   /// Tmux unicode placeholders cannot viewport, so this returns false in tmux mode.
   virtual bool supports_image_viewporting() const = 0;

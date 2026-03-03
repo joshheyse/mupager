@@ -11,6 +11,8 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <format>
+#include <iterator>
 #include <stdexcept>
 
 TerminalFrontend::TerminalFrontend() {
@@ -158,7 +160,7 @@ uint32_t TerminalFrontend::upload_image(const Pixmap& pixmap, int cols, int rows
   }
 
   {
-    Stopwatch sw("fwrite " + std::to_string(seq.size() / 1024) + "KB");
+    Stopwatch sw(std::format("fwrite {}KB", seq.size() / 1024));
     std::fwrite(seq.data(), 1, seq.size(), stdout);
     std::fflush(stdout);
   }
@@ -185,6 +187,13 @@ void TerminalFrontend::free_image(uint32_t image_id) {
 
 void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   std::string out;
+  // Each slice needs ~16 bytes for cursor escape + variable payload per row.
+  // In tmux mode, each row emits a cursor escape + placeholder string.
+  int total_rows = 0;
+  for (const auto& s : slices) {
+    total_rows += s.dst.height;
+  }
+  out.reserve(total_rows * 128);
 
   if (in_tmux_) {
     erase();
@@ -195,7 +204,7 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
       // Emit one row at a time with explicit cursor positioning to avoid
       // \n\r in placeholders resetting the column to 1.
       for (int r = 0; r < s.dst.height; ++r) {
-        out += "\x1b[" + std::to_string(s.dst.y + 1 + r) + ";" + std::to_string(s.dst.x + 1) + "H";
+        std::format_to(std::back_inserter(out), "\x1b[{};{}H", s.dst.y + 1 + r, s.dst.x + 1);
         out += kitty::placeholders(s.image_id, first_cell_row + r, 1, visible_cols, first_cell_col);
       }
     }
@@ -203,7 +212,7 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   else {
     out += kitty::delete_all_placements();
     for (const auto& s : slices) {
-      out += "\x1b[" + std::to_string(s.dst.y + 1) + ";" + std::to_string(s.dst.x + 1) + "H";
+      std::format_to(std::back_inserter(out), "\x1b[{};{}H", s.dst.y + 1, s.dst.x + 1);
       kitty::PlaceCommand cmd;
       cmd.image_id = s.image_id;
       cmd.src_x = s.src.x;
@@ -269,18 +278,19 @@ void TerminalFrontend::statusline(const std::string& left, const std::string& ri
 
   int width = static_cast<int>(ws_col_);
   // Build content: " {left}{padding}{right} "
-  std::string padded_left = " " + left;
-  std::string padded_right = right + " ";
+  auto padded_left = std::format(" {}", left);
+  auto padded_right = std::format("{} ", right);
   int content_len = display_width(padded_left) + display_width(padded_right);
   int pad = std::max(0, width - content_len);
 
   std::string out;
+  out.reserve(width + 32);
   // Move cursor to last row, column 1
-  out += "\x1b[" + std::to_string(ws_row_) + ";1H";
+  std::format_to(std::back_inserter(out), "\x1b[{};1H", ws_row_);
   // Enable reverse video
   out += "\x1b[7m";
   out += padded_left;
-  out += std::string(pad, ' ');
+  out.append(pad, ' ');
   out += padded_right;
   // Reset attributes
   out += "\x1b[0m";
@@ -317,29 +327,31 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
   start_row = std::min(start_row, max_start);
 
   std::string out;
+  // Each row: ~16 bytes cursor escape + ~8 bytes SGR + box_w content + ~4 bytes reset
+  out.reserve(box_h * (box_w + 32));
 
   // Top blank line
-  out += "\x1b[" + std::to_string(start_row) + ";" + std::to_string(start_col) + "H";
+  std::format_to(std::back_inserter(out), "\x1b[{};{}H", start_row, start_col);
   out += "\x1b[7m";
-  out += std::string(box_w, ' ');
+  out.append(box_w, ' ');
   out += "\x1b[0m";
 
   // Content lines
   for (size_t i = 0; i < lines.size(); ++i) {
     int row = start_row + 1 + static_cast<int>(i);
-    out += "\x1b[" + std::to_string(row) + ";" + std::to_string(start_col) + "H";
+    std::format_to(std::back_inserter(out), "\x1b[{};{}H", row, start_col);
     out += "\x1b[7m";
     int line_w = display_width(lines[i]);
     int right_pad = box_w - 2 - line_w;
-    out += "  " + lines[i] + std::string(std::max(0, right_pad), ' ');
+    std::format_to(std::back_inserter(out), "  {}{:>{}}", lines[i], "", std::max(0, right_pad));
     out += "\x1b[0m";
   }
 
   // Bottom blank line
   int bottom_row = start_row + box_h - 1;
-  out += "\x1b[" + std::to_string(bottom_row) + ";" + std::to_string(start_col) + "H";
+  std::format_to(std::back_inserter(out), "\x1b[{};{}H", bottom_row, start_col);
   out += "\x1b[7m";
-  out += std::string(box_w, ' ');
+  out.append(box_w, ' ');
   out += "\x1b[0m";
 
   std::fwrite(out.data(), 1, out.size(), stdout);
@@ -350,6 +362,91 @@ void TerminalFrontend::clear_overlay() {
   // Erase text cells so the overlay disappears before images are re-placed.
   erase();
   refresh();
+}
+
+void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int highlight_line, int width_cols, bool focused) {
+  if (ws_row_ == 0 || ws_col_ == 0) {
+    return;
+  }
+
+  int content_w = width_cols - 1;                   // Reserve 1 col for separator
+  int visible_rows = static_cast<int>(ws_row_) - 1; // Exclude status bar
+
+  std::string out;
+  out.reserve(visible_rows * (width_cols + 32));
+
+  for (int row = 0; row < visible_rows; ++row) {
+    std::format_to(std::back_inserter(out), "\x1b[{};1H", row + 1);
+
+    if (row < static_cast<int>(lines.size())) {
+      int dw = display_width(lines[row]);
+      bool is_highlight = (row == highlight_line);
+
+      if (is_highlight) {
+        if (focused) {
+          out += "\x1b[1;7m"; // Bold + reverse
+        }
+        else {
+          out += "\x1b[1m"; // Bold only
+        }
+      }
+
+      if (dw <= content_w) {
+        out += lines[row];
+        out.append(content_w - dw, ' ');
+      }
+      else {
+        // Truncate to content_w (approximate: just take first content_w bytes of visible chars)
+        int cols = 0;
+        size_t pos = 0;
+        std::string truncated;
+        while (pos < lines[row].size() && cols < content_w) {
+          auto c = static_cast<unsigned char>(lines[row][pos]);
+          if (c == 0x1B && pos + 1 < lines[row].size() && lines[row][pos + 1] == '[') {
+            size_t start = pos;
+            pos += 2;
+            while (pos < lines[row].size() && static_cast<unsigned char>(lines[row][pos]) < 0x40) {
+              ++pos;
+            }
+            if (pos < lines[row].size()) {
+              ++pos;
+            }
+            truncated += lines[row].substr(start, pos - start);
+            continue;
+          }
+          size_t char_len = 1;
+          if (c >= 0xF0) {
+            char_len = 4;
+          }
+          else if (c >= 0xE0) {
+            char_len = 3;
+          }
+          else if (c >= 0x80) {
+            char_len = 2;
+          }
+          truncated += lines[row].substr(pos, char_len);
+          pos += char_len;
+          ++cols;
+        }
+        out += truncated;
+        if (cols < content_w) {
+          out.append(content_w - cols, ' ');
+        }
+      }
+
+      if (is_highlight) {
+        out += "\x1b[0m";
+      }
+    }
+    else {
+      out.append(content_w, ' ');
+    }
+
+    out += "\xe2\x94\x82"; // │ separator
+  }
+
+  std::fwrite(out.data(), 1, out.size(), stdout);
+  std::fflush(stdout);
 }
 
 bool TerminalFrontend::supports_image_viewporting() const {
