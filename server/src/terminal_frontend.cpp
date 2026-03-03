@@ -16,6 +16,7 @@
 TerminalFrontend::TerminalFrontend() {
   in_tmux_ = std::getenv("TMUX") != nullptr;
 
+  set_escdelay(25);
   initscr();
   raw();
   noecho();
@@ -68,6 +69,30 @@ std::optional<InputEvent> TerminalFrontend::poll_input(int timeout_ms) {
     }
     if (wch == KEY_BACKSPACE) {
       return InputEvent{input::BACKSPACE, 0, EventType::PRESS};
+    }
+    if (wch == KEY_UP) {
+      return InputEvent{input::ARROW_UP, 0, EventType::PRESS};
+    }
+    if (wch == KEY_DOWN) {
+      return InputEvent{input::ARROW_DOWN, 0, EventType::PRESS};
+    }
+    if (wch == KEY_PPAGE) {
+      return InputEvent{input::PAGE_UP, 0, EventType::PRESS};
+    }
+    if (wch == KEY_NPAGE) {
+      return InputEvent{input::PAGE_DOWN, 0, EventType::PRESS};
+    }
+    if (wch == KEY_HOME) {
+      return InputEvent{input::HOME, 0, EventType::PRESS};
+    }
+    if (wch == KEY_END) {
+      return InputEvent{input::END, 0, EventType::PRESS};
+    }
+    if (wch == KEY_LEFT) {
+      return InputEvent{input::ARROW_LEFT, 0, EventType::PRESS};
+    }
+    if (wch == KEY_RIGHT) {
+      return InputEvent{input::ARROW_RIGHT, 0, EventType::PRESS};
     }
   }
 
@@ -203,11 +228,23 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   }
 }
 
-/// Count display columns (assumes all non-ASCII codepoints are 1 column wide).
+/// Count display columns, skipping ANSI escape sequences.
+/// Assumes all non-ASCII codepoints are 1 column wide.
 static int display_width(const std::string& s) {
   int w = 0;
   for (size_t i = 0; i < s.size();) {
     auto c = static_cast<unsigned char>(s[i]);
+    // Skip ANSI escape sequences: ESC [ ... final_byte
+    if (c == 0x1B && i + 1 < s.size() && s[i + 1] == '[') {
+      i += 2;
+      while (i < s.size() && static_cast<unsigned char>(s[i]) < 0x40) {
+        ++i;
+      }
+      if (i < s.size()) {
+        ++i; // skip final byte
+      }
+      continue;
+    }
     if (c < 0x80) {
       ++i;
     }
@@ -267,6 +304,9 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
   int box_h = static_cast<int>(lines.size()) + 2; // 1 row padding top/bottom
   int start_col = std::max(1, (static_cast<int>(ws_col_) - box_w) / 2 + 1);
   int start_row = std::max(1, (static_cast<int>(ws_row_) - box_h) / 2 + 1);
+  // Ensure at least 1 row gap above the status bar (last row)
+  int max_start = std::max(1, static_cast<int>(ws_row_) - box_h - 1);
+  start_row = std::min(start_row, max_start);
 
   std::string out;
 
@@ -299,7 +339,9 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
 }
 
 void TerminalFrontend::clear_overlay() {
-  // No-op — update_viewport() repaints on dismiss.
+  // Erase text cells so the overlay disappears before images are re-placed.
+  erase();
+  refresh();
 }
 
 bool TerminalFrontend::supports_image_viewporting() const {

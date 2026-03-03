@@ -1,5 +1,6 @@
 #pragma once
 
+#include "outline.h"
 #include "pixmap.h"
 
 #include <mupdf/fitz.h>
@@ -43,6 +44,10 @@ public:
   /// @param zoom Scale factor (1.0 = 72 DPI).
   /// @throws std::runtime_error if page_num is out of range.
   Pixmap render_page(int page_num, float zoom) const;
+
+  /// @brief Load the document outline (table of contents).
+  /// @return Flattened outline entries, empty if the document has no outline.
+  Outline load_outline() const;
 
   /// @brief Render a sub-region of a page to an RGB pixmap.
   /// @param page_num Zero-based page index.

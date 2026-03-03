@@ -5,6 +5,7 @@
 #include "document.h"
 #include "frontend.h"
 #include "geometry.h"
+#include "outline.h"
 
 #include <chrono>
 #include <cstdint>
@@ -47,7 +48,8 @@ enum class InputMode {
   NORMAL,
   COMMAND,
   SEARCH,
-  HELP
+  HELP,
+  OUTLINE
 };
 
 /// @brief Main application controller.
@@ -81,6 +83,11 @@ private:
   void execute_command();
   int effective_oversample() const;
   void handle_zoom_change(float old_zoom);
+  void show_outline();
+  void outline_apply_filter();
+  void outline_navigate(int delta);
+  void outline_jump();
+  static bool fuzzy_match(const std::string& text, const std::string& pattern);
 
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
@@ -104,6 +111,12 @@ private:
   int viewport_first_page_ = 0;
   int viewport_last_page_ = 0;
   PixelSize layout_size_; ///< Terminal pixel size used in last build_layout().
+
+  Outline outline_;
+  std::vector<int> filtered_indices_;
+  int outline_cursor_ = 0;
+  int outline_scroll_ = 0;
+  std::string outline_filter_;
 
   std::string last_action_;
   std::chrono::steady_clock::time_point last_action_time_;

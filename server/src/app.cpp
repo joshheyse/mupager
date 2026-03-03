@@ -608,13 +608,17 @@ struct HelpEntry {
 /// Simple key-to-command bindings (order determines help display order).
 static const KeyBinding KEY_BINDINGS[] = {
     {'j', Command::SCROLL_DOWN, "j"},
+    {input::ARROW_DOWN, Command::SCROLL_DOWN, "\xe2\x86\x93"},
     {'k', Command::SCROLL_UP, "k"},
+    {input::ARROW_UP, Command::SCROLL_UP, "\xe2\x86\x91"},
     {'d', Command::HALF_PAGE_DOWN, "d"},
     {'u', Command::HALF_PAGE_UP, "u"},
     {0x06, Command::PAGE_DOWN, "Ctrl+F"},
     {0x02, Command::PAGE_UP, "Ctrl+B"},
     {'h', Command::SCROLL_LEFT, "h"},
+    {input::ARROW_LEFT, Command::SCROLL_LEFT, "\xe2\x86\x90"},
     {'l', Command::SCROLL_RIGHT, "l"},
+    {input::ARROW_RIGHT, Command::SCROLL_RIGHT, "\xe2\x86\x92"},
     {'+', Command::ZOOM_IN, "+"},
     {'=', Command::ZOOM_IN, "="},
     {'-', Command::ZOOM_OUT, "-"},
@@ -631,6 +635,7 @@ static const HelpEntry SPECIAL_HELP[] = {
     {"G", "Last Page"},
     {"[n]gg / [n]G", "Go to Page n"},
     {":", "Command Mode"},
+    {"o", "Table of Contents"},
     {"?", "Toggle Help"},
 };
 
@@ -680,6 +685,52 @@ void App::run() {
       frontend_->clear_overlay();
       update_viewport();
       update_statusline();
+      continue;
+    }
+
+    // Outline mode input
+    if (input_mode_ == InputMode::OUTLINE) {
+      if (event->id == 27 || event->id == 'q') { // Escape or q
+        input_mode_ = InputMode::NORMAL;
+        frontend_->clear_overlay();
+        update_viewport();
+        update_statusline();
+      }
+      else if (event->id == 0x0E || event->id == input::ARROW_DOWN) { // Ctrl+N or Down
+        outline_navigate(1);
+      }
+      else if (event->id == 0x10 || event->id == input::ARROW_UP) { // Ctrl+P or Up
+        outline_navigate(-1);
+      }
+      else if (event->id == input::PAGE_DOWN) {
+        int page_size = std::max(1, frontend_->client_info().rows * 3 / 4 - 4);
+        outline_navigate(page_size);
+      }
+      else if (event->id == input::PAGE_UP) {
+        int page_size = std::max(1, frontend_->client_info().rows * 3 / 4 - 4);
+        outline_navigate(-page_size);
+      }
+      else if (event->id == input::HOME) {
+        outline_navigate(-static_cast<int>(filtered_indices_.size()));
+      }
+      else if (event->id == input::END) {
+        outline_navigate(static_cast<int>(filtered_indices_.size()));
+      }
+      else if (event->id == '\n' || event->id == '\r') {
+        outline_jump();
+      }
+      else if (event->id == 127 || event->id == 8 || event->id == input::BACKSPACE) {
+        if (!outline_filter_.empty()) {
+          outline_filter_.pop_back();
+          outline_apply_filter();
+          show_outline();
+        }
+      }
+      else if (event->id >= 32 && event->id < 127) {
+        outline_filter_ += static_cast<char>(event->id);
+        outline_apply_filter();
+        show_outline();
+      }
       continue;
     }
 
@@ -778,6 +829,23 @@ void App::run() {
       if (event->id == '?') {
         input_mode_ = InputMode::HELP;
         show_help();
+      }
+      else if (event->id == 'o') {
+        if (outline_.empty()) {
+          outline_ = doc_.load_outline();
+        }
+        if (outline_.empty()) {
+          last_action_ = "No outline";
+          last_action_time_ = std::chrono::steady_clock::now();
+        }
+        else {
+          input_mode_ = InputMode::OUTLINE;
+          outline_cursor_ = 0;
+          outline_scroll_ = 0;
+          outline_filter_.clear();
+          outline_apply_filter();
+          show_outline();
+        }
       }
       else if (event->id == input::RESIZE) {
         handle_command(Command::RESIZE);
@@ -1108,6 +1176,127 @@ void App::show_help() {
   }
   for (const auto& he : SPECIAL_HELP) {
     lines.push_back(format_line(he.key_label, he.description));
+  }
+
+  frontend_->show_overlay(lines);
+}
+
+bool App::fuzzy_match(const std::string& text, const std::string& pattern) {
+  size_t ti = 0;
+  for (size_t pi = 0; pi < pattern.size(); ++pi) {
+    char pc = static_cast<char>(std::tolower(static_cast<unsigned char>(pattern[pi])));
+    bool found = false;
+    while (ti < text.size()) {
+      char tc = static_cast<char>(std::tolower(static_cast<unsigned char>(text[ti])));
+      ++ti;
+      if (tc == pc) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void App::outline_apply_filter() {
+  filtered_indices_.clear();
+  for (int i = 0; i < static_cast<int>(outline_.size()); ++i) {
+    if (outline_filter_.empty() || fuzzy_match(outline_[i].title, outline_filter_)) {
+      filtered_indices_.push_back(i);
+    }
+  }
+  outline_cursor_ = 0;
+  outline_scroll_ = 0;
+}
+
+void App::outline_navigate(int delta) {
+  if (filtered_indices_.empty()) {
+    return;
+  }
+  outline_cursor_ = std::clamp(outline_cursor_ + delta, 0, static_cast<int>(filtered_indices_.size()) - 1);
+  show_outline();
+}
+
+void App::outline_jump() {
+  if (filtered_indices_.empty()) {
+    return;
+  }
+  int page = outline_[filtered_indices_[outline_cursor_]].page;
+  input_mode_ = InputMode::NORMAL;
+  frontend_->clear_overlay();
+  jump_to_page(page);
+  update_statusline();
+}
+
+void App::show_outline() {
+  auto client = frontend_->client_info();
+
+  // Fixed 75% of terminal dimensions (minus status bar row and gap row)
+  int box_lines = std::max(4, client.rows * 3 / 4 - 2);
+  int box_width = std::max(20, client.cols * 3 / 4);
+
+  // Header takes 2 lines (title + filter/blank)
+  int max_visible = box_lines - 2;
+
+  // Scroll window follows cursor
+  if (outline_cursor_ < outline_scroll_) {
+    outline_scroll_ = outline_cursor_;
+  }
+  if (outline_cursor_ >= outline_scroll_ + max_visible) {
+    outline_scroll_ = outline_cursor_ - max_visible + 1;
+  }
+
+  // Pad a line to box_width (accounting for ANSI escapes not taking display space).
+  // The overlay adds 4 chars padding (2 each side), so content width = box_width - 4.
+  int content_w = box_width - 4;
+  auto pad_line = [content_w](const std::string& text, int visible_len) -> std::string {
+    if (visible_len >= content_w) {
+      return text;
+    }
+    return text + std::string(content_w - visible_len, ' ');
+  };
+
+  std::vector<std::string> lines;
+  lines.push_back(pad_line("Table of Contents", 17));
+
+  if (!outline_filter_.empty()) {
+    std::string filter_line = "> " + outline_filter_;
+    lines.push_back(pad_line(filter_line, static_cast<int>(filter_line.size())));
+  }
+  else {
+    lines.push_back(pad_line("", 0));
+  }
+
+  int end = std::min(outline_scroll_ + max_visible, static_cast<int>(filtered_indices_.size()));
+  for (int vi = outline_scroll_; vi < end; ++vi) {
+    const auto& entry = outline_[filtered_indices_[vi]];
+    std::string indent(entry.level * 2, ' ');
+    std::string page_str = std::to_string(entry.page + 1);
+    std::string title_part = indent + entry.title;
+    int title_len = static_cast<int>(title_part.size());
+    int page_len = static_cast<int>(page_str.size());
+    int gap = std::max(1, content_w - title_len - page_len);
+    std::string visible_text = title_part + std::string(gap, ' ') + page_str;
+
+    if (vi == outline_cursor_) {
+      std::string line = "\x1b[0m\x1b[1;4m" + visible_text + "\x1b[0m\x1b[7m";
+      lines.push_back(line);
+    }
+    else {
+      lines.push_back(visible_text);
+    }
+  }
+
+  if (filtered_indices_.empty()) {
+    lines.push_back(pad_line("  (no matches)", 14));
+  }
+
+  // Pad remaining rows to fill the fixed height
+  while (static_cast<int>(lines.size()) < box_lines) {
+    lines.push_back(pad_line("", 0));
   }
 
   frontend_->show_overlay(lines);

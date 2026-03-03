@@ -41,6 +41,7 @@
 - **Sidebar mode**: pinned left panel showing TOC with current page highlighted
 - Toggle with a keybinding (e.g., `o` for outline)
 - Gracefully skip for documents without TOC
+- fzf style filtering down of TOC sections
 
 ### 5. Search with Highlighting
 

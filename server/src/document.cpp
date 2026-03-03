@@ -99,6 +99,41 @@ Pixmap Document::render_page(int page_num, float zoom, int x_offset, int y_offse
   return Pixmap(raw_ctx, pix);
 }
 
+static void flatten_outline(fz_context* ctx, fz_document* doc, fz_outline* node, int level, Outline& out) {
+  while (node) {
+    int page = node->page.page;
+    if (page < 0 && node->uri) {
+      page = fz_resolve_link(ctx, doc, node->uri, nullptr, nullptr).page;
+    }
+    if (page >= 0 && node->title) {
+      out.push_back({node->title, page, level});
+    }
+    if (node->down) {
+      flatten_outline(ctx, doc, node->down, level + 1, out);
+    }
+    node = node->next;
+  }
+}
+
+Outline Document::load_outline() const {
+  fz_context* raw_ctx = ctx_.get();
+  fz_outline* root = nullptr;
+  Outline result;
+
+  fz_try(raw_ctx) {
+    root = fz_load_outline(raw_ctx, doc_.get());
+    flatten_outline(raw_ctx, doc_.get(), root, 0, result);
+  }
+  fz_always(raw_ctx) {
+    fz_drop_outline(raw_ctx, root);
+  }
+  fz_catch(raw_ctx) {
+    // Documents without outlines — return empty.
+  }
+
+  return result;
+}
+
 fz_context* Document::ctx() const {
   return ctx_.get();
 }
