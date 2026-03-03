@@ -294,6 +294,14 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
     return;
   }
 
+  // In direct Kitty mode, images sit on a layer above text.
+  // Remove placements so the overlay text is visible.
+  if (!in_tmux_) {
+    std::string del = kitty::delete_all_placements();
+    std::fwrite(del.data(), 1, del.size(), stdout);
+    std::fflush(stdout);
+  }
+
   // Find widest line by display width
   int max_width = 0;
   for (const auto& line : lines) {
