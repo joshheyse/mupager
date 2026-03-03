@@ -4,6 +4,7 @@ local log = require "mupager.log"
 local config = {}
 local mupager_bufnr = nil
 local mupager_winid = nil
+local image_hidden = false
 
 --- Setup mupager plugin.
 --- @param opts table|nil Configuration options.
@@ -32,13 +33,29 @@ function M.setup(opts)
     callback = function(ev)
       local file = vim.api.nvim_buf_get_name(ev.buf)
       log.info("BufReadCmd: intercepted buf=%d file=%s", ev.buf, file)
-      -- Defer to avoid issues with deleting buffer inside autocmd callback
+      -- Open mupager first so the window always has a buffer, then delete
+      -- the intercepted buffer. Reversing this order can briefly leave the
+      -- window empty, triggering neo-tree auto-close and quitting Neovim.
       vim.schedule(function()
-        vim.api.nvim_buf_delete(ev.buf, { force = true })
         M.open(file)
+        if vim.api.nvim_buf_is_valid(ev.buf) and ev.buf ~= mupager_bufnr then
+          vim.api.nvim_buf_delete(ev.buf, { force = true })
+        end
       end)
     end,
   })
+end
+
+--- Check if any floating window is currently visible.
+--- @return boolean
+local function has_floating_win()
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_is_valid(win) then
+      local cfg = vim.api.nvim_win_get_config(win)
+      if cfg.relative and cfg.relative ~= "" then return true end
+    end
+  end
+  return false
 end
 
 --- Open a document in mupager.
@@ -110,7 +127,7 @@ function M.open(file)
     if entries then vim.schedule(function() require("mupager.telescope").pick_outline(entries) end) end
   end)
 
-  -- Set up autocmds for resize
+  -- Set up autocmds
   local augroup = vim.api.nvim_create_augroup("mupager", { clear = true })
 
   vim.api.nvim_create_autocmd({ "WinResized", "VimResized" }, {
@@ -120,10 +137,59 @@ function M.open(file)
     end,
   })
 
+  -- Hide image when the mupager buffer is replaced in its window
   vim.api.nvim_create_autocmd("BufWinLeave", {
     group = augroup,
     buffer = mupager_bufnr,
     callback = function() server.notify "hide" end,
+  })
+
+  -- Hide image when a floating window opens or cmdline activates (noice.nvim
+  -- reuses floating windows so WinNew alone isn't enough).
+  -- Show again when all floats are gone and cmdline is inactive.
+  local function check_should_hide()
+    vim.schedule(function()
+      if has_floating_win() and not image_hidden then
+        image_hidden = true
+        server.notify "hide"
+      end
+    end)
+  end
+
+  local function check_should_show()
+    vim.schedule(function()
+      if not has_floating_win() and image_hidden then
+        image_hidden = false
+        server.notify "show"
+      end
+    end)
+  end
+
+  vim.api.nvim_create_autocmd({ "WinNew", "CmdlineEnter" }, {
+    group = augroup,
+    callback = check_should_hide,
+  })
+
+  vim.api.nvim_create_autocmd({ "WinClosed", "CmdlineLeave" }, {
+    group = augroup,
+    callback = check_should_show,
+  })
+
+  -- Also catch floats that are shown/hidden without creation/destruction
+  vim.api.nvim_create_autocmd("WinEnter", {
+    group = augroup,
+    callback = function()
+      local cfg = vim.api.nvim_win_get_config(0)
+      if cfg.relative and cfg.relative ~= "" and not image_hidden then
+        image_hidden = true
+        server.notify "hide"
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("WinLeave", {
+    group = augroup,
+    callback = check_should_show,
   })
 
   vim.api.nvim_create_autocmd("BufWipeout", {
@@ -150,6 +216,7 @@ function M.close()
     vim.api.nvim_buf_delete(mupager_bufnr, { force = true })
   end
 
+  image_hidden = false
   mupager_bufnr = nil
   mupager_winid = nil
   log.close()
