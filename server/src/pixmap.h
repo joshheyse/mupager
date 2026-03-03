@@ -2,6 +2,7 @@
 
 #include <mupdf/fitz.h>
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -40,6 +41,12 @@ public:
 
   /// @brief Invert all pixel values in place (255 - value per channel).
   void invert();
+
+  /// @brief Alpha-blend a colored rectangle onto the pixmap.
+  /// @param rx,ry,rw,rh Rectangle in pixel coordinates (clamped to bounds).
+  /// @param r,g,b Color components (0-255).
+  /// @param alpha Blend factor (0 = transparent, 255 = opaque).
+  void highlight_rect(int rx, int ry, int rw, int rh, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha);
 
   /// @brief Encode pixmap as PNG data.
   std::vector<unsigned char> png_data() const;

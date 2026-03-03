@@ -1,5 +1,6 @@
 #include "document.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 void ContextDeleter::operator()(fz_context* ctx) const {
@@ -132,6 +133,39 @@ Outline Document::load_outline() const {
   }
 
   return result;
+}
+
+SearchResults Document::search(const std::string& needle) const {
+  static constexpr int MAX_HITS_PER_PAGE = 512;
+  fz_context* raw_ctx = ctx_.get();
+  SearchResults results;
+  int pages = page_count();
+
+  for (int p = 0; p < pages; ++p) {
+    fz_page* page = nullptr;
+    fz_quad hits[MAX_HITS_PER_PAGE];
+    int n = 0;
+
+    fz_try(raw_ctx) {
+      page = fz_load_page(raw_ctx, doc_.get(), p);
+      n = fz_search_page(raw_ctx, page, needle.c_str(), nullptr, hits, MAX_HITS_PER_PAGE);
+    }
+    fz_always(raw_ctx) {
+      fz_drop_page(raw_ctx, page);
+    }
+    fz_catch(raw_ctx) {
+      continue;
+    }
+
+    for (int i = 0; i < n; ++i) {
+      float x0 = std::min({hits[i].ul.x, hits[i].ur.x, hits[i].ll.x, hits[i].lr.x});
+      float y0 = std::min({hits[i].ul.y, hits[i].ur.y, hits[i].ll.y, hits[i].lr.y});
+      float x1 = std::max({hits[i].ul.x, hits[i].ur.x, hits[i].ll.x, hits[i].lr.x});
+      float y1 = std::max({hits[i].ul.y, hits[i].ur.y, hits[i].ll.y, hits[i].lr.y});
+      results.push_back({p, x0, y0, x1 - x0, y1 - y0});
+    }
+  }
+  return results;
 }
 
 fz_context* Document::ctx() const {

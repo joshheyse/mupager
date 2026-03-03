@@ -78,3 +78,53 @@ TEST_CASE("render_page throws on out-of-range page") {
   CHECK_THROWS_AS(doc.render_page(-1, 1.0f), std::runtime_error);
   CHECK_THROWS_AS(doc.render_page(9999, 1.0f), std::runtime_error);
 }
+
+TEST_CASE("highlight_rect blends color onto pixmap") {
+  Document doc(FIXTURE_PDF);
+  Pixmap pix = doc.render_page(0, 1.0f);
+
+  // Record original pixel value
+  unsigned char orig_r = pix.samples()[0];
+  unsigned char orig_g = pix.samples()[1];
+  unsigned char orig_b = pix.samples()[2];
+
+  // Apply a yellow highlight with alpha=128
+  pix.highlight_rect(0, 0, 10, 10, 255, 255, 0, 128);
+
+  unsigned char new_r = pix.samples()[0];
+  unsigned char new_g = pix.samples()[1];
+  unsigned char new_b = pix.samples()[2];
+
+  // The pixel should have moved toward yellow (255,255,0)
+  CHECK(new_r >= orig_r); // Red channel should increase or stay (toward 255)
+  CHECK(new_b <= orig_b); // Blue channel should decrease or stay (toward 0)
+  // Verify it actually changed (unless it was already yellow)
+  if (orig_r != 255 || orig_g != 255 || orig_b != 0) {
+    CHECK((new_r != orig_r || new_g != orig_g || new_b != orig_b));
+  }
+}
+
+TEST_CASE("highlight_rect clamps to pixmap bounds") {
+  Document doc(FIXTURE_PDF);
+  Pixmap pix = doc.render_page(0, 1.0f);
+
+  // Should not crash with out-of-bounds rectangle
+  pix.highlight_rect(-10, -10, 20, 20, 255, 0, 0, 128);
+  pix.highlight_rect(pix.width() - 5, pix.height() - 5, 100, 100, 0, 255, 0, 128);
+  CHECK(true); // If we get here without crashing, the test passes
+}
+
+TEST_CASE("highlight_rect with zero alpha is no-op") {
+  Document doc(FIXTURE_PDF);
+  Pixmap pix = doc.render_page(0, 1.0f);
+
+  unsigned char orig_r = pix.samples()[0];
+  unsigned char orig_g = pix.samples()[1];
+  unsigned char orig_b = pix.samples()[2];
+
+  pix.highlight_rect(0, 0, 10, 10, 255, 0, 0, 0);
+
+  CHECK(pix.samples()[0] == orig_r);
+  CHECK(pix.samples()[1] == orig_g);
+  CHECK(pix.samples()[2] == orig_b);
+}

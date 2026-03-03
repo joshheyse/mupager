@@ -28,6 +28,7 @@ struct CachedPage {
   CellSize cell_grid;   ///< Grid dimensions in cells.
   int oversample;       ///< Oversample factor this was rendered at (0 = exact zoom, no viewporting).
   float render_zoom;    ///< Actual zoom passed to MuPDF (for cache invalidation in NEVER mode).
+  size_t memory_bytes;  ///< Uncompressed pixmap size (w * h * components).
 };
 
 /// @brief View mode for page display.
@@ -139,6 +140,15 @@ private:
   void sidebar_navigate(int delta);
   void sidebar_jump();
 
+  void execute_search();
+  void clear_search();
+  void search_navigate(int delta);
+  void scroll_to_search_hit();
+  void highlight_page_matches(Pixmap& pixmap, int page_num, float render_zoom);
+
+  /// @brief Returns a formatted string of cached page numbers and total memory in bytes.
+  std::pair<std::string, size_t> cache_stats() const;
+
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
   bool running_ = true;
@@ -154,6 +164,8 @@ private:
   std::string command_input_;
   int search_page_matches_ = 0;
   int search_total_matches_ = 0;
+  SearchResults search_results_;
+  int search_current_ = -1; ///< Index into search_results_ of the focused match (-1 = none).
 
   std::vector<PageLayout> layout_;
   std::unordered_map<int, CachedPage> page_cache_;

@@ -8,6 +8,16 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
+
+/// @brief A single search hit: page index + bounding box in page points.
+struct SearchHit {
+  int page;         ///< Zero-based page index.
+  float x, y, w, h; ///< Bounding rect in page coordinate space (points at zoom=1).
+};
+
+/// @brief All search results for a query.
+using SearchResults = std::vector<SearchHit>;
 
 /// @brief Deleter for fz_context unique_ptr.
 struct ContextDeleter {
@@ -57,6 +67,11 @@ public:
   /// @param viewport_w Viewport width in pixels.
   /// @param viewport_h Viewport height in pixels.
   Pixmap render_page(int page_num, float zoom, int x_offset, int y_offset, int viewport_w, int viewport_h) const;
+
+  /// @brief Search all pages for text, returning bounding boxes.
+  /// @param needle Text to search for.
+  /// @return All matching bounding boxes across the document.
+  SearchResults search(const std::string& needle) const;
 
   /// @brief Return the underlying MuPDF context.
   fz_context* ctx() const;

@@ -223,11 +223,14 @@ void App::ensure_pages_uploaded(int first, int last) {
       pixmap.invert();
     }
 
+    highlight_page_matches(pixmap, i, render_zoom);
+
     int cols = (pixmap.width() + client.cell.width - 1) / client.cell.width;
     int rows = (pixmap.height() + client.cell.height - 1) / client.cell.height;
 
     uint32_t image_id = frontend_->upload_image(pixmap, cols, rows);
-    page_cache_[i] = {image_id, {pixmap.width(), pixmap.height()}, {cols, rows}, os, render_zoom};
+    size_t mem = static_cast<size_t>(pixmap.width()) * pixmap.height() * pixmap.components();
+    page_cache_[i] = {image_id, {pixmap.width(), pixmap.height()}, {cols, rows}, os, render_zoom, mem};
   }
 }
 
@@ -257,6 +260,16 @@ void App::pre_upload_adjacent() {
       viewport_first_page_ - 2,
       viewport_last_page_ + 2,
   };
+
+  // Add search neighbor pages (lower priority than viewport-adjacent)
+  if (!search_results_.empty() && search_current_ >= 0) {
+    int n = static_cast<int>(search_results_.size());
+    int next_idx = (search_current_ + 1) % n;
+    int prev_idx = (search_current_ - 1 + n) % n;
+    candidates.push_back(search_results_[next_idx].page);
+    candidates.push_back(search_results_[prev_idx].page);
+  }
+
   for (int page : candidates) {
     if (page < 0 || page >= num_pages) {
       continue;
@@ -279,6 +292,37 @@ int App::document_height() const {
   return last.rect.y + last.rect.height;
 }
 
+std::pair<std::string, size_t> App::cache_stats() const {
+  std::vector<int> pages;
+  pages.reserve(page_cache_.size());
+  size_t total = 0;
+  for (const auto& [page, cached] : page_cache_) {
+    pages.push_back(page + 1); // 1-based for display
+    total += cached.memory_bytes;
+  }
+  std::sort(pages.begin(), pages.end());
+
+  // Format as compact ranges: "1-3,5,8-10"
+  std::string result;
+  for (size_t i = 0; i < pages.size();) {
+    size_t j = i;
+    while (j + 1 < pages.size() && pages[j + 1] == pages[j] + 1) {
+      ++j;
+    }
+    if (!result.empty()) {
+      result += ',';
+    }
+    if (j == i) {
+      result += std::to_string(pages[i]);
+    }
+    else {
+      result += std::to_string(pages[i]) + '-' + std::to_string(pages[j]);
+    }
+    i = j + 1;
+  }
+  return {result, total};
+}
+
 void App::update_statusline() {
   std::string left;
   if (input_mode_ == InputMode::COMMAND) {
@@ -286,9 +330,18 @@ void App::update_statusline() {
   }
   else if (input_mode_ == InputMode::SEARCH) {
     left = std::format("/{}", search_term_);
-    if (search_total_matches_ > 0) {
-      left += std::format("  {}/{}", search_page_matches_, search_total_matches_);
+  }
+  else if (!search_results_.empty() && input_mode_ == InputMode::NORMAL) {
+    // Count matches on current page
+    int cur = current_page();
+    search_page_matches_ = 0;
+    for (const auto& hit : search_results_) {
+      if (hit.page == cur) {
+        ++search_page_matches_;
+      }
     }
+    search_total_matches_ = static_cast<int>(search_results_.size());
+    left = std::format("/{} [{}/{}]", search_term_, search_current_ + 1, search_total_matches_);
   }
   else if (last_action_.active()) {
     left = last_action_.text();
@@ -316,6 +369,16 @@ void App::update_statusline() {
     right += std::format(" \xe2\x94\x82 {}%", zoom_pct);
   }
   right += std::format(" \xe2\x94\x82 {} \xe2\x94\x82 {}/{}", theme_str, page, total);
+
+  auto [cached_pages, cached_bytes] = cache_stats();
+  if (!cached_pages.empty()) {
+    if (cached_bytes >= 1024 * 1024) {
+      right += std::format(" \xe2\x94\x82 [{}] {:.1f}M", cached_pages, static_cast<double>(cached_bytes) / (1024.0 * 1024.0));
+    }
+    else {
+      right += std::format(" \xe2\x94\x82 [{}] {:.0f}K", cached_pages, static_cast<double>(cached_bytes) / 1024.0);
+    }
+  }
 
   frontend_->statusline(left, right);
 }
@@ -650,6 +713,9 @@ static const HelpEntry SPECIAL_HELP[] = {
     {"G", "Last Page"},
     {"[n]gg / [n]G", "Go to Page n"},
     {":", "Command Mode"},
+    {"/", "Search"},
+    {"n", "Next Match"},
+    {"N", "Previous Match"},
     {"o", "Table of Contents"},
     {"e", "Toggle Sidebar TOC"},
     {"?", "Toggle Help"},
@@ -814,6 +880,39 @@ void App::run() {
       continue;
     }
 
+    // Enter search mode on '/'
+    if (input_mode_ == InputMode::NORMAL && event->id == '/') {
+      input_mode_ = InputMode::SEARCH;
+      search_term_.clear();
+      update_statusline();
+      continue;
+    }
+
+    // Search mode text input
+    if (input_mode_ == InputMode::SEARCH) {
+      if (event->id == 27) { // Escape
+        input_mode_ = InputMode::NORMAL;
+        search_term_.clear();
+        update_statusline();
+      }
+      else if (event->id == '\n' || event->id == '\r') {
+        execute_search();
+        input_mode_ = InputMode::NORMAL;
+        update_statusline();
+      }
+      else if (event->id == 127 || event->id == 8 || event->id == input::BACKSPACE) {
+        if (!search_term_.empty()) {
+          search_term_.pop_back();
+        }
+        update_statusline();
+      }
+      else if (event->id >= 32 && event->id < 127) {
+        search_term_ += static_cast<char>(event->id);
+        update_statusline();
+      }
+      continue;
+    }
+
     // Command mode text input
     if (input_mode_ == InputMode::COMMAND) {
       if (event->id == 27) { // Escape
@@ -953,6 +1052,15 @@ void App::run() {
             render();
           }
         }
+      }
+      else if (event->id == 'n' && !search_results_.empty()) {
+        search_navigate(1);
+      }
+      else if (event->id == 'N' && !search_results_.empty()) {
+        search_navigate(-1);
+      }
+      else if (event->id == 27 && !search_results_.empty()) { // Escape clears search
+        clear_search();
       }
       else if (event->id == input::RESIZE) {
         handle_command(Command::RESIZE);
@@ -1471,6 +1579,134 @@ void App::sidebar_jump() {
   sidebar_filter_.clear();
   sidebar_apply_filter();
   jump_to_page(page);
+}
+
+void App::execute_search() {
+  if (search_term_.empty()) {
+    return;
+  }
+
+  search_results_ = doc_.search(search_term_);
+  search_total_matches_ = static_cast<int>(search_results_.size());
+
+  if (search_results_.empty()) {
+    search_current_ = -1;
+    last_action_.set("Pattern not found: {}", search_term_);
+    return;
+  }
+
+  // Check if any hit is already visible in the viewport
+  auto client = frontend_->client_info();
+  int vh = client.viewport_pixel().height;
+  int first_visible = -1;
+  for (int i = 0; i < static_cast<int>(search_results_.size()); ++i) {
+    const auto& hit = search_results_[i];
+    if (hit.page < viewport_first_page_ || hit.page > viewport_last_page_) {
+      continue;
+    }
+    float page_zoom = layout_[hit.page].zoom * user_zoom_;
+    int hit_global_y = layout_[hit.page].rect.y + static_cast<int>(hit.y * page_zoom);
+    if (hit_global_y >= scroll_.y && hit_global_y < scroll_.y + vh) {
+      first_visible = i;
+      break;
+    }
+  }
+
+  if (first_visible >= 0) {
+    search_current_ = first_visible;
+  }
+  else {
+    // Find first match on or after current page
+    int cur = current_page();
+    search_current_ = 0;
+    for (int i = 0; i < static_cast<int>(search_results_.size()); ++i) {
+      if (search_results_[i].page >= cur) {
+        search_current_ = i;
+        break;
+      }
+    }
+    scroll_to_search_hit();
+  }
+
+  frontend_->clear();
+  render();
+}
+
+void App::clear_search() {
+  search_results_.clear();
+  search_term_.clear();
+  search_current_ = -1;
+  search_page_matches_ = 0;
+  search_total_matches_ = 0;
+  frontend_->clear();
+  render();
+}
+
+void App::search_navigate(int delta) {
+  if (search_results_.empty()) {
+    return;
+  }
+
+  int n = static_cast<int>(search_results_.size());
+  search_current_ = ((search_current_ + delta) % n + n) % n;
+  scroll_to_search_hit();
+  frontend_->clear();
+  render();
+}
+
+void App::scroll_to_search_hit() {
+  if (search_current_ < 0 || search_current_ >= static_cast<int>(search_results_.size())) {
+    return;
+  }
+
+  const auto& hit = search_results_[search_current_];
+  int page = hit.page;
+  page = std::clamp(page, 0, static_cast<int>(layout_.size()) - 1);
+
+  if (view_mode_ == ViewMode::SIDE_BY_SIDE && page % 2 != 0) {
+    page = page - 1;
+  }
+
+  // Convert hit Y from page points to pixels within the page
+  float page_zoom = layout_[hit.page].zoom * user_zoom_;
+  int hit_y_px = static_cast<int>(hit.y * page_zoom);
+
+  // Global Y = page top + hit offset within page
+  scroll_.y = layout_[hit.page].rect.y + hit_y_px;
+
+  // Clamp scroll
+  auto client = frontend_->client_info();
+  int vh = client.viewport_pixel().height;
+  int total_height = document_height();
+  int max_y = std::max(0, total_height - vh);
+  scroll_.y = std::clamp(scroll_.y, 0, max_y);
+
+  update_viewport();
+}
+
+void App::highlight_page_matches(Pixmap& pixmap, int page_num, float render_zoom) {
+  if (search_results_.empty()) {
+    return;
+  }
+
+  for (int i = 0; i < static_cast<int>(search_results_.size()); ++i) {
+    const auto& hit = search_results_[i];
+    if (hit.page != page_num) {
+      continue;
+    }
+
+    int px = static_cast<int>(hit.x * render_zoom);
+    int py = static_cast<int>(hit.y * render_zoom);
+    int pw = static_cast<int>(hit.w * render_zoom);
+    int ph = static_cast<int>(hit.h * render_zoom);
+
+    if (i == search_current_) {
+      pixmap.highlight_rect(px, py, pw, ph, 255, 165, 0, 120); // Orange for focused match
+    }
+    else {
+      pixmap.highlight_rect(px, py, pw, ph, 255, 255, 0, 80); // Yellow for background matches
+    }
+  }
 }
 
 void App::update_sidebar() {
