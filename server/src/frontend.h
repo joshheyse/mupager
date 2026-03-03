@@ -4,10 +4,18 @@
 #include "input_event.h"
 #include "pixmap.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
+
+/// @brief A positioned label for link hint overlay.
+struct LinkHintDisplay {
+  int col;           ///< Screen column (0-based).
+  int row;           ///< Screen row (0-based).
+  std::string label; ///< Hint label text (e.g. "a", "sd").
+};
 
 /// @brief Describes how to display a slice of a page image on screen.
 struct PageSlice {
@@ -67,6 +75,15 @@ public:
   /// @param width_cols Width of the sidebar in columns.
   /// @param focused Whether the sidebar has input focus (affects highlight style).
   virtual void show_sidebar(const std::vector<std::string>& lines, int highlight_line, int width_cols, bool focused) = 0;
+
+  /// @brief Show link hint labels at screen positions.
+  /// @param hints Vector of positioned labels.
+  virtual void show_link_hints(const std::vector<LinkHintDisplay>& hints) = 0;
+
+  /// @brief Write raw bytes to the terminal (e.g. for OSC 52 clipboard).
+  /// @param data Raw byte string to write.
+  /// @param len Number of bytes to write.
+  virtual void write_raw(const char* data, size_t len) = 0;
 
   /// @brief Whether the frontend supports Kitty image viewporting (source-rect cropping on place).
   /// Tmux unicode placeholders cannot viewport, so this returns false in tmux mode.

@@ -52,7 +52,22 @@ enum class InputMode {
   SEARCH,
   HELP,
   OUTLINE,
-  SIDEBAR
+  SIDEBAR,
+  LINK_HINTS
+};
+
+/// @brief A saved scroll position for jump history.
+struct JumpPoint {
+  int scroll_x; ///< Horizontal scroll position.
+  int scroll_y; ///< Vertical scroll position.
+};
+
+/// @brief An active link hint during LINK_HINTS mode.
+struct ActiveLinkHint {
+  PageLink link;     ///< The underlying page link.
+  std::string label; ///< Assigned hint label.
+  int screen_col;    ///< Screen column for label display.
+  int screen_row;    ///< Screen row for label display.
 };
 
 /// @brief A temporary status message that auto-expires after a fixed duration.
@@ -146,6 +161,12 @@ private:
   void scroll_to_search_hit();
   void highlight_page_matches(Pixmap& pixmap, int page_num, float render_zoom);
 
+  void push_jump_history();
+  void enter_link_hints();
+  void render_link_hints();
+  void follow_link(const PageLink& link);
+  void exit_link_hints();
+
   /// @brief Returns a formatted string of cached page numbers and total memory in bytes.
   std::pair<std::string, size_t> cache_stats() const;
 
@@ -186,6 +207,14 @@ private:
   int sidebar_scroll_ = 0;
   std::string sidebar_filter_;
   std::vector<int> sidebar_filtered_;
+
+  std::string file_path_; ///< Document file path for reload.
+
+  std::vector<JumpPoint> jump_history_;
+  int jump_index_ = -1; ///< Current position in jump history (-1 = at head).
+
+  std::vector<ActiveLinkHint> link_hints_;
+  std::string link_hint_input_;
 
   FlashMessage last_action_;
   std::chrono::steady_clock::time_point last_activity_time_; ///< Last render or input event, for deferring pre-uploads.

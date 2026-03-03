@@ -24,6 +24,8 @@ public:
   void show_overlay(const std::vector<std::string>& lines) override;
   void clear_overlay() override;
   void show_sidebar(const std::vector<std::string>& lines, int highlight_line, int width_cols, bool focused) override;
+  void show_link_hints(const std::vector<LinkHintDisplay>& hints) override;
+  void write_raw(const char* data, size_t len) override;
   bool supports_image_viewporting() const override;
 
 private:

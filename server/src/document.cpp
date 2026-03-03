@@ -168,6 +168,68 @@ SearchResults Document::search(const std::string& needle) const {
   return results;
 }
 
+void Document::reload(const std::string& path) {
+  fz_context* raw_ctx = ctx_.get();
+  fz_document* new_doc = nullptr;
+
+  fz_try(raw_ctx) {
+    new_doc = fz_open_document(raw_ctx, path.c_str());
+  }
+  fz_catch(raw_ctx) {
+    std::string msg = fz_caught_message(raw_ctx);
+    throw std::runtime_error("failed to reload document: " + msg);
+  }
+
+  doc_ = {new_doc, DocumentDeleter{raw_ctx}};
+}
+
+std::vector<PageLink> Document::load_links(int page_num) const {
+  fz_context* raw_ctx = ctx_.get();
+  fz_page* page = nullptr;
+  std::vector<PageLink> results;
+
+  fz_try(raw_ctx) {
+    page = fz_load_page(raw_ctx, doc_.get(), page_num);
+    fz_link* links = fz_load_links(raw_ctx, page);
+
+    for (fz_link* link = links; link != nullptr; link = link->next) {
+      PageLink pl;
+      pl.page = page_num;
+      pl.x = link->rect.x0;
+      pl.y = link->rect.y0;
+      pl.w = link->rect.x1 - link->rect.x0;
+      pl.h = link->rect.y1 - link->rect.y0;
+      pl.uri = link->uri ? link->uri : "";
+      pl.dest_page = -1;
+      pl.dest_x = 0;
+      pl.dest_y = 0;
+
+      if (!pl.uri.empty() && pl.uri[0] == '#') {
+        float dx = 0;
+        float dy = 0;
+        fz_location loc = fz_resolve_link(raw_ctx, doc_.get(), pl.uri.c_str(), &dx, &dy);
+        if (loc.page >= 0) {
+          pl.dest_page = loc.page;
+          pl.dest_x = dx;
+          pl.dest_y = dy;
+        }
+      }
+
+      results.push_back(std::move(pl));
+    }
+
+    fz_drop_link(raw_ctx, links);
+  }
+  fz_always(raw_ctx) {
+    fz_drop_page(raw_ctx, page);
+  }
+  fz_catch(raw_ctx) {
+    // Pages without links — return empty.
+  }
+
+  return results;
+}
+
 fz_context* Document::ctx() const {
   return ctx_.get();
 }

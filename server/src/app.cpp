@@ -1,5 +1,6 @@
 #include "app.h"
 
+#include "base64.h"
 #include "input_event.h"
 #include "stopwatch.h"
 
@@ -12,7 +13,8 @@
 App::App(std::unique_ptr<Frontend> frontend, const Args& args)
     : frontend_(std::move(frontend))
     , doc_(args.file)
-    , oversample_setting_(args.oversample) {
+    , oversample_setting_(args.oversample)
+    , file_path_(args.file) {
   if (args.view_mode == "page") {
     view_mode_ = ViewMode::PAGE_WIDTH;
   }
@@ -622,6 +624,7 @@ void App::render() {
 }
 
 void App::jump_to_page(int page) {
+  push_jump_history();
   int num_pages = static_cast<int>(layout_.size());
   page = std::clamp(page, 0, num_pages - 1);
   // In SIDE_BY_SIDE, snap to even page index (pair start)
@@ -676,6 +679,10 @@ static const char* command_label(Command cmd) {
       return "Zoom Out";
     case Command::ZOOM_RESET:
       return "Fit Width";
+    case Command::JUMP_BACK:
+      return "Jump Back";
+    case Command::JUMP_FORWARD:
+      return "Jump Forward";
   }
   return "";
 }
@@ -712,7 +719,11 @@ static const HelpEntry SPECIAL_HELP[] = {
     {"gg", "First Page"},
     {"G", "Last Page"},
     {"[n]gg / [n]G", "Go to Page n"},
+    {"H", "Jump Back"},
+    {"L", "Jump Forward"},
+    {"f", "Link Hints"},
     {":", "Command Mode"},
+    {":reload", "Reload Document"},
     {"/", "Search"},
     {"n", "Next Match"},
     {"N", "Previous Match"},
@@ -868,6 +879,35 @@ void App::run() {
         sidebar_apply_filter();
         update_sidebar();
         update_statusline();
+      }
+      continue;
+    }
+
+    // Link hints mode input
+    if (input_mode_ == InputMode::LINK_HINTS) {
+      if (event->id == 27) { // Escape
+        exit_link_hints();
+      }
+      else if (event->id >= 'a' && event->id <= 'z') {
+        link_hint_input_ += static_cast<char>(event->id);
+
+        // Find matching hints
+        std::vector<ActiveLinkHint> matches;
+        for (const auto& hint : link_hints_) {
+          if (hint.label.substr(0, link_hint_input_.size()) == link_hint_input_) {
+            matches.push_back(hint);
+          }
+        }
+
+        if (matches.size() == 1) {
+          follow_link(matches[0].link);
+        }
+        else if (matches.empty()) {
+          exit_link_hints();
+        }
+        else {
+          render_link_hints();
+        }
       }
       continue;
     }
@@ -1053,6 +1093,15 @@ void App::run() {
           }
         }
       }
+      else if (event->id == 'H') {
+        handle_command(Command::JUMP_BACK);
+      }
+      else if (event->id == 'L') {
+        handle_command(Command::JUMP_FORWARD);
+      }
+      else if (event->id == 'f') {
+        enter_link_hints();
+      }
       else if (event->id == 'n' && !search_results_.empty()) {
         search_navigate(1);
       }
@@ -1223,6 +1272,45 @@ void App::handle_command(Command cmd) {
       handle_zoom_change(old);
       break;
     }
+    case Command::JUMP_BACK: {
+      if (jump_history_.empty()) {
+        break;
+      }
+      if (jump_index_ < 0) {
+        // At head: save current position, then go to previous
+        jump_history_.push_back({scroll_.x, scroll_.y});
+        jump_index_ = static_cast<int>(jump_history_.size()) - 2;
+      }
+      else if (jump_index_ > 0) {
+        --jump_index_;
+      }
+      else {
+        break;
+      }
+      scroll_.x = jump_history_[jump_index_].scroll_x;
+      scroll_.y = jump_history_[jump_index_].scroll_y;
+      update_viewport();
+      break;
+    }
+    case Command::JUMP_FORWARD: {
+      if (jump_index_ < 0) {
+        break;
+      }
+      ++jump_index_;
+      if (jump_index_ >= static_cast<int>(jump_history_.size()) - 1) {
+        // Reached the saved "current" entry — pop it and reset
+        scroll_.x = jump_history_.back().scroll_x;
+        scroll_.y = jump_history_.back().scroll_y;
+        jump_history_.pop_back();
+        jump_index_ = -1;
+      }
+      else {
+        scroll_.x = jump_history_[jump_index_].scroll_x;
+        scroll_.y = jump_history_[jump_index_].scroll_y;
+      }
+      update_viewport();
+      break;
+    }
   }
 }
 
@@ -1272,6 +1360,40 @@ void App::execute_command() {
   }
   else if (name == "q" || name == "quit") {
     running_ = false;
+  }
+  else if (name == "reload") {
+    try {
+      // Free all cached images
+      for (auto& [page, cached] : page_cache_) {
+        frontend_->free_image(cached.image_id);
+      }
+      page_cache_.clear();
+
+      doc_.reload(file_path_);
+
+      // Clear derived state
+      outline_.clear();
+      sidebar_filtered_.clear();
+      search_results_.clear();
+      search_term_.clear();
+      search_current_ = -1;
+
+      // Rebuild and render
+      build_layout();
+
+      auto client = frontend_->client_info();
+      int vh = client.viewport_pixel().height;
+      int total_height = document_height();
+      int max_y = std::max(0, total_height - vh);
+      scroll_.y = std::clamp(scroll_.y, 0, max_y);
+
+      frontend_->clear();
+      update_viewport();
+      last_action_.set("Reloaded");
+    }
+    catch (const std::runtime_error& e) {
+      last_action_.set("Reload failed: {}", e.what());
+    }
   }
   else if (name == "set") {
     auto key_space = args.find(' ');
@@ -1453,6 +1575,7 @@ void App::outline_jump() {
   int page = outline_[filtered_indices_[outline_cursor_]].page;
   input_mode_ = InputMode::NORMAL;
   frontend_->clear_overlay();
+  // jump_to_page already calls push_jump_history()
   jump_to_page(page);
   update_statusline();
 }
@@ -1659,6 +1782,7 @@ void App::scroll_to_search_hit() {
     return;
   }
 
+  push_jump_history();
   const auto& hit = search_results_[search_current_];
   int page = hit.page;
   page = std::clamp(page, 0, static_cast<int>(layout_.size()) - 1);
@@ -1707,6 +1831,161 @@ void App::highlight_page_matches(Pixmap& pixmap, int page_num, float render_zoom
       pixmap.highlight_rect(px, py, pw, ph, 255, 255, 0, 80); // Yellow for background matches
     }
   }
+}
+
+void App::push_jump_history() {
+  static constexpr int MAX_JUMP_HISTORY = 100;
+
+  JumpPoint current = {scroll_.x, scroll_.y};
+
+  // Skip duplicate positions
+  if (!jump_history_.empty() && jump_index_ < 0) {
+    const auto& last = jump_history_.back();
+    if (last.scroll_x == current.scroll_x && last.scroll_y == current.scroll_y) {
+      return;
+    }
+  }
+
+  // If in the middle of history, discard forward entries
+  if (jump_index_ >= 0) {
+    jump_history_.resize(jump_index_ + 1);
+    jump_index_ = -1;
+  }
+
+  jump_history_.push_back(current);
+
+  // Cap at maximum
+  if (static_cast<int>(jump_history_.size()) > MAX_JUMP_HISTORY) {
+    jump_history_.erase(jump_history_.begin());
+  }
+}
+
+void App::enter_link_hints() {
+  auto client = frontend_->client_info();
+  if (!client.is_valid() || layout_.empty()) {
+    return;
+  }
+
+  auto vp = client.viewport_pixel();
+  int vh = vp.height;
+  int vw = vp.width;
+
+  int sidebar_cols = sidebar_effective_width();
+  int sidebar_px = 0;
+  if (sidebar_cols > 0 && client.cell.width > 0) {
+    sidebar_px = sidebar_cols * client.cell.width;
+    vw -= sidebar_px;
+  }
+
+  // Collect links from visible pages
+  link_hints_.clear();
+  link_hint_input_.clear();
+
+  for (int p = viewport_first_page_; p <= viewport_last_page_; ++p) {
+    auto page_links = doc_.load_links(p);
+    for (auto& pl : page_links) {
+      // Convert page points → screen cells
+      float page_zoom = layout_[p].zoom * user_zoom_;
+      int px_x = static_cast<int>(pl.x * page_zoom);
+      int px_y = static_cast<int>(pl.y * page_zoom);
+
+      // Global pixel coordinates
+      int global_x = layout_[p].rect.x + px_x;
+      int global_y = layout_[p].rect.y + px_y;
+
+      // Viewport pixel coordinates
+      int vp_x = global_x - scroll_.x + sidebar_px;
+      int vp_y = global_y - scroll_.y;
+
+      // Check visibility
+      if (vp_y < 0 || vp_y >= vh || vp_x < 0 || vp_x >= vw + sidebar_px) {
+        continue;
+      }
+
+      // Convert to cell coordinates
+      int col = vp_x / client.cell.width;
+      int row = vp_y / client.cell.height;
+
+      link_hints_.push_back({std::move(pl), "", col, row});
+    }
+  }
+
+  if (link_hints_.empty()) {
+    last_action_.set("No links on page");
+    return;
+  }
+
+  // Assign labels
+  static const char HINT_CHARS[] = "asdfghjklqwertyuiopzxcvbnm";
+  static const int NUM_CHARS = 26;
+
+  if (static_cast<int>(link_hints_.size()) <= NUM_CHARS) {
+    for (int i = 0; i < static_cast<int>(link_hints_.size()); ++i) {
+      link_hints_[i].label = std::string(1, HINT_CHARS[i]);
+    }
+  }
+  else {
+    int idx = 0;
+    for (auto& hint : link_hints_) {
+      hint.label = std::string(1, HINT_CHARS[idx / NUM_CHARS]) + HINT_CHARS[idx % NUM_CHARS];
+      ++idx;
+    }
+  }
+
+  input_mode_ = InputMode::LINK_HINTS;
+  render_link_hints();
+}
+
+void App::render_link_hints() {
+  std::vector<LinkHintDisplay> displays;
+  for (const auto& hint : link_hints_) {
+    if (hint.label.substr(0, link_hint_input_.size()) == link_hint_input_) {
+      displays.push_back({hint.screen_col, hint.screen_row, hint.label});
+    }
+  }
+  frontend_->show_link_hints(displays);
+  update_statusline();
+}
+
+void App::follow_link(const PageLink& link) {
+  input_mode_ = InputMode::NORMAL;
+  link_hints_.clear();
+  link_hint_input_.clear();
+
+  if (link.dest_page >= 0) {
+    // Internal link — scroll to anchor position
+    push_jump_history();
+    int page = std::clamp(link.dest_page, 0, static_cast<int>(layout_.size()) - 1);
+    float page_zoom = layout_[page].zoom * user_zoom_;
+    int dest_y_px = layout_[page].rect.y + static_cast<int>(link.dest_y * page_zoom);
+    scroll_.y = dest_y_px;
+
+    // Clamp
+    auto client = frontend_->client_info();
+    int vh = client.viewport_pixel().height;
+    int total_height = document_height();
+    int max_y = std::max(0, total_height - vh);
+    scroll_.y = std::clamp(scroll_.y, 0, max_y);
+
+    frontend_->clear();
+    update_viewport();
+  }
+  else {
+    // External link — show URL in overlay and copy to clipboard via OSC 52
+    frontend_->show_overlay({link.uri});
+    std::string osc52 = "\x1b]52;c;" + base64::encode(link.uri) + "\x07";
+    frontend_->write_raw(osc52.data(), osc52.size());
+    input_mode_ = InputMode::HELP; // Dismiss on next key
+  }
+}
+
+void App::exit_link_hints() {
+  input_mode_ = InputMode::NORMAL;
+  link_hints_.clear();
+  link_hint_input_.clear();
+  frontend_->clear_overlay();
+  update_viewport();
+  update_statusline();
 }
 
 void App::update_sidebar() {

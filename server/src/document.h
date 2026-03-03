@@ -19,6 +19,15 @@ struct SearchHit {
 /// @brief All search results for a query.
 using SearchResults = std::vector<SearchHit>;
 
+/// @brief A hyperlink extracted from a PDF page.
+struct PageLink {
+  int page;             ///< Source page (zero-based).
+  float x, y, w, h;     ///< Bounding box in page point coordinates.
+  std::string uri;      ///< Link destination URI.
+  int dest_page;        ///< Resolved destination page (-1 for external).
+  float dest_x, dest_y; ///< Resolved anchor position within dest page (points).
+};
+
 /// @brief Deleter for fz_context unique_ptr.
 struct ContextDeleter {
   void operator()(fz_context* ctx) const;
@@ -72,6 +81,16 @@ public:
   /// @param needle Text to search for.
   /// @return All matching bounding boxes across the document.
   SearchResults search(const std::string& needle) const;
+
+  /// @brief Reload the document from disk.
+  /// @param path Path to the document file.
+  /// @throws std::runtime_error if the file cannot be opened (original document is preserved).
+  void reload(const std::string& path);
+
+  /// @brief Load hyperlinks from a page.
+  /// @param page_num Zero-based page index.
+  /// @return Vector of PageLink for the page.
+  std::vector<PageLink> load_links(int page_num) const;
 
   /// @brief Return the underlying MuPDF context.
   fz_context* ctx() const;

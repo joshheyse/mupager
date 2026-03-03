@@ -449,6 +449,39 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
   std::fflush(stdout);
 }
 
+void TerminalFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints) {
+  if (hints.empty()) {
+    return;
+  }
+
+  // In direct Kitty mode, remove placements so text is visible.
+  if (!in_tmux_) {
+    std::string del = kitty::delete_all_placements();
+    std::fwrite(del.data(), 1, del.size(), stdout);
+    std::fflush(stdout);
+  }
+
+  std::string out;
+  out.reserve(hints.size() * 32);
+
+  for (const auto& hint : hints) {
+    // Position cursor (1-based)
+    std::format_to(std::back_inserter(out), "\x1b[{};{}H", hint.row + 1, hint.col + 1);
+    // Yellow background, black bold text
+    out += "\x1b[1;30;43m";
+    out += hint.label;
+    out += "\x1b[0m";
+  }
+
+  std::fwrite(out.data(), 1, out.size(), stdout);
+  std::fflush(stdout);
+}
+
+void TerminalFrontend::write_raw(const char* data, size_t len) {
+  std::fwrite(data, 1, len, stdout);
+  std::fflush(stdout);
+}
+
 bool TerminalFrontend::supports_image_viewporting() const {
   return !in_tmux_;
 }

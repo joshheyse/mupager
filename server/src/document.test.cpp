@@ -79,3 +79,40 @@ TEST_CASE("Document search hits have valid bounding boxes") {
     CHECK(hit.h > 0);
   }
 }
+
+TEST_CASE("Document reload preserves page count") {
+  Document doc(FIXTURE_PDF);
+  int original_count = doc.page_count();
+  doc.reload(FIXTURE_PDF);
+  CHECK(doc.page_count() == original_count);
+}
+
+TEST_CASE("Document reload throws on invalid path") {
+  Document doc(FIXTURE_PDF);
+  CHECK_THROWS_AS(doc.reload("/nonexistent/path.pdf"), std::runtime_error);
+  CHECK(doc.page_count() == 98);
+}
+
+TEST_CASE("Document load_links returns valid results") {
+  Document doc(FIXTURE_PDF);
+  auto links = doc.load_links(0);
+  for (const auto& link : links) {
+    CHECK(link.page == 0);
+    CHECK(link.w > 0);
+    CHECK(link.h > 0);
+    CHECK(!link.uri.empty());
+  }
+}
+
+TEST_CASE("Document load_links internal links have valid dest_page") {
+  Document doc(FIXTURE_PDF);
+  int page_count = doc.page_count();
+  for (int p = 0; p < std::min(page_count, 10); ++p) {
+    auto links = doc.load_links(p);
+    for (const auto& link : links) {
+      if (link.dest_page >= 0) {
+        CHECK(link.dest_page < page_count);
+      }
+    }
+  }
+}

@@ -19,4 +19,6 @@ enum class Command {
   ZOOM_IN,
   ZOOM_OUT,
   ZOOM_RESET,
+  JUMP_BACK,
+  JUMP_FORWARD,
 };
