@@ -378,6 +378,12 @@ std::optional<RpcCommand> RpcTransport::parse_command(const std::string& method,
     return std::nullopt;
   }
 
+  if (method == "hide") {
+    return cmd::Hide{};
+  }
+  if (method == "show") {
+    return cmd::Show{};
+  }
   if (method == "get_outline") {
     return cmd::GetOutline{};
   }

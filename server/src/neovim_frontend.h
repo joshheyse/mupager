@@ -73,8 +73,9 @@ private:
   int tty_rows_ = 0;   ///< Terminal rows from ioctl.
 
   bool in_tmux_ = false;
-  int tmux_pane_top_ = 0;  ///< Pane row offset in terminal coordinates (0-based).
-  int tmux_pane_left_ = 0; ///< Pane column offset in terminal coordinates (0-based).
+  std::string tmux_pane_id_;   ///< TMUX_PANE identifier (e.g. "%0") for targeting queries.
+  int tmux_pane_top_ = 0;     ///< Pane row offset in terminal coordinates (0-based).
+  int tmux_pane_left_ = 0;    ///< Pane column offset in terminal coordinates (0-based).
   bool quit_received_ = false;
   bool state_dirty_ = true; ///< Whether to send state_changed on next statusline call.
 };

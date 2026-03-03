@@ -12,11 +12,18 @@
 #include <format>
 #include <iterator>
 
-/// @brief Run a tmux display-message command and return the trimmed output.
-static std::string tmux_query(const char* fmt) {
+/// @brief Run a tmux display-message command targeting a specific pane and return the trimmed output.
+/// @param pane_id The tmux pane target (e.g. "%0"). Empty string uses the active pane.
+static std::string tmux_query(const std::string& pane_id, const char* fmt) {
   std::array<char, 128> buf{};
   std::string result;
-  std::string cmd = std::string("tmux display-message -p '") + fmt + "' 2>/dev/null";
+  std::string cmd = "tmux display-message";
+  if (!pane_id.empty()) {
+    cmd += " -t " + pane_id;
+  }
+  cmd += " -p '";
+  cmd += fmt;
+  cmd += "' 2>/dev/null";
   FILE* pipe = popen(cmd.c_str(), "r");
   if (!pipe) {
     return {};
@@ -32,13 +39,13 @@ static std::string tmux_query(const char* fmt) {
 }
 
 /// @brief Query the tmux pane TTY path.
-static std::string tmux_pane_tty() {
-  return tmux_query("#{pane_tty}");
+static std::string tmux_pane_tty(const std::string& pane_id) {
+  return tmux_query(pane_id, "#{pane_tty}");
 }
 
 /// @brief Query the tmux pane position in terminal coordinates (0-based).
-static std::pair<int, int> tmux_pane_position() {
-  auto result = tmux_query("#{pane_top} #{pane_left}");
+static std::pair<int, int> tmux_pane_position(const std::string& pane_id) {
+  auto result = tmux_query(pane_id, "#{pane_top} #{pane_left}");
   int top = 0;
   int left = 0;
   std::sscanf(result.c_str(), "%d %d", &top, &left);
@@ -64,12 +71,18 @@ NeovimFrontend::NeovimFrontend()
   in_tmux_ = std::getenv("TMUX") != nullptr;
 
   if (in_tmux_) {
-    auto pane_tty = tmux_pane_tty();
+    const char* pane_env = std::getenv("TMUX_PANE");
+    if (pane_env) {
+      tmux_pane_id_ = pane_env;
+    }
+    spdlog::info("neovim_frontend: tmux pane id: {}", tmux_pane_id_);
+
+    auto pane_tty = tmux_pane_tty(tmux_pane_id_);
     if (!pane_tty.empty()) {
       spdlog::info("neovim_frontend: using tmux pane tty: {}", pane_tty);
       tty_ = std::fopen(pane_tty.c_str(), "w");
     }
-    auto [top, left] = tmux_pane_position();
+    auto [top, left] = tmux_pane_position(tmux_pane_id_);
     tmux_pane_top_ = top;
     tmux_pane_left_ = left;
     spdlog::info("neovim_frontend: tmux pane position top={} left={}", top, left);
@@ -110,7 +123,7 @@ void NeovimFrontend::query_tty_cell_size() {
     spdlog::debug("neovim_frontend: tty winsize cols={} rows={} xpixel={} ypixel={}", tty_cols_, tty_rows_, tty_xpixel_, tty_ypixel_);
   }
   if (in_tmux_) {
-    auto [top, left] = tmux_pane_position();
+    auto [top, left] = tmux_pane_position(tmux_pane_id_);
     tmux_pane_top_ = top;
     tmux_pane_left_ = left;
     spdlog::debug("neovim_frontend: tmux pane position top={} left={}", top, left);
@@ -285,6 +298,7 @@ void NeovimFrontend::show_pages(const std::vector<PageSlice>& slices) {
       cmd.src_y = s.src.y;
       cmd.src_w = s.src.width;
       cmd.src_h = s.src.height;
+      cmd.z_index = -1;
       if (s.dst.width > 0) {
         cmd.columns = s.dst.width;
       }
@@ -312,6 +326,7 @@ void NeovimFrontend::show_pages(const std::vector<PageSlice>& slices) {
       cmd.src_y = s.src.y;
       cmd.src_w = s.src.width;
       cmd.src_h = s.src.height;
+      cmd.z_index = -1;
       if (s.dst.width > 0) {
         cmd.columns = s.dst.width;
       }

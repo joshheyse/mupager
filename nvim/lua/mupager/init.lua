@@ -76,6 +76,7 @@ function M.open(file)
   vim.wo[mupager_winid].relativenumber = false
   vim.wo[mupager_winid].foldcolumn = "0"
   vim.wo[mupager_winid].statuscolumn = ""
+  vim.wo[mupager_winid].fillchars = "eob: "
 
   -- Start the server
   local server = require "mupager.server"
@@ -117,6 +118,12 @@ function M.open(file)
     callback = function()
       if mupager_winid and vim.api.nvim_win_is_valid(mupager_winid) then server.send_resize(mupager_winid) end
     end,
+  })
+
+  vim.api.nvim_create_autocmd("BufWinLeave", {
+    group = augroup,
+    buffer = mupager_bufnr,
+    callback = function() server.notify "hide" end,
   })
 
   vim.api.nvim_create_autocmd("BufWipeout", {

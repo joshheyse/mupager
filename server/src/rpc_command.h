@@ -130,6 +130,9 @@ struct SearchCancel {};
 struct ShowHelp {};
 struct DismissOverlay {};
 
+struct Hide {};
+struct Show {};
+
 } // namespace cmd
 
 /// @brief Variant type encompassing all RPC commands.
@@ -192,4 +195,6 @@ using RpcCommand = std::variant<
     cmd::SearchExecute,
     cmd::SearchCancel,
     cmd::ShowHelp,
-    cmd::DismissOverlay>;
+    cmd::DismissOverlay,
+    cmd::Hide,
+    cmd::Show>;

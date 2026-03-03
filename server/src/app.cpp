@@ -1108,6 +1108,12 @@ void App::handle_command(const RpcCommand& cmd) {
           update_viewport();
           update_statusline();
         }
+        else if constexpr (std::is_same_v<T, cmd::Hide>) {
+          frontend_->show_pages({});
+        }
+        else if constexpr (std::is_same_v<T, cmd::Show>) {
+          update_viewport();
+        }
       },
       cmd
   );
