@@ -11,10 +11,11 @@
 
 /// @brief Describes how to display a slice of a page image on screen.
 struct PageSlice {
-  uint32_t image_id; ///< Kitty image ID for this page.
-  PixelRect src;     ///< Source rect in page image (pixels).
-  CellRect dst;      ///< Destination rect on screen (cells).
-  CellSize img_grid; ///< Image grid dimensions (for tmux placeholders).
+  uint32_t image_id;     ///< Kitty image ID for this page.
+  PixelRect src;         ///< Source rect in page image (pixels).
+  CellRect dst;          ///< Destination rect on screen (cells). Width = visible columns.
+  CellSize img_grid;     ///< Image grid dimensions (for tmux placeholders).
+  PixelSize img_px_size; ///< Full cached image pixel dimensions (for cell-column mapping).
 };
 
 /// @brief Abstract interface for the display frontend.
@@ -59,4 +60,8 @@ public:
 
   /// @brief Clear the overlay (no-op if repainting handles it).
   virtual void clear_overlay() = 0;
+
+  /// @brief Whether the frontend supports Kitty image viewporting (source-rect cropping on place).
+  /// Tmux unicode placeholders cannot viewport, so this returns false in tmux mode.
+  virtual bool supports_image_viewporting() const = 0;
 };

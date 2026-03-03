@@ -216,7 +216,8 @@ std::string delete_image(uint32_t image_id);
 /// @param first_row First cell row index to display.
 /// @param num_rows Number of cell rows to display.
 /// @param num_cols Number of cell columns per row.
-std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num_cols);
+/// @param first_col First cell column index to display (default 0).
+std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num_cols, int first_col = 0);
 
 /// @brief Delete all image placements (but keep images in memory).
 std::string delete_all_placements();

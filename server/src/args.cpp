@@ -23,10 +23,25 @@ Args::Args(int argc, char* argv[])
   cli.add_option("--log-file", log_file, "Log file path");
   cli.add_option("--view-mode", view_mode, "View mode (continuous, page, page-height, side-by-side)")
       ->check(CLI::IsMember({"continuous", "page", "page-height", "side-by-side"}));
+  std::string oversample_str = "auto";
+  cli.add_option("--oversample", oversample_str, "Oversample strategy (auto, never, 1, 2, 4)")->check(CLI::IsMember({"auto", "never", "1", "2", "4"}));
   cli.parse(argc, argv);
 
   if (!log_opt->count()) {
     const char* env = std::getenv("SPDLOG_LEVEL");
     log_level = env ? env : "info";
+  }
+
+  if (oversample_str == "never") {
+    oversample = Oversample::NEVER;
+  }
+  else if (oversample_str == "1") {
+    oversample = Oversample::X1;
+  }
+  else if (oversample_str == "2") {
+    oversample = Oversample::X2;
+  }
+  else if (oversample_str == "4") {
+    oversample = Oversample::X4;
   }
 }

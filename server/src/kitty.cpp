@@ -596,7 +596,7 @@ std::string delete_image(uint32_t image_id) {
   return cmd.serialize();
 }
 
-std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num_cols) {
+std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num_cols, int first_col) {
   // Per cell: U+10EEEE (4 bytes) + up to 3 diacritics (up to 4 bytes each) = ~16 bytes
   // Plus SGR prefix (~25), newlines (2 per row), SGR reset (5)
   size_t estimated = 30 + static_cast<size_t>(num_rows) * static_cast<size_t>(num_cols) * 16 + static_cast<size_t>(num_rows) * 2;
@@ -619,7 +619,7 @@ std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num
 
   for (int r = 0; r < num_rows; ++r) {
     int row = first_row + r;
-    for (int col = 0; col < num_cols; ++col) {
+    for (int col = first_col; col < first_col + num_cols; ++col) {
       append_utf8(result, PLACEHOLDER_CHAR);
       if (static_cast<size_t>(row) < DIACRITICS_COUNT) {
         append_utf8(result, DIACRITICS[row]);

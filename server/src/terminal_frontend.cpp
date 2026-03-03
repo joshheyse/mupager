@@ -159,12 +159,14 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   if (in_tmux_) {
     erase();
     for (const auto& s : slices) {
-      int first_cell_row = (s.src.y > 0 && s.img_grid.height > 0) ? s.src.y * s.img_grid.height / (s.src.height + s.src.y) : 0;
+      int first_cell_row = (s.src.y > 0 && s.img_px_size.height > 0) ? s.src.y * s.img_grid.height / s.img_px_size.height : 0;
+      int first_cell_col = (s.src.x > 0 && s.img_px_size.width > 0) ? s.src.x * s.img_grid.width / s.img_px_size.width : 0;
+      int visible_cols = (s.dst.width > 0) ? s.dst.width : s.img_grid.width;
       // Emit one row at a time with explicit cursor positioning to avoid
       // \n\r in placeholders resetting the column to 1.
       for (int r = 0; r < s.dst.height; ++r) {
         out += "\x1b[" + std::to_string(s.dst.y + 1 + r) + ";" + std::to_string(s.dst.x + 1) + "H";
-        out += kitty::placeholders(s.image_id, first_cell_row + r, 1, s.img_grid.width);
+        out += kitty::placeholders(s.image_id, first_cell_row + r, 1, visible_cols, first_cell_col);
       }
     }
   }
@@ -172,7 +174,19 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
     out += kitty::delete_all_placements();
     for (const auto& s : slices) {
       out += "\x1b[" + std::to_string(s.dst.y + 1) + ";" + std::to_string(s.dst.x + 1) + "H";
-      out += kitty::place(s.image_id, s.src.x, s.src.y, s.src.width, s.src.height);
+      kitty::PlaceCommand cmd;
+      cmd.image_id = s.image_id;
+      cmd.src_x = s.src.x;
+      cmd.src_y = s.src.y;
+      cmd.src_w = s.src.width;
+      cmd.src_h = s.src.height;
+      if (s.dst.width > 0) {
+        cmd.columns = s.dst.width;
+      }
+      if (s.dst.height > 0) {
+        cmd.rows = s.dst.height;
+      }
+      out += cmd.serialize();
     }
   }
 
@@ -281,4 +295,8 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
 
 void TerminalFrontend::clear_overlay() {
   // No-op — update_viewport() repaints on dismiss.
+}
+
+bool TerminalFrontend::supports_image_viewporting() const {
+  return !in_tmux_;
 }

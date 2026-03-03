@@ -11,7 +11,8 @@
 
 App::App(std::unique_ptr<Frontend> frontend, const Args& args)
     : frontend_(std::move(frontend))
-    , doc_(args.file) {
+    , doc_(args.file)
+    , oversample_setting_(args.oversample) {
   if (args.view_mode == "page") {
     view_mode_ = ViewMode::PAGE_WIDTH;
   }
@@ -101,22 +102,101 @@ int App::page_at_y(int y) const {
   return lo;
 }
 
+int App::effective_oversample() const {
+  Oversample setting = oversample_setting_;
+
+  if (setting == Oversample::AUTO) {
+    setting = frontend_->supports_image_viewporting() ? Oversample::X2 : Oversample::NEVER;
+  }
+
+  if (setting == Oversample::NEVER) {
+    return 0;
+  }
+
+  int floor_os = 1;
+  if (setting == Oversample::X2) {
+    floor_os = 2;
+  }
+  else if (setting == Oversample::X4) {
+    floor_os = 4;
+  }
+
+  int dynamic_os = 1;
+  if (user_zoom_ > 1.0f) {
+    dynamic_os = 2;
+  }
+  if (user_zoom_ > 2.0f) {
+    dynamic_os = 4;
+  }
+  if (user_zoom_ > 4.0f) {
+    dynamic_os = 8;
+  }
+
+  return std::max(floor_os, dynamic_os);
+}
+
+void App::handle_zoom_change(float old_zoom) {
+  auto client = frontend_->client_info();
+  int vw = client.viewport_pixel().width;
+
+  // Adjust scroll_.x to keep viewport center stable
+  if (old_zoom > 0.0f && user_zoom_ != old_zoom) {
+    float ratio = user_zoom_ / old_zoom;
+    scroll_.x = static_cast<int>((scroll_.x + vw / 2) * ratio - vw / 2);
+  }
+
+  // Clamp scroll_.x
+  if (user_zoom_ <= 1.0f) {
+    scroll_.x = 0;
+  }
+  else {
+    scroll_.x = std::max(0, scroll_.x);
+  }
+
+  update_viewport();
+}
+
 void App::ensure_pages_uploaded(int first, int last) {
   auto client = frontend_->client_info();
   if (!client.is_valid()) {
     return;
   }
 
+  int os = effective_oversample();
+
   for (int i = first; i <= last; ++i) {
-    if (page_cache_.count(i) > 0) {
-      continue;
+    float base_zoom = layout_[i].zoom;
+
+    auto it = page_cache_.find(i);
+    if (it != page_cache_.end()) {
+      if (os == 0) {
+        // NEVER mode: check if cached at the correct exact zoom
+        auto [page_w, page_h] = doc_.page_size(i);
+        int expected_w = static_cast<int>(page_w * base_zoom * user_zoom_);
+        int expected_h = static_cast<int>(page_h * base_zoom * user_zoom_);
+        if (it->second.pixel_size.width == expected_w && it->second.pixel_size.height == expected_h) {
+          continue;
+        }
+        // Mismatch — re-render
+        frontend_->free_image(it->second.image_id);
+        page_cache_.erase(it);
+      }
+      else {
+        // Oversample mode: keep if cached oversample is sufficient
+        if (it->second.oversample >= os) {
+          continue;
+        }
+        // Need higher oversample — re-render
+        frontend_->free_image(it->second.image_id);
+        page_cache_.erase(it);
+      }
     }
 
-    float zoom = layout_[i].zoom;
+    float render_zoom = (os == 0) ? base_zoom * user_zoom_ : base_zoom * os;
 
     Pixmap pixmap = [&] {
-      Stopwatch sw("mupdf render page " + std::to_string(i));
-      return doc_.render_page(i, zoom);
+      Stopwatch sw("mupdf render page " + std::to_string(i) + " zoom=" + std::to_string(render_zoom) + " os=" + std::to_string(os));
+      return doc_.render_page(i, render_zoom);
     }();
 
     if (theme_ == Theme::DARK) {
@@ -127,7 +207,7 @@ void App::ensure_pages_uploaded(int first, int last) {
     int rows = (pixmap.height() + client.cell.height - 1) / client.cell.height;
 
     uint32_t image_id = frontend_->upload_image(pixmap, cols, rows);
-    page_cache_[i] = {image_id, {pixmap.width(), pixmap.height()}, {cols, rows}};
+    page_cache_[i] = {image_id, {pixmap.width(), pixmap.height()}, {cols, rows}, os};
   }
 }
 
@@ -213,9 +293,14 @@ void App::update_statusline() {
     return "";
   }();
   std::string theme_str = (theme_ == Theme::DARK) ? "DARK" : "LIGHT";
+  int zoom_pct = static_cast<int>(user_zoom_ * 100.0f + 0.5f);
   int page = current_page() + 1;
   int total = doc_.page_count();
-  std::string right = std::string(mode_str) + " \xe2\x94\x82 " + theme_str + " \xe2\x94\x82 " + std::to_string(page) + "/" + std::to_string(total);
+  std::string right = std::string(mode_str);
+  if (zoom_pct != 100) {
+    right += " \xe2\x94\x82 " + std::to_string(zoom_pct) + "%";
+  }
+  right += " \xe2\x94\x82 " + theme_str + " \xe2\x94\x82 " + std::to_string(page) + "/" + std::to_string(total);
 
   frontend_->statusline(left, right);
 }
@@ -267,57 +352,97 @@ void App::update_viewport() {
 
     int page_top = lay.rect.y - scroll_.y;
 
-    // Rendered page dimensions at this zoom
+    // Zoomed page dimensions (what the user sees on screen)
     auto [page_w, page_h] = doc_.page_size(i);
-    int rendered_w = static_cast<int>(page_w * lay.zoom);
-    int rendered_h = static_cast<int>(page_h * lay.zoom);
+    int zoomed_w = static_cast<int>(page_w * lay.zoom * user_zoom_);
+    int zoomed_h = static_cast<int>(page_h * lay.zoom * user_zoom_);
+
+    // Scale factor: zoomed-content pixels -> image pixels
+    float img_scale;
+    if (cached.oversample == 0) {
+      img_scale = 1.0f; // NEVER mode: image IS the zoomed content
+    }
+    else {
+      img_scale = static_cast<float>(cached.oversample) / user_zoom_;
+    }
 
     // Where the actual rendered content starts in viewport coordinates.
-    // For centered modes this differs from page_top due to padding.
     int content_top = page_top;
     int dst_col = 0;
 
     if (view_mode_ == ViewMode::PAGE_HEIGHT) {
-      int vert_pad = (vh - rendered_h) / 2;
+      int base_h = static_cast<int>(page_h * lay.zoom);
+      int vert_pad = (vh - base_h) / 2;
       content_top = page_top + vert_pad;
-      dst_col = (vw - rendered_w) / 2 / client.cell.width;
+      if (zoomed_w < vw) {
+        dst_col = (vw - zoomed_w) / 2 / client.cell.width;
+      }
     }
     else if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
-      int vert_pad = (vh - rendered_h) / 2;
+      int base_h = static_cast<int>(page_h * lay.zoom);
+      int vert_pad = (vh - base_h) / 2;
       content_top = page_top + vert_pad;
       bool is_last_odd = (i == num_pages - 1) && (i % 2 == 0);
       if (is_last_odd) {
-        dst_col = (vw - rendered_w) / 2 / client.cell.width;
+        if (zoomed_w < vw) {
+          dst_col = (vw - zoomed_w) / 2 / client.cell.width;
+        }
       }
       else if (i % 2 == 0) {
         int half_w = vw / 2;
-        dst_col = (half_w - rendered_w) / 2 / client.cell.width;
+        if (zoomed_w < half_w) {
+          dst_col = (half_w - zoomed_w) / 2 / client.cell.width;
+        }
       }
       else {
         int half_w = vw / 2;
-        dst_col = (half_w + (half_w - rendered_w) / 2) / client.cell.width;
+        if (zoomed_w < half_w) {
+          dst_col = (half_w + (half_w - zoomed_w) / 2) / client.cell.width;
+        }
+        else {
+          dst_col = half_w / client.cell.width;
+        }
+      }
+    }
+    else {
+      // CONTINUOUS / PAGE_WIDTH: center when zoomed content is narrower than viewport
+      if (zoomed_w < vw) {
+        dst_col = (vw - zoomed_w) / 2 / client.cell.width;
       }
     }
 
     // Clamp to viewport
-    PixelRect content_rect = {0, content_top, rendered_w, rendered_h};
+    PixelRect content_rect = {0, content_top, zoomed_w, zoomed_h};
     PixelRect viewport_rect = {0, 0, vw, vh};
     auto visible = content_rect.intersect(viewport_rect);
     if (visible.height <= 0) {
       continue;
     }
 
-    // Source rect — offset into the rendered image
-    int src_x = std::clamp(scroll_.x, 0, std::max(0, rendered_w - vw));
-    int src_y = visible.top() - content_top;
-    PixelRect src = {src_x, src_y, rendered_w, visible.height};
+    // Source rect in image pixel coordinates
+    int max_scroll_x = std::max(0, zoomed_w - vw);
+    int clamped_scroll_x = std::clamp(scroll_.x, 0, max_scroll_x);
+    int src_x = static_cast<int>(clamped_scroll_x * img_scale);
+    int src_y = static_cast<int>((visible.top() - content_top) * img_scale);
+    int src_w = static_cast<int>(std::min(zoomed_w, vw) * img_scale);
+    int src_h = static_cast<int>(visible.height * img_scale);
+
+    // Clamp source rect to actual image dimensions
+    src_x = std::min(src_x, std::max(0, cached.pixel_size.width - 1));
+    src_y = std::min(src_y, std::max(0, cached.pixel_size.height - 1));
+    src_w = std::min(src_w, cached.pixel_size.width - src_x);
+    src_h = std::min(src_h, cached.pixel_size.height - src_y);
+
+    PixelRect src = {src_x, src_y, src_w, src_h};
 
     // Destination in cells
+    int visible_px_w = std::min(zoomed_w, vw);
+    int dst_cols = (visible_px_w + client.cell.width - 1) / client.cell.width;
     int dst_row = visible.top() / client.cell.height;
     int dst_rows = (visible.bottom() + client.cell.height - 1) / client.cell.height - dst_row;
-    CellRect dst = {dst_col, dst_row, 0, dst_rows};
+    CellRect dst = {dst_col, dst_row, dst_cols, dst_rows};
 
-    slices.push_back({cached.image_id, src, dst, cached.cell_grid});
+    slices.push_back({cached.image_id, src, dst, cached.cell_grid, cached.pixel_size});
   }
 
   spdlog::debug("update_viewport: pages [{},{}] slices={}", first, last, slices.size());
@@ -336,6 +461,7 @@ void App::scroll(int dx, int dy) {
 
   auto client = frontend_->client_info();
   int vh = client.viewport_pixel().height;
+  int vw = client.viewport_pixel().width;
 
   int total_height = document_height();
   int max_y = std::max(0, total_height - vh);
@@ -350,7 +476,12 @@ void App::scroll(int dx, int dy) {
     new_y = std::clamp(new_y, page_top, page_max);
   }
 
-  int new_x = std::max(0, scroll_.x + dx);
+  // Clamp horizontal scroll based on zoomed page width
+  int p = page_at_y(new_y);
+  auto [pw, ph] = doc_.page_size(p);
+  int zoomed_w = static_cast<int>(pw * layout_[p].zoom * user_zoom_);
+  int max_x = std::max(0, zoomed_w - vw);
+  int new_x = std::clamp(scroll_.x + dx, 0, max_x);
 
   if (new_x == scroll_.x && new_y == scroll_.y) {
     return;
@@ -374,9 +505,21 @@ void App::render() {
   if (!layout_.empty()) {
     auto client = frontend_->client_info();
     int vh = client.viewport_pixel().height;
+    int vw = client.viewport_pixel().width;
     int total_height = document_height();
     int max_y = std::max(0, total_height - vh);
     scroll_.y = std::clamp(scroll_.y, 0, max_y);
+
+    if (user_zoom_ <= 1.0f) {
+      scroll_.x = 0;
+    }
+    else {
+      int p = page_at_y(scroll_.y);
+      auto [pw, ph] = doc_.page_size(p);
+      int zoomed_w = static_cast<int>(pw * layout_[p].zoom * user_zoom_);
+      int max_x = std::max(0, zoomed_w - vw);
+      scroll_.x = std::clamp(scroll_.x, 0, max_x);
+    }
   }
 
   update_viewport();
@@ -431,6 +574,12 @@ static const char* command_label(Command cmd) {
       return "Toggle View";
     case Command::TOGGLE_THEME:
       return "Toggle Theme";
+    case Command::ZOOM_IN:
+      return "Zoom In";
+    case Command::ZOOM_OUT:
+      return "Zoom Out";
+    case Command::ZOOM_RESET:
+      return "Fit Width";
   }
   return "";
 }
@@ -458,6 +607,11 @@ static const KeyBinding KEY_BINDINGS[] = {
     {0x02, Command::PAGE_UP, "Ctrl+B"},
     {'h', Command::SCROLL_LEFT, "h"},
     {'l', Command::SCROLL_RIGHT, "l"},
+    {'+', Command::ZOOM_IN, "+"},
+    {'=', Command::ZOOM_IN, "="},
+    {'-', Command::ZOOM_OUT, "-"},
+    {'0', Command::ZOOM_RESET, "0"},
+    {'w', Command::ZOOM_RESET, "w"},
     {0x09, Command::TOGGLE_VIEW_MODE, "Tab"},
     {'t', Command::TOGGLE_THEME, "t"},
     {'q', Command::QUIT, "q"},
@@ -698,6 +852,7 @@ void App::handle_command(Command cmd) {
           view_mode_ = ViewMode::CONTINUOUS;
           break;
       }
+      user_zoom_ = 1.0f;
       scroll_.x = 0;
       render();
       break;
@@ -706,6 +861,28 @@ void App::handle_command(Command cmd) {
       theme_ = (theme_ == Theme::DARK) ? Theme::LIGHT : Theme::DARK;
       frontend_->clear();
       render();
+      break;
+    }
+    case Command::ZOOM_IN: {
+      float old = user_zoom_;
+      user_zoom_ = std::min(user_zoom_ * 1.25f, 8.0f);
+      spdlog::info("zoom in: {:.0f}%", user_zoom_ * 100.0f);
+      handle_zoom_change(old);
+      break;
+    }
+    case Command::ZOOM_OUT: {
+      float old = user_zoom_;
+      user_zoom_ = std::max(user_zoom_ / 1.25f, 1.0f);
+      spdlog::info("zoom out: {:.0f}%", user_zoom_ * 100.0f);
+      handle_zoom_change(old);
+      break;
+    }
+    case Command::ZOOM_RESET: {
+      float old = user_zoom_;
+      user_zoom_ = 1.0f;
+      scroll_.x = 0;
+      spdlog::info("zoom reset: 100%");
+      handle_zoom_change(old);
       break;
     }
   }

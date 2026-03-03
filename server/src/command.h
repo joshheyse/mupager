@@ -16,4 +16,7 @@ enum class Command {
   SCROLL_RIGHT,
   TOGGLE_VIEW_MODE,
   TOGGLE_THEME,
+  ZOOM_IN,
+  ZOOM_OUT,
+  ZOOM_RESET,
 };

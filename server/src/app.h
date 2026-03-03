@@ -24,6 +24,7 @@ struct CachedPage {
   uint32_t image_id;
   PixelSize pixel_size; ///< Rendered pixel dimensions.
   CellSize cell_grid;   ///< Grid dimensions in cells.
+  int oversample;       ///< Oversample factor this was rendered at (0 = exact zoom, no viewporting).
 };
 
 /// @brief View mode for page display.
@@ -76,6 +77,8 @@ private:
   int document_height() const;
   void update_statusline();
   void show_help();
+  int effective_oversample() const;
+  void handle_zoom_change(float old_zoom);
 
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
@@ -86,6 +89,8 @@ private:
   ViewMode view_mode_ = ViewMode::CONTINUOUS;
   Theme theme_ = Theme::DARK;
   InputMode input_mode_ = InputMode::NORMAL;
+  float user_zoom_ = 1.0f;        ///< User zoom multiplier (1.0 = fit-to-viewport).
+  Oversample oversample_setting_; ///< From CLI --oversample.
   std::string search_term_;
   std::string command_input_;
   int search_page_matches_ = 0;

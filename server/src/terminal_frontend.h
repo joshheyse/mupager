@@ -23,6 +23,7 @@ public:
   void statusline(const std::string& left, const std::string& right) override;
   void show_overlay(const std::vector<std::string>& lines) override;
   void clear_overlay() override;
+  bool supports_image_viewporting() const override;
 
 private:
   void query_winsize();
