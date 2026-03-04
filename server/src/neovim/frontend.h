@@ -1,12 +1,11 @@
 #pragma once
 
-#include "frontend.h"
-#include "rpc_transport.h"
+#include "neovim/rpc_transport.h"
 
-#include <cstdint>
+#include <frontend.h> // angle brackets to resolve base, not self
+
 #include <cstdio>
 #include <deque>
-#include <unordered_set>
 
 /// @brief Neovim backend frontend: renders images to /dev/tty, communicates with plugin via msgpack-RPC on stdin/stdout.
 class NeovimFrontend : public Frontend {
@@ -21,7 +20,6 @@ public:
   void clear() override;
   ClientInfo client_info() override;
   uint32_t upload_image(const Pixmap& pixmap, int cols, int rows) override;
-  void free_image(uint32_t image_id) override;
   void show_pages(const std::vector<PageSlice>& slices) override;
   void statusline(const std::string& left, const std::string& right) override;
   void show_overlay(const std::string& title, const std::vector<std::string>& lines) override;
@@ -29,9 +27,7 @@ public:
   void show_sidebar(const std::vector<std::string>& lines, int highlight_line, int width_cols, bool focused) override;
   void show_link_hints(const std::vector<LinkHintDisplay>& hints) override;
   void write_raw(const char* data, size_t len) override;
-  bool supports_image_viewporting() const override;
-  void set_color_scheme(const ColorScheme& scheme) override;
-  std::optional<RpcCommand> pop_command() override;
+  std::optional<Command> pop_command() override;
 
   /// @brief Get the RPC transport for sending notifications.
   RpcTransport& transport() {
@@ -58,10 +54,7 @@ private:
   RpcTransport transport_;
   FILE* tty_ = nullptr; ///< /dev/tty for direct Kitty output.
   int tty_fd_ = -1;     ///< File descriptor for /dev/tty.
-  std::deque<RpcCommand> command_queue_;
-
-  uint32_t next_image_id_ = 1 << 24; ///< Offset from terminal frontend to avoid Kitty image ID collisions.
-  std::unordered_set<uint32_t> uploaded_ids_;
+  std::deque<Command> command_queue_;
 
   int win_cols_ = 0;   ///< Neovim window width in columns.
   int win_rows_ = 0;   ///< Neovim window height in rows.
@@ -73,8 +66,6 @@ private:
   int tty_cols_ = 0;   ///< Terminal columns from ioctl.
   int tty_rows_ = 0;   ///< Terminal rows from ioctl.
 
-  ColorScheme colors_;
-  bool in_tmux_ = false;
   std::string tmux_pane_id_; ///< TMUX_PANE identifier (e.g. "%0") for targeting queries.
   int tmux_pane_top_ = 0;    ///< Pane row offset in terminal coordinates (0-based).
   int tmux_pane_left_ = 0;   ///< Pane column offset in terminal coordinates (0-based).

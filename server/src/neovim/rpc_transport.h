@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rpc_command.h"
+#include "command.h"
 
 #include <cstdint>
 #include <optional>
@@ -10,9 +10,9 @@
 
 /// @brief Msgpack-RPC message types.
 enum class RpcMessageType {
-  REQUEST = 0,      ///< [0, msgid, method, params]
-  RESPONSE = 1,     ///< [1, msgid, error, result]
-  NOTIFICATION = 2, ///< [2, method, params]
+  Request = 0,      ///< [0, msgid, method, params]
+  Response = 1,     ///< [1, msgid, error, result]
+  Notification = 2, ///< [2, method, params]
 };
 
 /// @brief A parsed incoming RPC message.
@@ -66,11 +66,11 @@ public:
   /// @param params_buf Pre-packed parameters buffer.
   void notify_nvim_lua(const std::string& method, const msgpack::sbuffer& params_buf);
 
-  /// @brief Parse an RPC method + params into an RpcCommand.
+  /// @brief Parse an RPC method + params into an Command.
   /// @param method The RPC method name.
   /// @param params The msgpack params object.
   /// @return The parsed command, or nullopt if unrecognized.
-  static std::optional<RpcCommand> parse_command(const std::string& method, const msgpack::object& params);
+  static std::optional<Command> parse_command(const std::string& method, const msgpack::object& params);
 
 private:
   int read_fd_;

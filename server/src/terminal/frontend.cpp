@@ -1,9 +1,9 @@
-#include "terminal_frontend.h"
+#include "terminal/frontend.h"
 
+#include "graphics/kitty.h"
+#include "graphics/sgr.h"
 #include "input_event.h"
-#include "kitty.h"
-#include "sgr.h"
-#include "stopwatch.h"
+#include "util/stopwatch.h"
 
 #include <ncurses.h>
 #include <spdlog/spdlog.h>
@@ -11,13 +11,10 @@
 #include <unistd.h>
 
 #include <cstdio>
-#include <cstdlib>
 #include <format>
 #include <iterator>
 
 TerminalFrontend::TerminalFrontend() {
-  in_tmux_ = std::getenv("TMUX") != nullptr;
-
   set_escdelay(25);
   initscr();
   raw();
@@ -32,16 +29,8 @@ TerminalFrontend::TerminalFrontend() {
 }
 
 TerminalFrontend::~TerminalFrontend() {
-  for (uint32_t id : uploaded_ids_) {
-    std::string seq;
-    if (in_tmux_) {
-      seq = kitty::wrap_tmux(kitty::delete_image(id));
-    }
-    else {
-      seq = kitty::delete_image(id);
-    }
-    std::fwrite(seq.data(), 1, seq.size(), stdout);
-  }
+  std::string seq = build_image_cleanup_sequence();
+  std::fwrite(seq.data(), 1, seq.size(), stdout);
   std::fflush(stdout);
   endwin();
 }
@@ -69,40 +58,40 @@ std::optional<InputEvent> TerminalFrontend::poll_input(int timeout_ms) {
   if (rc == KEY_CODE_YES) {
     if (wch == KEY_RESIZE) {
       query_winsize();
-      return InputEvent{input::RESIZE, 0, EventType::PRESS};
+      return InputEvent{input::Resize, 0, EventType::Press};
     }
     if (wch == KEY_MOUSE) {
       MEVENT mevent{};
       if (getmouse(&mevent) == OK) {
         unsigned mods = 0;
         if (mevent.bstate & BUTTON_CTRL) {
-          mods |= input::MOD_CTRL;
+          mods |= input::ModCtrl;
         }
         if (mevent.bstate & BUTTON_SHIFT) {
-          mods |= input::MOD_SHIFT;
+          mods |= input::ModShift;
         }
         uint32_t id = 0;
-        EventType etype = EventType::PRESS;
+        EventType etype = EventType::Press;
         if (mevent.bstate & BUTTON4_PRESSED) {
-          id = input::MOUSE_SCROLL_UP;
+          id = input::MouseScrollUp;
         }
 #ifdef BUTTON5_PRESSED
         else if (mevent.bstate & BUTTON5_PRESSED) {
-          id = input::MOUSE_SCROLL_DN;
+          id = input::MouseScrollDn;
         }
 #endif
         else if (mevent.bstate & BUTTON1_PRESSED) {
-          id = input::MOUSE_PRESS;
+          id = input::MousePress;
           button1_held_ = true;
         }
         else if (mevent.bstate & BUTTON1_RELEASED) {
-          id = input::MOUSE_RELEASE;
-          etype = EventType::RELEASE;
+          id = input::MouseRelease;
+          etype = EventType::Release;
           button1_held_ = false;
         }
         else if (mevent.bstate & REPORT_MOUSE_POSITION) {
           if (button1_held_) {
-            id = input::MOUSE_DRAG;
+            id = input::MouseDrag;
           }
         }
         if (id != 0) {
@@ -112,49 +101,41 @@ std::optional<InputEvent> TerminalFrontend::poll_input(int timeout_ms) {
       return std::nullopt;
     }
     if (wch == KEY_BACKSPACE) {
-      return InputEvent{input::BACKSPACE, 0, EventType::PRESS};
+      return InputEvent{input::Backspace, 0, EventType::Press};
     }
     if (wch == KEY_UP) {
-      return InputEvent{input::ARROW_UP, 0, EventType::PRESS};
+      return InputEvent{input::ArrowUp, 0, EventType::Press};
     }
     if (wch == KEY_DOWN) {
-      return InputEvent{input::ARROW_DOWN, 0, EventType::PRESS};
+      return InputEvent{input::ArrowDown, 0, EventType::Press};
     }
     if (wch == KEY_PPAGE) {
-      return InputEvent{input::PAGE_UP, 0, EventType::PRESS};
+      return InputEvent{input::PageUp, 0, EventType::Press};
     }
     if (wch == KEY_NPAGE) {
-      return InputEvent{input::PAGE_DOWN, 0, EventType::PRESS};
+      return InputEvent{input::PageDown, 0, EventType::Press};
     }
     if (wch == KEY_HOME) {
-      return InputEvent{input::HOME, 0, EventType::PRESS};
+      return InputEvent{input::Home, 0, EventType::Press};
     }
     if (wch == KEY_END) {
-      return InputEvent{input::END, 0, EventType::PRESS};
+      return InputEvent{input::End, 0, EventType::Press};
     }
     if (wch == KEY_LEFT) {
-      return InputEvent{input::ARROW_LEFT, 0, EventType::PRESS};
+      return InputEvent{input::ArrowLeft, 0, EventType::Press};
     }
     if (wch == KEY_RIGHT) {
-      return InputEvent{input::ARROW_RIGHT, 0, EventType::PRESS};
+      return InputEvent{input::ArrowRight, 0, EventType::Press};
     }
   }
 
   auto id = static_cast<uint32_t>(wch);
-  return InputEvent{id, 0, EventType::PRESS};
+  return InputEvent{id, 0, EventType::Press};
 }
 
 void TerminalFrontend::clear() {
-  for (uint32_t id : uploaded_ids_) {
-    std::string seq;
-    if (in_tmux_) {
-      seq = kitty::wrap_tmux(kitty::delete_image(id));
-    }
-    else {
-      seq = kitty::delete_image(id);
-    }
-    std::fwrite(seq.data(), 1, seq.size(), stdout);
-  }
+  std::string seq = build_image_cleanup_sequence();
+  std::fwrite(seq.data(), 1, seq.size(), stdout);
   uploaded_ids_.clear();
   std::fflush(stdout);
 
@@ -177,12 +158,17 @@ ClientInfo TerminalFrontend::client_info() {
   if (ws_row_ > 0 && ws_col_ > 0) {
     cell = {static_cast<int>(ws_xpixel_ / ws_col_), static_cast<int>(ws_ypixel_ / ws_row_)};
   }
+  int inset_px = inset_cols_ * cell.width;
   return {
-      {static_cast<int>(ws_xpixel_), static_cast<int>(ws_ypixel_)},
+      {static_cast<int>(ws_xpixel_) - inset_px, static_cast<int>(ws_ypixel_)},
       cell,
-      static_cast<int>(ws_col_),
+      static_cast<int>(ws_col_) - inset_cols_,
       static_cast<int>(ws_row_),
   };
+}
+
+void TerminalFrontend::set_canvas_inset(int left_cols) {
+  inset_cols_ = left_cols;
 }
 
 uint32_t TerminalFrontend::upload_image(const Pixmap& pixmap, int cols, int rows) {
@@ -211,22 +197,6 @@ uint32_t TerminalFrontend::upload_image(const Pixmap& pixmap, int cols, int rows
   return image_id;
 }
 
-void TerminalFrontend::free_image(uint32_t image_id) {
-  if (uploaded_ids_.count(image_id) == 0) {
-    return;
-  }
-  std::string seq;
-  if (in_tmux_) {
-    seq = kitty::wrap_tmux(kitty::delete_image(image_id));
-  }
-  else {
-    seq = kitty::delete_image(image_id);
-  }
-  std::fwrite(seq.data(), 1, seq.size(), stdout);
-  std::fflush(stdout);
-  uploaded_ids_.erase(image_id);
-}
-
 void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   std::string out;
   // Each slice needs ~16 bytes for cursor escape + variable payload per row.
@@ -240,13 +210,14 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   if (in_tmux_) {
     erase();
     for (const auto& s : slices) {
+      int dst_col = s.dst.x + inset_cols_;
       int first_cell_row = (s.src.y > 0 && s.img_px_size.height > 0) ? s.src.y * s.img_grid.height / s.img_px_size.height : 0;
       int first_cell_col = (s.src.x > 0 && s.img_px_size.width > 0) ? s.src.x * s.img_grid.width / s.img_px_size.width : 0;
       int visible_cols = (s.dst.width > 0) ? s.dst.width : s.img_grid.width;
       // Emit one row at a time with explicit cursor positioning to avoid
       // \n\r in placeholders resetting the column to 1.
       for (int r = 0; r < s.dst.height; ++r) {
-        sgr::move_to(out, s.dst.y + 1 + r, s.dst.x + 1);
+        sgr::move_to(out, s.dst.y + 1 + r, dst_col + 1);
         out += kitty::placeholders(s.image_id, first_cell_row + r, 1, visible_cols, first_cell_col);
       }
     }
@@ -254,7 +225,8 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   else {
     out += kitty::delete_all_placements();
     for (const auto& s : slices) {
-      sgr::move_to(out, s.dst.y + 1, s.dst.x + 1);
+      int dst_col = s.dst.x + inset_cols_;
+      sgr::move_to(out, s.dst.y + 1, dst_col + 1);
       kitty::PlaceCommand cmd;
       cmd.image_id = s.image_id;
       cmd.src_x = s.src.x;
@@ -333,7 +305,7 @@ void TerminalFrontend::statusline(const std::string& left, const std::string& ri
   out += padded_left;
   out.append(pad, ' ');
   out += padded_right;
-  out += sgr::RESET;
+  out += sgr::Reset;
 
   std::fwrite(out.data(), 1, out.size(), stdout);
   std::fflush(stdout);
@@ -405,13 +377,13 @@ void TerminalFrontend::show_overlay(const std::string& title, const std::vector<
     }
   }
   out += corner_tr;
-  out += sgr::RESET;
+  out += sgr::Reset;
 
   // Body lines
   for (size_t i = 0; i < lines.size(); ++i) {
     int row = start_row + 1 + static_cast<int>(i);
     sgr::move_to(out, row, start_col);
-    out += sgr::RESET;
+    out += sgr::Reset;
     out += border_sgr;
     out += vert;
     out += content_sgr;
@@ -424,7 +396,7 @@ void TerminalFrontend::show_overlay(const std::string& title, const std::vector<
     out += " ";
     out += border_sgr;
     out += vert;
-    out += sgr::RESET;
+    out += sgr::Reset;
   }
 
   // Bottom border: ╰──────────────╯
@@ -436,7 +408,7 @@ void TerminalFrontend::show_overlay(const std::string& title, const std::vector<
     out += horiz;
   }
   out += corner_br;
-  out += sgr::RESET;
+  out += sgr::Reset;
 
   std::fwrite(out.data(), 1, out.size(), stdout);
   std::fflush(stdout);
@@ -469,16 +441,16 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
       if (is_highlight) {
         if (focused) {
           if (colors_.sidebar_active_fg.is_default && colors_.sidebar_active_bg.is_default) {
-            out += sgr::BOLD_REVERSE;
+            out += sgr::BoldReverse;
           }
           else {
-            out += sgr::BOLD;
+            out += sgr::Bold;
             out += colors_.sidebar_active_fg.sgr_fg();
             out += colors_.sidebar_active_bg.sgr_bg();
           }
         }
         else {
-          out += sgr::BOLD;
+          out += sgr::Bold;
         }
       }
       else if (!colors_.sidebar_fg.is_default || !colors_.sidebar_bg.is_default) {
@@ -530,7 +502,7 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
       }
 
       if (is_highlight || !colors_.sidebar_fg.is_default || !colors_.sidebar_bg.is_default) {
-        out += sgr::RESET;
+        out += sgr::Reset;
       }
     }
     else {
@@ -539,7 +511,7 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
       }
       out.append(content_w, ' ');
       if (!colors_.sidebar_bg.is_default) {
-        out += sgr::RESET;
+        out += sgr::Reset;
       }
     }
 
@@ -549,7 +521,7 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
     }
     out += "\xe2\x94\x82"; // │
     if (!colors_.sidebar_border.is_default) {
-      out += sgr::RESET;
+      out += sgr::Reset;
     }
   }
 
@@ -573,12 +545,12 @@ void TerminalFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints
   out.reserve(hints.size() * 32);
 
   for (const auto& hint : hints) {
-    sgr::move_to(out, hint.row + 1, hint.col + 1);
-    out += sgr::BOLD;
+    sgr::move_to(out, hint.row + 1, hint.col + inset_cols_ + 1);
+    out += sgr::Bold;
     out += colors_.link_hint_fg.sgr_fg();
     out += colors_.link_hint_bg.sgr_bg();
     out += hint.label;
-    out += sgr::RESET;
+    out += sgr::Reset;
   }
 
   std::fwrite(out.data(), 1, out.size(), stdout);
@@ -588,12 +560,4 @@ void TerminalFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints
 void TerminalFrontend::write_raw(const char* data, size_t len) {
   std::fwrite(data, 1, len, stdout);
   std::fflush(stdout);
-}
-
-bool TerminalFrontend::supports_image_viewporting() const {
-  return !in_tmux_;
-}
-
-void TerminalFrontend::set_color_scheme(const ColorScheme& scheme) {
-  colors_ = scheme;
 }

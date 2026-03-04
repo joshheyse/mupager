@@ -30,7 +30,7 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
     return;
   }
 
-  static const std::unordered_set<std::string> KNOWN_COLOR_KEYS = {
+  static const std::unordered_set<std::string> KnownColorKeys = {
       "statusline-fg",    "statusline-bg",          "overlay-fg",        "overlay-bg",          "overlay-border",      "sidebar-fg",
       "sidebar-bg",       "sidebar-active-fg",      "sidebar-active-bg", "sidebar-border",      "link-hint-fg",        "link-hint-bg",
       "search-highlight", "search-highlight-alpha", "search-active",     "search-active-alpha", "selection-highlight", "selection-highlight-alpha",
@@ -39,7 +39,7 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
 
   for (auto&& [key, val] : *colors_tbl) {
     std::string k{key.str()};
-    if (KNOWN_COLOR_KEYS.find(k) == KNOWN_COLOR_KEYS.end()) {
+    if (KnownColorKeys.find(k) == KnownColorKeys.end()) {
       spdlog::warn("config: unknown [colors] key '{}'", k);
       continue;
     }
@@ -253,7 +253,7 @@ Config load_config(const std::optional<std::string>& path_override) {
   parse_keys_table(tbl, cfg);
 
   // Warn about unknown top-level keys
-  static const std::unordered_set<std::string> KNOWN_KEYS = {
+  static const std::unordered_set<std::string> KnownKeys = {
       "view-mode",
       "theme",
       "render-scale",
@@ -271,7 +271,7 @@ Config load_config(const std::optional<std::string>& path_override) {
   };
   for (auto&& [key, val] : tbl) {
     std::string k{key.str()};
-    if (KNOWN_KEYS.find(k) == KNOWN_KEYS.end()) {
+    if (KnownKeys.find(k) == KnownKeys.end()) {
       spdlog::warn("config: unknown key '{}'", k);
     }
   }

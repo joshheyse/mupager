@@ -1,4 +1,4 @@
-#include "key_bindings.h"
+#include "terminal/key_bindings.h"
 
 #include <doctest/doctest.h>
 
@@ -14,20 +14,20 @@ TEST_CASE("parse_key_spec special keys") {
   SUBCASE("arrow keys") {
     auto up = parse_key_spec("Up");
     REQUIRE(up.has_value());
-    CHECK(up->id == input::ARROW_UP);
+    CHECK(up->id == input::ArrowUp);
     CHECK_FALSE(up->is_sequence);
 
     auto down = parse_key_spec("Down");
     REQUIRE(down.has_value());
-    CHECK(down->id == input::ARROW_DOWN);
+    CHECK(down->id == input::ArrowDown);
 
     auto left = parse_key_spec("Left");
     REQUIRE(left.has_value());
-    CHECK(left->id == input::ARROW_LEFT);
+    CHECK(left->id == input::ArrowLeft);
 
     auto right = parse_key_spec("Right");
     REQUIRE(right.has_value());
-    CHECK(right->id == input::ARROW_RIGHT);
+    CHECK(right->id == input::ArrowRight);
   }
 
   SUBCASE("Tab") {
@@ -46,11 +46,11 @@ TEST_CASE("parse_key_spec special keys") {
   SUBCASE("PageUp/PageDown") {
     auto pu = parse_key_spec("PageUp");
     REQUIRE(pu.has_value());
-    CHECK(pu->id == input::PAGE_UP);
+    CHECK(pu->id == input::PageUp);
 
     auto pd = parse_key_spec("PageDown");
     REQUIRE(pd.has_value());
-    CHECK(pd->id == input::PAGE_DOWN);
+    CHECK(pd->id == input::PageDown);
   }
 
   SUBCASE("Space and Enter") {
@@ -93,53 +93,60 @@ TEST_CASE("parse_key_spec invalid") {
 }
 
 TEST_CASE("action_from_name round-trip") {
-  for (size_t i = 0; i < ACTION_TABLE_SIZE; ++i) {
-    auto action = action_from_name(ACTION_TABLE[i].name);
-    REQUIRE(action.has_value());
-    CHECK(*action == ACTION_TABLE[i].action);
-    CHECK(std::string(action_description(*action)) == ACTION_TABLE[i].description);
+  for (size_t i = 0; i < ActionTableSize; ++i) {
+    auto* info = action_from_name(ActionTable[i].name);
+    REQUIRE(info != nullptr);
+    CHECK(info == &ActionTable[i]);
+    CHECK(std::string(info->description) == ActionTable[i].description);
   }
 }
 
 TEST_CASE("action_from_name invalid") {
-  CHECK_FALSE(action_from_name("nonexistent").has_value());
+  CHECK(action_from_name("nonexistent") == nullptr);
 }
 
 TEST_CASE("KeyBindings::defaults lookup") {
   auto kb = KeyBindings::defaults();
 
-  CHECK(kb.lookup('j') == Action::SCROLL_DOWN);
-  CHECK(kb.lookup('k') == Action::SCROLL_UP);
-  CHECK(kb.lookup('q') == Action::QUIT);
-  CHECK(kb.lookup('?') == Action::HELP);
-  CHECK(kb.lookup(0x06) == Action::PAGE_DOWN);   // Ctrl+F
-  CHECK(kb.lookup(0x02) == Action::PAGE_UP);     // Ctrl+B
-  CHECK(kb.lookup(0x09) == Action::TOGGLE_VIEW); // Tab
-  CHECK(kb.lookup(27) == Action::CLEAR_SEARCH);  // Esc
+  CHECK(kb.lookup('j') != nullptr);
+  CHECK(kb.lookup('j')->name == cmd::ScrollDown::Action);
+  CHECK(kb.lookup('k')->name == cmd::ScrollUp::Action);
+  CHECK(kb.lookup('q')->name == cmd::Quit::Action);
+  CHECK(kb.lookup('?')->name == cmd::ShowHelp::Action);
+  CHECK(kb.lookup(0x06)->name == cmd::PageDown::Action);       // Ctrl+F
+  CHECK(kb.lookup(0x02)->name == cmd::PageUp::Action);         // Ctrl+B
+  CHECK(kb.lookup(0x09)->name == cmd::ToggleViewMode::Action); // Tab
+  CHECK(kb.lookup(27)->name == cmd::ClearSearch::Action);      // Esc
 
   CHECK(kb.sequence_prefix_key() == 'g');
-  CHECK(kb.sequence_double_action() == Action::FIRST_PAGE);
+  CHECK(kb.sequence_double_info() != nullptr);
+  CHECK(kb.sequence_double_info()->name == cmd::GotoFirstPage::Action);
 }
 
 TEST_CASE("KeyBindings custom override replaces defaults") {
   auto kb = KeyBindings::defaults();
 
   // Replace quit binding: remove 'q', bind 'x'
-  kb.clear(Action::QUIT);
+  auto* quit_info = action_from_name(cmd::Quit::Action);
+  REQUIRE(quit_info != nullptr);
+  kb.clear(quit_info);
   auto x_spec = parse_key_spec("x");
   REQUIRE(x_spec.has_value());
-  kb.bind(Action::QUIT, *x_spec);
+  kb.bind(quit_info, *x_spec);
 
-  CHECK(kb.lookup('x') == Action::QUIT);
-  CHECK_FALSE(kb.lookup('q').has_value());
+  CHECK(kb.lookup('x') != nullptr);
+  CHECK(kb.lookup('x')->name == cmd::Quit::Action);
+  CHECK(kb.lookup('q') == nullptr);
 }
 
 TEST_CASE("KeyBindings::help_bindings reflects overrides") {
   auto kb = KeyBindings::defaults();
-  kb.clear(Action::QUIT);
+  auto* quit_info = action_from_name(cmd::Quit::Action);
+  REQUIRE(quit_info != nullptr);
+  kb.clear(quit_info);
   auto x_spec = parse_key_spec("x");
   REQUIRE(x_spec.has_value());
-  kb.bind(Action::QUIT, *x_spec);
+  kb.bind(quit_info, *x_spec);
 
   auto help = kb.help_bindings();
   bool found_quit = false;
@@ -152,21 +159,25 @@ TEST_CASE("KeyBindings::help_bindings reflects overrides") {
   CHECK(found_quit);
 }
 
-TEST_CASE("KeyBindings::defaults help_bindings includes all actions") {
+TEST_CASE("KeyBindings::defaults help_bindings includes bound actions") {
   auto kb = KeyBindings::defaults();
   auto help = kb.help_bindings();
 
-  // Should have entries for all 27 actions plus 2 non-configurable
-  CHECK(help.size() == ACTION_TABLE_SIZE + 2);
+  // 30 actions with default key bindings + 2 non-configurable entries.
+  // Visual motion actions have no default terminal keys (mode-specific dispatch).
+  CHECK(help.size() == 32);
 }
 
-TEST_CASE("action_to_command returns correct command types") {
-  auto cmd = action_to_command(Action::QUIT);
-  CHECK(std::holds_alternative<cmd::Quit>(cmd));
+TEST_CASE("ActionInfo::make returns correct command types") {
+  auto* quit_info = action_from_name(cmd::Quit::Action);
+  REQUIRE(quit_info != nullptr);
+  CHECK(std::holds_alternative<cmd::Quit>(quit_info->make()));
 
-  cmd = action_to_command(Action::SCROLL_DOWN);
-  CHECK(std::holds_alternative<cmd::ScrollDown>(cmd));
+  auto* scroll_info = action_from_name(cmd::ScrollDown::Action);
+  REQUIRE(scroll_info != nullptr);
+  CHECK(std::holds_alternative<cmd::ScrollDown>(scroll_info->make()));
 
-  cmd = action_to_command(Action::FIRST_PAGE);
-  CHECK(std::holds_alternative<cmd::GotoFirstPage>(cmd));
+  auto* first_page_info = action_from_name(cmd::GotoFirstPage::Action);
+  REQUIRE(first_page_info != nullptr);
+  CHECK(std::holds_alternative<cmd::GotoFirstPage>(first_page_info->make()));
 }

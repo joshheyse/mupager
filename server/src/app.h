@@ -3,12 +3,11 @@
 #include "args.h"
 #include "color.h"
 #include "color_scheme.h"
+#include "command.h"
 #include "document.h"
 #include "frontend.h"
 #include "geometry.h"
-#include "key_bindings.h"
-#include "outline.h"
-#include "rpc_command.h"
+#include "terminal/key_bindings.h"
 
 #include <chrono>
 #include <cstdint>
@@ -42,22 +41,22 @@ struct CachedPage {
 
 /// @brief View mode for page display.
 enum class ViewMode {
-  CONTINUOUS,  ///< Pages flow with gaps between them.
-  PAGE_WIDTH,  ///< One page at a time, fit to width.
-  PAGE_HEIGHT, ///< One page at a time, fit to height.
-  SIDE_BY_SIDE ///< Two pages displayed side by side.
+  Continuous, ///< Pages flow with gaps between them.
+  PageWidth,  ///< One page at a time, fit to width.
+  PageHeight, ///< One page at a time, fit to height.
+  SideBySide  ///< Two pages displayed side by side.
 };
 
 /// @brief Convert ViewMode to its config/RPC string representation.
 constexpr const char* to_string(ViewMode m) {
   switch (m) {
-    case ViewMode::CONTINUOUS:
+    case ViewMode::Continuous:
       return "continuous";
-    case ViewMode::PAGE_WIDTH:
+    case ViewMode::PageWidth:
       return "page-width";
-    case ViewMode::PAGE_HEIGHT:
+    case ViewMode::PageHeight:
       return "page-height";
-    case ViewMode::SIDE_BY_SIDE:
+    case ViewMode::SideBySide:
       return "side-by-side";
   }
   return "";
@@ -66,13 +65,13 @@ constexpr const char* to_string(ViewMode m) {
 /// @brief Convert ViewMode to its display label.
 constexpr const char* to_label(ViewMode m) {
   switch (m) {
-    case ViewMode::CONTINUOUS:
+    case ViewMode::Continuous:
       return "Continuous";
-    case ViewMode::PAGE_WIDTH:
+    case ViewMode::PageWidth:
       return "Page-Width";
-    case ViewMode::PAGE_HEIGHT:
+    case ViewMode::PageHeight:
       return "Page-Height";
-    case ViewMode::SIDE_BY_SIDE:
+    case ViewMode::SideBySide:
       return "Side-by-Side";
   }
   return "";
@@ -85,22 +84,22 @@ std::optional<ViewMode> parse_view_mode(const std::string& s);
 
 /// @brief Color theme.
 enum class Theme {
-  LIGHT,
-  DARK,
-  AUTO,
-  TERMINAL
+  Light,
+  Dark,
+  Auto,
+  Terminal
 };
 
 /// @brief Convert Theme to its config/RPC string representation.
 constexpr const char* to_string(Theme t) {
   switch (t) {
-    case Theme::LIGHT:
+    case Theme::Light:
       return "light";
-    case Theme::DARK:
+    case Theme::Dark:
       return "dark";
-    case Theme::AUTO:
+    case Theme::Auto:
       return "auto";
-    case Theme::TERMINAL:
+    case Theme::Terminal:
       return "terminal";
   }
   return "";
@@ -113,17 +112,25 @@ const char* to_label(Theme t, Theme effective);
 /// @return The parsed Theme, or nullopt on invalid input.
 std::optional<Theme> parse_theme(const std::string& s);
 
-/// @brief Input mode for command/search bar.
+/// @brief Shared application mode (frontend-agnostic).
+enum class AppMode {
+  Normal,
+  Visual,
+  VisualBlock,
+  LinkHints
+};
+
+/// @brief Input mode for terminal key translation (superset of AppMode).
 enum class InputMode {
-  NORMAL,
-  COMMAND,
-  SEARCH,
-  HELP,
-  OUTLINE,
-  SIDEBAR,
-  VISUAL,
-  VISUAL_BLOCK,
-  LINK_HINTS
+  Normal,
+  Command,
+  Search,
+  Help,
+  Outline,
+  Sidebar,
+  Visual,
+  VisualBlock,
+  LinkHints
 };
 
 /// @brief A saved scroll position for jump history.
@@ -142,7 +149,7 @@ struct ActiveLinkHint {
 
 /// @brief A temporary status message that auto-expires after a fixed duration.
 struct FlashMessage {
-  static constexpr auto DURATION = std::chrono::seconds(1);
+  static constexpr auto Duration = std::chrono::seconds(1);
 
   /// @brief Set the flash message text.
   void set(std::string msg) {
@@ -164,12 +171,12 @@ struct FlashMessage {
 
   /// @brief True if a message is set and hasn't expired.
   bool active() const {
-    return !text_.empty() && std::chrono::steady_clock::now() - time_ < DURATION;
+    return !text_.empty() && std::chrono::steady_clock::now() - time_ < Duration;
   }
 
   /// @brief True if a message was set but has expired.
   bool expired() const {
-    return !text_.empty() && std::chrono::steady_clock::now() - time_ >= DURATION;
+    return !text_.empty() && std::chrono::steady_clock::now() - time_ >= Duration;
   }
 
   void clear() {
@@ -192,9 +199,10 @@ struct ViewState {
   int search_current; ///< 1-based index of current match (0 = none).
   int search_total;   ///< Total number of search matches.
   bool link_hints_active;
-  std::string visual_mode; ///< Visual mode string ("visual", "visual-block", or "").
-  std::string cache_pages; ///< Cached page ranges (e.g. "1-3,5,8-10"), empty when debug is off.
-  size_t cache_bytes = 0;  ///< Total cached memory in bytes, 0 when debug is off.
+  std::string visual_mode;   ///< Visual mode string ("visual", "visual-block", or "").
+  std::string cache_pages;   ///< Cached page ranges (e.g. "1-3,5,8-10"), empty when debug is off.
+  size_t cache_bytes = 0;    ///< Total cached memory in bytes, 0 when debug is off.
+  std::string flash_message; ///< Active flash message text, empty if none/expired.
 };
 
 /// @brief Main application controller — pure command processor.
@@ -214,7 +222,7 @@ public:
   void initialize();
 
   /// @brief Sole entry point for all state mutations.
-  void handle_command(const RpcCommand& cmd);
+  void handle_command(const Command& cmd);
 
   /// @brief Handle idle tasks: pre-upload, flash expiry, resize detection.
   void idle_tick();
@@ -224,10 +232,13 @@ public:
     return running_;
   }
 
-  /// @brief Current input mode.
-  InputMode input_mode() const {
-    return input_mode_;
+  /// @brief Current application mode (shared, frontend-agnostic).
+  AppMode app_mode() const {
+    return app_mode_;
   }
+
+  /// @brief Current input mode (includes terminal-only modes for translate() compatibility).
+  InputMode input_mode() const;
 
   /// @brief Compute the current view state for RPC notifications.
   ViewState view_state() const;
@@ -235,11 +246,16 @@ public:
   /// @brief Get the document outline (loads on first call).
   const Outline& outline();
 
+  /// @brief Access the key bindings.
+  const KeyBindings& bindings() const {
+    return bindings_;
+  }
+
   /// @brief Collect links from currently visible pages.
   std::vector<PageLink> visible_links() const;
 
 private:
-  static constexpr int PAGE_GAP_PX = 16;
+  static constexpr int PageGapPx = 16;
 
   void build_layout();
   int page_at_y(int y) const;
@@ -252,23 +268,12 @@ private:
   void jump_to_page(int page);
   int current_page() const;
   int document_height() const;
-  void update_statusline();
-  void show_help();
-  void execute_command();
+  void do_reload();
+  void apply_theme(const std::string& name);
+  void apply_view_mode(const std::string& name);
+  void apply_render_scale(const std::string& name);
   float effective_render_scale() const;
   void handle_zoom_change(float old_zoom);
-  void show_outline_popup();
-  void outline_apply_filter();
-  void outline_navigate(int delta);
-  void outline_jump();
-  static bool fuzzy_match(const std::string& text, const std::string& pattern);
-
-  int sidebar_effective_width() const;
-  int active_outline_index() const;
-  void update_sidebar();
-  void sidebar_apply_filter();
-  void sidebar_navigate(int delta);
-  void sidebar_jump();
 
   void execute_search();
   void clear_search();
@@ -315,13 +320,12 @@ private:
   int scroll_lines_ = 3;                     ///< Lines per scroll step (from config/CLI).
   size_t max_page_cache_ = 64 * 1024 * 1024; ///< Max page cache size in bytes.
   PixelPoint scroll_;
-  ViewMode view_mode_ = ViewMode::CONTINUOUS;
-  Theme theme_ = Theme::DARK;
-  InputMode input_mode_ = InputMode::NORMAL;
+  ViewMode view_mode_ = ViewMode::Continuous;
+  Theme theme_ = Theme::Dark;
+  AppMode app_mode_ = AppMode::Normal;
   float user_zoom_ = 1.0f;           ///< User zoom multiplier (1.0 = fit-to-viewport).
   RenderScale render_scale_setting_; ///< From CLI --render-scale.
   std::string search_term_;
-  std::string command_input_;
   int search_page_matches_ = 0;
   int search_total_matches_ = 0;
   SearchResults search_results_;
@@ -335,17 +339,6 @@ private:
   PixelSize layout_size_; ///< Terminal pixel size used in last build_layout().
 
   Outline outline_;
-  std::vector<int> filtered_indices_;
-  int outline_cursor_ = 0;
-  int outline_scroll_ = 0;
-  std::string outline_filter_;
-
-  bool sidebar_visible_ = false;
-  int sidebar_width_cols_ = 0; ///< 0 = use default 20%.
-  int sidebar_cursor_ = 0;
-  int sidebar_scroll_ = 0;
-  std::string sidebar_filter_;
-  std::vector<int> sidebar_filtered_;
 
   std::string file_path_;         ///< Document file path for reload.
   std::string source_path_;       ///< Original source path before conversion. Empty if not converted.

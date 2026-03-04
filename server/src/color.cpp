@@ -1,6 +1,6 @@
 #include "color.h"
 
-#include "sgr.h"
+#include "graphics/sgr.h"
 
 #include <format>
 
@@ -64,7 +64,7 @@ std::optional<Color> Color::parse(const std::string& s) {
 
 std::string Color::sgr_fg() const {
   if (is_default) {
-    return sgr::DEFAULT_FG;
+    return sgr::DefaultFg;
   }
   if (is_indexed) {
     return std::format("\x1b[38;5;{}m", index);
@@ -74,7 +74,7 @@ std::string Color::sgr_fg() const {
 
 std::string Color::sgr_bg() const {
   if (is_default) {
-    return sgr::DEFAULT_BG;
+    return sgr::DefaultBg;
   }
   if (is_indexed) {
     return std::format("\x1b[48;5;{}m", index);

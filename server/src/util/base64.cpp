@@ -4,7 +4,7 @@
 
 namespace base64 {
 
-static constexpr char TABLE[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static constexpr char Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 std::string encode(std::span<const unsigned char> data) {
   std::string out;
@@ -14,10 +14,10 @@ std::string encode(std::span<const unsigned char> data) {
   size_t i = 0;
   for (; i + 2 < len; i += 3) {
     uint32_t triple = (static_cast<uint32_t>(data[i]) << 16) | (static_cast<uint32_t>(data[i + 1]) << 8) | static_cast<uint32_t>(data[i + 2]);
-    out.push_back(TABLE[(triple >> 18) & 0x3F]);
-    out.push_back(TABLE[(triple >> 12) & 0x3F]);
-    out.push_back(TABLE[(triple >> 6) & 0x3F]);
-    out.push_back(TABLE[triple & 0x3F]);
+    out.push_back(Table[(triple >> 18) & 0x3F]);
+    out.push_back(Table[(triple >> 12) & 0x3F]);
+    out.push_back(Table[(triple >> 6) & 0x3F]);
+    out.push_back(Table[triple & 0x3F]);
   }
 
   if (i < len) {
@@ -26,9 +26,9 @@ std::string encode(std::span<const unsigned char> data) {
       triple |= static_cast<uint32_t>(data[i + 1]) << 8;
     }
 
-    out.push_back(TABLE[(triple >> 18) & 0x3F]);
-    out.push_back(TABLE[(triple >> 12) & 0x3F]);
-    out.push_back((i + 1 < len) ? TABLE[(triple >> 6) & 0x3F] : '=');
+    out.push_back(Table[(triple >> 18) & 0x3F]);
+    out.push_back(Table[(triple >> 12) & 0x3F]);
+    out.push_back((i + 1 < len) ? Table[(triple >> 6) & 0x3F] : '=');
     out.push_back('=');
   }
 

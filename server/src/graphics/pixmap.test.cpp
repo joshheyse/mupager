@@ -1,4 +1,4 @@
-#include "pixmap.h"
+#include "graphics/pixmap.h"
 
 #include "document.h"
 
@@ -6,10 +6,10 @@
 
 #include <stdexcept>
 
-static constexpr const char* FIXTURE_PDF = PROJECT_FIXTURE_DIR "/test.pdf";
+static constexpr const char* FixturePdf = PROJECT_FIXTURE_DIR "/test.pdf";
 
 TEST_CASE("render_page produces valid pixmap") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
 
   CHECK(pix.width() > 0);
@@ -18,7 +18,7 @@ TEST_CASE("render_page produces valid pixmap") {
 }
 
 TEST_CASE("render_page at zoom 2.0 roughly doubles dimensions") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix1 = doc.render_page(0, 1.0f);
   Pixmap pix2 = doc.render_page(0, 2.0f);
 
@@ -27,21 +27,21 @@ TEST_CASE("render_page at zoom 2.0 roughly doubles dimensions") {
 }
 
 TEST_CASE("render_page produces RGB pixmap") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
 
   CHECK(pix.components() == 3);
 }
 
 TEST_CASE("pixmap stride >= width * components") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
 
   CHECK(pix.stride() >= pix.width() * pix.components());
 }
 
 TEST_CASE("pixmap is move-constructible") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix1 = doc.render_page(0, 1.0f);
   int w = pix1.width();
   int h = pix1.height();
@@ -53,7 +53,7 @@ TEST_CASE("pixmap is move-constructible") {
 }
 
 TEST_CASE("pack_pixels produces tightly packed buffer") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
   auto packed = pix.pack_pixels();
 
@@ -62,7 +62,7 @@ TEST_CASE("pack_pixels produces tightly packed buffer") {
 }
 
 TEST_CASE("png_data returns valid PNG") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
   auto data = pix.png_data();
 
@@ -74,13 +74,13 @@ TEST_CASE("png_data returns valid PNG") {
 }
 
 TEST_CASE("render_page throws on out-of-range page") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   CHECK_THROWS_AS(doc.render_page(-1, 1.0f), std::runtime_error);
   CHECK_THROWS_AS(doc.render_page(9999, 1.0f), std::runtime_error);
 }
 
 TEST_CASE("highlight_rect blends color onto pixmap") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
 
   // Record original pixel value
@@ -105,7 +105,7 @@ TEST_CASE("highlight_rect blends color onto pixmap") {
 }
 
 TEST_CASE("highlight_rect clamps to pixmap bounds") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
 
   // Should not crash with out-of-bounds rectangle
@@ -115,7 +115,7 @@ TEST_CASE("highlight_rect clamps to pixmap bounds") {
 }
 
 TEST_CASE("highlight_rect with zero alpha is no-op") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
 
   unsigned char orig_r = pix.samples()[0];
@@ -130,7 +130,7 @@ TEST_CASE("highlight_rect with zero alpha is no-op") {
 }
 
 TEST_CASE("recolor with fg=white bg=black approximates invert") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix1 = doc.render_page(0, 1.0f);
   Pixmap pix2 = doc.render_page(0, 1.0f);
 
@@ -151,7 +151,7 @@ TEST_CASE("recolor with fg=white bg=black approximates invert") {
 }
 
 TEST_CASE("recolor with fg=black bg=white is identity for white pixels") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
 
   // Record original white-ish pixel (background of the test PDF is white)
@@ -172,7 +172,7 @@ TEST_CASE("recolor with fg=black bg=white is identity for white pixels") {
 }
 
 TEST_CASE("recolor maps to expected range") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
 
   // Recolor with specific fg/bg

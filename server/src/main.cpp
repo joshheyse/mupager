@@ -3,11 +3,11 @@
 #include "color.h"
 #include "config.h"
 #include "converter.h"
-#include "neovim_frontend.h"
-#include "neovim_loop.h"
-#include "osc_query.h"
-#include "terminal_frontend.h"
-#include "terminal_loop.h"
+#include "neovim/frontend.h"
+#include "neovim/loop.h"
+#include "terminal/frontend.h"
+#include "terminal/loop.h"
+#include "terminal/osc_query.h"
 
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
@@ -102,13 +102,13 @@ int main(int argc, char* argv[]) {
   }
   else {
     // Check if the file format is natively supported by MuPDF.
-    static const std::unordered_set<std::string> NATIVE_EXTS = {
+    static const std::unordered_set<std::string> NativeExts = {
         ".pdf", ".epub", ".xps",  ".oxps", ".cbz",  ".cbr", ".fb2", ".mobi", ".svg", ".html", ".xhtml", ".htm",
         ".png", ".jpg",  ".jpeg", ".bmp",  ".tiff", ".tif", ".gif", ".pnm",  ".pam", ".pbm",  ".pgm",   ".ppm",
     };
     auto ext = std::filesystem::path(args->file).extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-    if (!ext.empty() && NATIVE_EXTS.find(ext) == NATIVE_EXTS.end()) {
+    if (!ext.empty() && NativeExts.find(ext) == NativeExts.end()) {
       std::fprintf(stderr, "unsupported file format '%s'\n", ext.c_str());
       std::fprintf(stderr, "hint: configure a converter in config.toml or use --converter:\n");
       std::fprintf(stderr, "  [converters]\n");

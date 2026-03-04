@@ -25,6 +25,7 @@ MuPDF natively supports all of these through the same `fz_open_document` / `fz_l
 ### Diagrams
 
 **Neovim mode:**
+
 ```
 +------------+       RPC (Unix socket)       +----------------+
 |   Neovim   | <---------------------------> |  Doc Server    |
@@ -39,6 +40,7 @@ MuPDF natively supports all of these through the same `fz_open_document` / `fz_l
 ```
 
 **Standalone mode:**
+
 ```
 +-------------------+
 |    Doc Server     |
@@ -151,6 +153,7 @@ int n = fz_search_page(ctx, page, "search text", NULL, hits, MAX_HITS);
 ```
 
 Key points:
+
 - Use image IDs for in-place replacement (avoids flicker)
 - Large images must be chunked (4096 byte base64 chunks, `m=1` for more data, `m=0` for last chunk)
 - `f=32` = RGBA, `f=24` = RGB, `f=100` = PNG
@@ -192,6 +195,7 @@ void overlay_rect(unsigned char *pixels, int img_w, int img_h,
 ### Language: C++17
 
 The server is implemented in C++. This was chosen over Rust and Go because:
+
 - **MuPDF is a C library** — C++ wraps it with zero overhead and no FFI bindings layer
 - **Pixel-level compositing** (alpha-blending overlays onto pixmaps) is naturally pointer-arithmetic-on-buffers work; Rust would require `unsafe` blocks for the same operations, and Go lacks low-level memory control
 - **Small, focused codebase** — the memory-safety advantages of Rust are strongest in large codebases with complex ownership; this server has a tight, auditable scope
@@ -208,31 +212,32 @@ Use C++17 features: `std::variant` for RPC message dispatch, `std::span` for buf
 ### Nix
 
 All dependencies available in nixpkgs:
+
 - `pkgs.mupdf` (library + headers)
 - `pkgs.msgpack-cxx`
 
 ## Vim Keybinding Plan
 
-| Key | Action |
-|-----|--------|
-| `j`/`k` | Scroll down/up |
-| `d`/`u` | Half-page down/up |
-| `gg`/`G` | First/last page |
-| `{n}G` | Go to page n |
-| `+`/`-` | Zoom in/out |
-| `0` | Reset zoom to fit-width |
-| `/pattern` | Search forward |
-| `n`/`N` | Next/previous search result |
-| `v` | Enter visual/selection mode |
-| `y` | Yank selected text |
-| `:` | Enter command mode |
-| `:q` | Quit |
-| `:goto N` / `:N` | Go to page N |
-| `:set theme dark/light` | Change theme |
-| `:set mode continuous/page-width/page-height/side-by-side` | Change view mode |
-| `:set oversample auto/never/1/2/4` | Change oversample |
-| `q` | Quit |
-| `t` | Open table of contents picker |
+| Key                                                        | Action                        |
+| ---------------------------------------------------------- | ----------------------------- |
+| `j`/`k`                                                    | Scroll down/up                |
+| `d`/`u`                                                    | Half-page down/up             |
+| `gg`/`G`                                                   | First/last page               |
+| `{n}G`                                                     | Go to page n                  |
+| `+`/`-`                                                    | Zoom in/out                   |
+| `0`                                                        | Reset zoom to fit-width       |
+| `/pattern`                                                 | Search forward                |
+| `n`/`N`                                                    | Next/previous search result   |
+| `v`                                                        | Enter visual/selection mode   |
+| `y`                                                        | Yank selected text            |
+| `:`                                                        | Enter command mode            |
+| `:q`                                                       | Quit                          |
+| `:goto N` / `:N`                                           | Go to page N                  |
+| `:set theme dark/light`                                    | Change theme                  |
+| `:set mode continuous/page-width/page-height/side-by-side` | Change view mode              |
+| `:set oversample auto/never/1/2/4`                         | Change oversample             |
+| `q`                                                        | Quit                          |
+| `t`                                                        | Open table of contents picker |
 
 ## Open Questions
 

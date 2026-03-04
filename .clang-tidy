@@ -11,7 +11,7 @@ CheckOptions:
   - key: readability-identifier-naming.EnumCase
     value: CamelCase
   - key: readability-identifier-naming.EnumConstantCase
-    value: UPPER_CASE
+    value: CamelCase
   - key: readability-identifier-naming.FunctionCase
     value: lower_case
   - key: readability-identifier-naming.VariableCase
@@ -27,12 +27,12 @@ CheckOptions:
   - key: readability-identifier-naming.PublicMemberCase
     value: lower_case
   - key: readability-identifier-naming.GlobalConstantCase
-    value: UPPER_CASE
+    value: CamelCase
   - key: readability-identifier-naming.StaticVariableCase
     value: lower_case
   - key: readability-identifier-naming.StaticVariableSuffix
     value: "_"
   - key: readability-identifier-naming.StaticConstantCase
-    value: UPPER_CASE
+    value: CamelCase
   - key: readability-identifier-naming.MacroDefinitionCase
-    value: UPPER_CASE
+    value: CamelCase

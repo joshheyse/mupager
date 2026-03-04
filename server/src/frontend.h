@@ -1,15 +1,16 @@
 #pragma once
 
 #include "color_scheme.h"
+#include "command.h"
 #include "geometry.h"
+#include "graphics/pixmap.h"
 #include "input_event.h"
-#include "pixmap.h"
-#include "rpc_command.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 /// @brief A positioned label for link hint overlay.
@@ -29,6 +30,10 @@ struct PageSlice {
 };
 
 /// @brief Abstract interface for the display frontend.
+///
+/// Holds shared image-management state (uploaded image IDs, tmux detection,
+/// color scheme) and provides concrete implementations for methods that
+/// behave identically across all frontends.
 class Frontend {
 public:
   virtual ~Frontend() = default;
@@ -53,7 +58,7 @@ public:
 
   /// @brief Free a previously uploaded image.
   /// @param image_id The image ID to delete.
-  virtual void free_image(uint32_t image_id) = 0;
+  void free_image(uint32_t image_id);
 
   /// @brief Display page slices on screen.
   /// @param slices Vector of PageSlice describing each visible page region.
@@ -90,17 +95,30 @@ public:
 
   /// @brief Whether the frontend supports Kitty image viewporting (source-rect cropping on place).
   /// Tmux unicode placeholders cannot viewport, so this returns false in tmux mode.
-  virtual bool supports_image_viewporting() const = 0;
+  bool supports_image_viewporting() const;
 
   /// @brief Apply a color scheme to the frontend.
-  /// Default no-op; frontends override to store and use themed colors.
-  virtual void set_color_scheme(const ColorScheme& scheme) {
-    (void)scheme;
-  }
+  void set_color_scheme(const ColorScheme& scheme);
 
   /// @brief Pop a queued RPC command (Neovim frontend only).
   /// @return The next command, or nullopt if the queue is empty.
-  virtual std::optional<RpcCommand> pop_command() {
+  virtual std::optional<Command> pop_command() {
     return std::nullopt;
   }
+
+protected:
+  /// @param initial_image_id Starting image ID (offset to avoid collisions between frontends).
+  explicit Frontend(uint32_t initial_image_id = 1);
+
+  /// @brief Build a tmux-aware Kitty delete sequence for a single image.
+  std::string build_delete_sequence(uint32_t image_id) const;
+
+  /// @brief Build escape sequences to delete all uploaded images.
+  /// Does not clear uploaded_ids_ — caller is responsible.
+  std::string build_image_cleanup_sequence() const;
+
+  ColorScheme colors_;
+  bool in_tmux_ = false;
+  uint32_t next_image_id_;
+  std::unordered_set<uint32_t> uploaded_ids_;
 };

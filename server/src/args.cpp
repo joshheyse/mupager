@@ -18,7 +18,7 @@ static std::string default_log_path() {
 
 static RenderScale parse_render_scale(const std::string& s) {
   if (s == "never") {
-    return RenderScale::NEVER;
+    return RenderScale::Never;
   }
   else if (s == "0.25" || s == ".25") {
     return RenderScale::X025;
@@ -35,7 +35,7 @@ static RenderScale parse_render_scale(const std::string& s) {
   else if (s == "4") {
     return RenderScale::X4;
   }
-  return RenderScale::AUTO;
+  return RenderScale::Auto;
 }
 
 Args::Args(int argc, char* argv[])
@@ -85,34 +85,34 @@ Args::Args(int argc, char* argv[])
   // Track which options were explicitly set on the CLI for apply_config().
   cli_explicit_ = 0;
   if (view_mode_opt->count()) {
-    cli_explicit_ |= CLI_VIEW_MODE;
+    cli_explicit_ |= CliViewMode;
   }
   if (theme_opt->count()) {
-    cli_explicit_ |= CLI_THEME;
+    cli_explicit_ |= CliTheme;
   }
   if (render_scale_opt->count()) {
-    cli_explicit_ |= CLI_RENDER_SCALE;
+    cli_explicit_ |= CliRenderScale;
   }
   if (scroll_lines_opt->count()) {
-    cli_explicit_ |= CLI_SCROLL_LINES;
+    cli_explicit_ |= CliScrollLines;
   }
   if (log_level_opt->count()) {
-    cli_explicit_ |= CLI_LOG_LEVEL;
+    cli_explicit_ |= CliLogLevel;
   }
   if (log_file_opt->count()) {
-    cli_explicit_ |= CLI_LOG_FILE;
+    cli_explicit_ |= CliLogFile;
   }
   if (show_stats_opt->count()) {
-    cli_explicit_ |= CLI_SHOW_STATS;
+    cli_explicit_ |= CliShowStats;
   }
   if (max_page_cache_opt->count()) {
-    cli_explicit_ |= CLI_MAX_PAGE_CACHE;
+    cli_explicit_ |= CliMaxPageCache;
   }
   if (watch_opt->count()) {
-    cli_explicit_ |= CLI_WATCH;
+    cli_explicit_ |= CliWatch;
   }
   if (converter_opt->count()) {
-    cli_explicit_ |= CLI_CONVERTER;
+    cli_explicit_ |= CliConverter;
   }
 
   // Parse converter patterns (glob=command) into converters map.
@@ -125,31 +125,31 @@ Args::Args(int argc, char* argv[])
 }
 
 void Args::apply_config(const Config& cfg) {
-  if (!(cli_explicit_ & CLI_VIEW_MODE) && cfg.view_mode) {
+  if (!(cli_explicit_ & CliViewMode) && cfg.view_mode) {
     view_mode = *cfg.view_mode;
   }
-  if (!(cli_explicit_ & CLI_THEME) && cfg.theme) {
+  if (!(cli_explicit_ & CliTheme) && cfg.theme) {
     theme = *cfg.theme;
   }
-  if (!(cli_explicit_ & CLI_RENDER_SCALE) && cfg.render_scale) {
+  if (!(cli_explicit_ & CliRenderScale) && cfg.render_scale) {
     render_scale = parse_render_scale(*cfg.render_scale);
   }
-  if (!(cli_explicit_ & CLI_SCROLL_LINES) && cfg.scroll_lines) {
+  if (!(cli_explicit_ & CliScrollLines) && cfg.scroll_lines) {
     scroll_lines = *cfg.scroll_lines;
   }
-  if (!(cli_explicit_ & CLI_LOG_LEVEL) && cfg.log_level) {
+  if (!(cli_explicit_ & CliLogLevel) && cfg.log_level) {
     log_level = *cfg.log_level;
   }
-  if (!(cli_explicit_ & CLI_LOG_FILE) && cfg.log_file) {
+  if (!(cli_explicit_ & CliLogFile) && cfg.log_file) {
     log_file = *cfg.log_file;
   }
-  if (!(cli_explicit_ & CLI_SHOW_STATS) && cfg.show_stats) {
+  if (!(cli_explicit_ & CliShowStats) && cfg.show_stats) {
     show_stats = *cfg.show_stats;
   }
-  if (!(cli_explicit_ & CLI_MAX_PAGE_CACHE) && cfg.max_page_cache) {
+  if (!(cli_explicit_ & CliMaxPageCache) && cfg.max_page_cache) {
     max_page_cache = static_cast<size_t>(*cfg.max_page_cache) * 1024 * 1024;
   }
-  if (!(cli_explicit_ & CLI_WATCH) && cfg.watch) {
+  if (!(cli_explicit_ & CliWatch) && cfg.watch) {
     watch = *cfg.watch;
   }
 
@@ -173,15 +173,15 @@ void Args::apply_config(const Config& cfg) {
   key_bindings = KeyBindings::defaults();
   if (cfg.has_keys) {
     for (const auto& [action_name, specs] : cfg.keys) {
-      auto action = action_from_name(action_name);
-      if (!action) {
+      auto* info = action_from_name(action_name);
+      if (!info) {
         continue; // Unknown action names already warned in config parse
       }
-      key_bindings.clear(*action);
+      key_bindings.clear(info);
       for (const auto& spec_str : specs) {
         auto ks = parse_key_spec(spec_str);
         if (ks) {
-          key_bindings.bind(*action, *ks);
+          key_bindings.bind(info, *ks);
         }
       }
     }

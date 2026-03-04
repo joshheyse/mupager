@@ -1,25 +1,25 @@
-#include "kitty.h"
+#include "graphics/kitty.h"
 
-#include "base64.h"
-#include "pixmap.h"
-#include "sgr.h"
+#include "graphics/pixmap.h"
+#include "graphics/sgr.h"
+#include "util/base64.h"
 
 #include <cctype>
 
 namespace kitty {
 
-static constexpr size_t CHUNK_SIZE = 4096;
+static constexpr size_t ChunkSize = 4096;
 
-static constexpr char ESC = '\x1b';
-static constexpr auto APC_START = "\x1b_G";
-static constexpr auto ST = "\x1b\\";
-static constexpr auto DCS_TMUX_START = "\x1bPtmux;";
-static constexpr uint32_t PLACEHOLDER_CHAR = 0x10EEEE;
+static constexpr char Esc = '\x1b';
+static constexpr auto ApcStart = "\x1b_G";
+static constexpr auto St = "\x1b\\";
+static constexpr auto DcsTmuxStart = "\x1bPtmux;";
+static constexpr uint32_t PlaceholderChar = 0x10EEEE;
 
 // Kitty Unicode placeholder diacritics table (from Kitty source).
 // Each entry is a combining character used to encode row/column indices.
 // clang-format off
-static constexpr uint32_t DIACRITICS[] = {
+static constexpr uint32_t Diacritics[] = {
   0x0305, 0x030D, 0x030E,  0x0310,  0x0312,  0x033D, 0x033E, 0x033F,
   0x0346, 0x034A, 0x034B,  0x034C,  0x0350,  0x0351, 0x0352, 0x0357,
   0x035B, 0x0363, 0x0364,  0x0365,  0x0366,  0x0367, 0x0368, 0x0369,
@@ -56,7 +56,7 @@ static constexpr uint32_t DIACRITICS[] = {
 };
 // clang-format on
 
-static constexpr size_t DIACRITICS_COUNT = sizeof(DIACRITICS) / sizeof(DIACRITICS[0]);
+static constexpr size_t DiacriticsCount = sizeof(Diacritics) / sizeof(Diacritics[0]);
 
 /// Encode a Unicode code point as UTF-8 and append to the string.
 static void append_utf8(std::string& out, uint32_t cp) {
@@ -81,11 +81,11 @@ static void append_utf8(std::string& out, uint32_t cp) {
 }
 
 /// Serialize a header + base64 payload across 4096-byte APC chunks.
-/// First chunk: ESC_G{header},m=0|1;{chunk}ST
-/// Subsequent:  ESC_Gm=0|1;{chunk}ST
+/// First chunk: ESC_G{header},m=0|1;{chunk}St
+/// Subsequent:  ESC_Gm=0|1;{chunk}St
 static std::string serialize_chunked(const std::string& header, const std::string& b64) {
-  // Each chunk: ESC_G (3) + header/m= + ,m=X (4) + ; (1) + payload + ST (2)
-  size_t num_chunks = (b64.size() + CHUNK_SIZE - 1) / CHUNK_SIZE;
+  // Each chunk: ESC_G (3) + header/m= + ,m=X (4) + ; (1) + payload + St (2)
+  size_t num_chunks = (b64.size() + ChunkSize - 1) / ChunkSize;
   size_t overhead = header.size() + 10 + (num_chunks > 1 ? (num_chunks - 1) * 9 : 0);
 
   std::string result;
@@ -95,10 +95,10 @@ static std::string serialize_chunked(const std::string& header, const std::strin
 
   while (offset < b64.size()) {
     size_t remaining = b64.size() - offset;
-    size_t chunk_len = (remaining < CHUNK_SIZE) ? remaining : CHUNK_SIZE;
+    size_t chunk_len = (remaining < ChunkSize) ? remaining : ChunkSize;
     bool last = (offset + chunk_len >= b64.size());
 
-    result += APC_START;
+    result += ApcStart;
     if (first) {
       result += header;
       result += ",m=";
@@ -111,7 +111,7 @@ static std::string serialize_chunked(const std::string& header, const std::strin
     }
     result += ';';
     result.append(b64, offset, chunk_len);
-    result += ST;
+    result += St;
 
     offset += chunk_len;
   }
@@ -131,7 +131,7 @@ std::string TransmitCommand::serialize(const std::string& b64) const {
   header += static_cast<char>(medium);
   header += ",f=";
   header += std::to_string(static_cast<int>(format));
-  if (compression != Compression::NONE) {
+  if (compression != Compression::None) {
     header += ",o=";
     header += static_cast<char>(compression);
   }
@@ -206,7 +206,7 @@ std::string TransmitCommand::serialize(const std::string& b64) const {
 std::string PlaceCommand::serialize() const {
   std::string result;
   result.reserve(128);
-  result += APC_START;
+  result += ApcStart;
   result += "a=p,q=";
   result += std::to_string(quiet);
   result += ",i=";
@@ -263,7 +263,7 @@ std::string PlaceCommand::serialize() const {
     result += ",V=";
     result += std::to_string(vertical_offset);
   }
-  result += ST;
+  result += St;
   return result;
 }
 
@@ -275,15 +275,15 @@ std::string DeleteCommand::serialize() const {
 
   std::string result;
   result.reserve(80);
-  result += APC_START;
+  result += ApcStart;
   result += "a=d,d=";
   result += target_char;
   result += ",q=";
   result += std::to_string(quiet);
 
   switch (target) {
-    case DeleteTarget::BY_ID:
-    case DeleteTarget::FRAMES:
+    case DeleteTarget::ById:
+    case DeleteTarget::Frames:
       if (image_id > 0) {
         result += ",i=";
         result += std::to_string(image_id);
@@ -293,7 +293,7 @@ std::string DeleteCommand::serialize() const {
         result += std::to_string(placement_id);
       }
       break;
-    case DeleteTarget::BY_NUMBER:
+    case DeleteTarget::ByNumber:
       if (image_number > 0) {
         result += ",I=";
         result += std::to_string(image_number);
@@ -303,7 +303,7 @@ std::string DeleteCommand::serialize() const {
         result += std::to_string(placement_id);
       }
       break;
-    case DeleteTarget::AT_POSITION:
+    case DeleteTarget::AtPosition:
       if (x > 0) {
         result += ",x=";
         result += std::to_string(x);
@@ -313,7 +313,7 @@ std::string DeleteCommand::serialize() const {
         result += std::to_string(y);
       }
       break;
-    case DeleteTarget::AT_POSITION_Z:
+    case DeleteTarget::AtPositionZ:
       if (x > 0) {
         result += ",x=";
         result += std::to_string(x);
@@ -327,7 +327,7 @@ std::string DeleteCommand::serialize() const {
         result += std::to_string(z);
       }
       break;
-    case DeleteTarget::BY_ID_RANGE:
+    case DeleteTarget::ByIdRange:
       if (x > 0) {
         result += ",x=";
         result += std::to_string(x);
@@ -337,30 +337,30 @@ std::string DeleteCommand::serialize() const {
         result += std::to_string(y);
       }
       break;
-    case DeleteTarget::BY_COLUMN:
+    case DeleteTarget::ByColumn:
       if (x > 0) {
         result += ",x=";
         result += std::to_string(x);
       }
       break;
-    case DeleteTarget::BY_ROW:
+    case DeleteTarget::ByRow:
       if (y > 0) {
         result += ",y=";
         result += std::to_string(y);
       }
       break;
-    case DeleteTarget::BY_Z_INDEX:
+    case DeleteTarget::ByZIndex:
       if (z != 0) {
         result += ",z=";
         result += std::to_string(z);
       }
       break;
-    case DeleteTarget::ALL:
-    case DeleteTarget::AT_CURSOR:
+    case DeleteTarget::All:
+    case DeleteTarget::AtCursor:
       break;
   }
 
-  result += ST;
+  result += St;
   return result;
 }
 
@@ -371,7 +371,7 @@ std::string AnimationFrameCommand::serialize(const std::string& b64) const {
   header += static_cast<char>(medium);
   header += ",f=";
   header += std::to_string(static_cast<int>(format));
-  if (compression != Compression::NONE) {
+  if (compression != Compression::None) {
     header += ",o=";
     header += static_cast<char>(compression);
   }
@@ -431,7 +431,7 @@ std::string AnimationFrameCommand::serialize(const std::string& b64) const {
 std::string AnimationControlCommand::serialize() const {
   std::string result;
   result.reserve(128);
-  result += APC_START;
+  result += ApcStart;
   result += "a=a,q=";
   result += std::to_string(quiet);
   if (image_id > 0) {
@@ -460,14 +460,14 @@ std::string AnimationControlCommand::serialize() const {
     result += ",z=";
     result += std::to_string(frame_gap);
   }
-  result += ST;
+  result += St;
   return result;
 }
 
 std::string ComposeCommand::serialize() const {
   std::string result;
   result.reserve(128);
-  result += APC_START;
+  result += ApcStart;
   result += "a=c,q=";
   result += std::to_string(quiet);
   if (image_id > 0) {
@@ -510,37 +510,37 @@ std::string ComposeCommand::serialize() const {
     result += ",C=";
     result += std::to_string(blend_mode);
   }
-  result += ST;
+  result += St;
   return result;
 }
 
-/// Wrap a single APC sequence in tmux DCS passthrough (doubles ESC bytes).
+/// Wrap a single APC sequence in tmux DCS passthrough (doubles Esc bytes).
 static std::string wrap_one(const std::string& seq) {
   std::string inner;
   inner.reserve(seq.size() + 32);
   for (char ch : seq) {
-    if (ch == ESC) {
-      inner += ESC;
-      inner += ESC;
+    if (ch == Esc) {
+      inner += Esc;
+      inner += Esc;
     }
     else {
       inner += ch;
     }
   }
-  return DCS_TMUX_START + inner + ST;
+  return DcsTmuxStart + inner + St;
 }
 
 std::string wrap_tmux(const std::string& escape) {
   // Each APC sequence (\x1b_G...\x1b\\) must be wrapped individually.
-  // Base64 payload never contains ESC, so \x1b_ safely marks APC starts.
+  // Base64 payload never contains Esc, so \x1b_ safely marks APC starts.
   std::string result;
   size_t pos = 0;
   while (pos < escape.size()) {
-    size_t start = escape.find(APC_START, pos);
+    size_t start = escape.find(ApcStart, pos);
     if (start == std::string::npos) {
       break;
     }
-    size_t end = escape.find(ST, start + 3);
+    size_t end = escape.find(St, start + 3);
     if (end == std::string::npos) {
       break;
     }
@@ -554,24 +554,24 @@ std::string wrap_tmux(const std::string& escape) {
 std::string encode(const Pixmap& pixmap, uint32_t image_id, uint32_t placement_id) {
   auto b64 = base64::encode(pixmap.png_data());
   TransmitCommand cmd;
-  cmd.format = PixelFormat::PNG;
+  cmd.format = PixelFormat::Png;
   cmd.width = pixmap.width();
   cmd.height = pixmap.height();
   cmd.image_id = image_id;
   cmd.placement_id = placement_id;
-  cmd.action = TransmitAction::TRANSMIT_DISPLAY;
+  cmd.action = TransmitAction::TransmitDisplay;
   return cmd.serialize(b64);
 }
 
 std::string transmit(const Pixmap& pixmap, uint32_t image_id, int cols, int rows) {
   auto b64 = base64::encode(pixmap.png_data());
   TransmitCommand cmd;
-  cmd.format = PixelFormat::PNG;
+  cmd.format = PixelFormat::Png;
   cmd.width = pixmap.width();
   cmd.height = pixmap.height();
   cmd.image_id = image_id;
   if (cols > 0 && rows > 0) {
-    cmd.action = TransmitAction::TRANSMIT_DISPLAY;
+    cmd.action = TransmitAction::TransmitDisplay;
     cmd.unicode = true;
     cmd.columns = cols;
     cmd.rows = rows;
@@ -591,7 +591,7 @@ std::string place(uint32_t image_id, int src_x, int src_y, int src_w, int src_h)
 
 std::string delete_image(uint32_t image_id) {
   DeleteCommand cmd;
-  cmd.target = DeleteTarget::BY_ID;
+  cmd.target = DeleteTarget::ById;
   cmd.free = true;
   cmd.image_id = image_id;
   return cmd.serialize();
@@ -610,7 +610,7 @@ std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num
   uint8_t id_b0 = image_id & 0xFF;
   uint8_t id_b3 = (image_id >> 24) & 0xFF;
 
-  result += sgr::FG_COLOR_COLON_PREFIX;
+  result += sgr::FgColorColonPrefix;
   result += std::to_string(id_b2);
   result += ':';
   result += std::to_string(id_b1);
@@ -621,15 +621,15 @@ std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num
   for (int r = 0; r < num_rows; ++r) {
     int row = first_row + r;
     for (int col = first_col; col < first_col + num_cols; ++col) {
-      append_utf8(result, PLACEHOLDER_CHAR);
-      if (static_cast<size_t>(row) < DIACRITICS_COUNT) {
-        append_utf8(result, DIACRITICS[row]);
+      append_utf8(result, PlaceholderChar);
+      if (static_cast<size_t>(row) < DiacriticsCount) {
+        append_utf8(result, Diacritics[row]);
       }
-      if (static_cast<size_t>(col) < DIACRITICS_COUNT) {
-        append_utf8(result, DIACRITICS[col]);
+      if (static_cast<size_t>(col) < DiacriticsCount) {
+        append_utf8(result, Diacritics[col]);
       }
-      if (static_cast<size_t>(id_b3) < DIACRITICS_COUNT) {
-        append_utf8(result, DIACRITICS[id_b3]);
+      if (static_cast<size_t>(id_b3) < DiacriticsCount) {
+        append_utf8(result, Diacritics[id_b3]);
       }
     }
     if (r < num_rows - 1) {
@@ -637,13 +637,13 @@ std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num
     }
   }
 
-  result += sgr::DEFAULT_FG;
+  result += sgr::DefaultFg;
   return result;
 }
 
 std::string delete_all_placements() {
   DeleteCommand cmd;
-  cmd.target = DeleteTarget::ALL;
+  cmd.target = DeleteTarget::All;
   return cmd.serialize();
 }
 

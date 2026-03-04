@@ -128,6 +128,8 @@ using PixelRect = Rect<int>;
 using CellSize = Size<int>;
 using CellRect = Rect<int>;
 using DocSize = Size<float>;
+using DocPoint = Point<float>;
+using DocRect = Rect<float>;
 
 /// @brief std::formatter for Size<T>: "WxH"
 template <typename T>

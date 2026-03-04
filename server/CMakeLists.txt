@@ -12,20 +12,22 @@ set(SERVER_LIB_SOURCES
   src/args.cpp
   src/color.cpp
   src/config.cpp
-  src/key_bindings.cpp
+  src/terminal/key_bindings.cpp
   src/document.cpp
-  src/osc_query.cpp
-  src/pixmap.cpp
-  src/base64.cpp
-  src/kitty.cpp
-  src/terminal_frontend.cpp
-  src/neovim_frontend.cpp
-  src/rpc_transport.cpp
-  src/terminal_input.cpp
-  src/terminal_loop.cpp
-  src/neovim_loop.cpp
+  src/frontend.cpp
   src/app.cpp
   src/converter.cpp
+  src/graphics/kitty.cpp
+  src/graphics/pixmap.cpp
+  src/terminal/controller.cpp
+  src/terminal/frontend.cpp
+  src/terminal/input.cpp
+  src/terminal/loop.cpp
+  src/terminal/osc_query.cpp
+  src/neovim/frontend.cpp
+  src/neovim/loop.cpp
+  src/neovim/rpc_transport.cpp
+  src/util/base64.cpp
 )
 
 add_library(server-lib STATIC ${SERVER_LIB_SOURCES})
@@ -66,11 +68,11 @@ target_link_libraries(mupager
 set(SERVER_TEST_SOURCES
   src/geometry.test.cpp
   src/document.test.cpp
-  src/pixmap.test.cpp
-  src/base64.test.cpp
-  src/kitty.test.cpp
+  src/graphics/pixmap.test.cpp
+  src/util/base64.test.cpp
+  src/graphics/kitty.test.cpp
   src/color.test.cpp
-  src/key_bindings.test.cpp
+  src/terminal/key_bindings.test.cpp
   src/converter.test.cpp
 )
 

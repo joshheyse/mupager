@@ -1,7 +1,7 @@
-#include "neovim_frontend.h"
+#include "neovim/frontend.h"
 
-#include "kitty.h"
-#include "sgr.h"
+#include "graphics/kitty.h"
+#include "graphics/sgr.h"
 
 #include <spdlog/spdlog.h>
 #include <sys/ioctl.h>
@@ -66,9 +66,8 @@ static std::string tmux_dcs_wrap(const std::string& raw) {
 }
 
 NeovimFrontend::NeovimFrontend()
-    : transport_(STDIN_FILENO, STDOUT_FILENO) {
-  in_tmux_ = std::getenv("TMUX") != nullptr;
-
+    : Frontend(1 << 24)
+    , transport_(STDIN_FILENO, STDOUT_FILENO) {
   if (in_tmux_) {
     const char* pane_env = std::getenv("TMUX_PANE");
     if (pane_env) {
@@ -97,14 +96,8 @@ NeovimFrontend::NeovimFrontend()
 }
 
 NeovimFrontend::~NeovimFrontend() {
-  // Clean up uploaded images
-  for (uint32_t id : uploaded_ids_) {
-    std::string seq = kitty::delete_image(id);
-    if (in_tmux_) {
-      seq = kitty::wrap_tmux(seq);
-    }
-    tty_write(seq);
-  }
+  std::string seq = build_image_cleanup_sequence();
+  tty_write(seq);
   std::fflush(tty_);
 
   if (tty_) {
@@ -148,7 +141,7 @@ void NeovimFrontend::set_window_info(int cols, int rows, int offset_row, int off
 std::optional<InputEvent> NeovimFrontend::poll_input(int timeout_ms) {
   // If we have commands queued, return the sentinel immediately
   if (!command_queue_.empty()) {
-    return InputEvent{input::RPC_COMMAND, 0, EventType::PRESS};
+    return InputEvent{input::RpcCommand, 0, EventType::Press};
   }
 
   // Poll RPC transport
@@ -188,24 +181,24 @@ std::optional<InputEvent> NeovimFrontend::poll_input(int timeout_ms) {
       query_tty_cell_size();
       command_queue_.push_back(r);
     }
-    if (msg->type == RpcMessageType::REQUEST) {
+    if (msg->type == RpcMessageType::Request) {
       transport_.respond_nil(msg->msgid);
     }
-    return InputEvent{input::RPC_COMMAND, 0, EventType::PRESS};
+    return InputEvent{input::RpcCommand, 0, EventType::Press};
   }
 
-  // Parse the message into an RpcCommand
+  // Parse the message into an Command
   auto cmd = RpcTransport::parse_command(msg->method, msg->params.get());
   if (cmd) {
     command_queue_.push_back(*cmd);
-    if (msg->type == RpcMessageType::REQUEST) {
+    if (msg->type == RpcMessageType::Request) {
       transport_.respond_nil(msg->msgid);
     }
-    return InputEvent{input::RPC_COMMAND, 0, EventType::PRESS};
+    return InputEvent{input::RpcCommand, 0, EventType::Press};
   }
 
   // Unknown method — respond with nil for requests
-  if (msg->type == RpcMessageType::REQUEST) {
+  if (msg->type == RpcMessageType::Request) {
     transport_.respond_nil(msg->msgid);
   }
 
@@ -213,14 +206,8 @@ std::optional<InputEvent> NeovimFrontend::poll_input(int timeout_ms) {
 }
 
 void NeovimFrontend::clear() {
-  // Delete all uploaded images
-  for (uint32_t id : uploaded_ids_) {
-    std::string seq = kitty::delete_image(id);
-    if (in_tmux_) {
-      seq = kitty::wrap_tmux(seq);
-    }
-    tty_write(seq);
-  }
+  std::string seq = build_image_cleanup_sequence();
+  tty_write(seq);
   uploaded_ids_.clear();
   std::fflush(tty_);
 
@@ -258,19 +245,6 @@ uint32_t NeovimFrontend::upload_image(const Pixmap& pixmap, int /*cols*/, int /*
 
   uploaded_ids_.insert(image_id);
   return image_id;
-}
-
-void NeovimFrontend::free_image(uint32_t image_id) {
-  if (uploaded_ids_.count(image_id) == 0) {
-    return;
-  }
-  std::string seq = kitty::delete_image(image_id);
-  if (in_tmux_) {
-    seq = kitty::wrap_tmux(seq);
-  }
-  tty_write(seq);
-  std::fflush(tty_);
-  uploaded_ids_.erase(image_id);
 }
 
 void NeovimFrontend::show_pages(const std::vector<PageSlice>& slices) {
@@ -371,11 +345,11 @@ void NeovimFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints) 
       int term_row = tmux_pane_top_ + hint.row + offset_row_;
       int term_col = tmux_pane_left_ + hint.col + offset_col_;
       sgr::move_to(raw, term_row + 1, term_col + 1);
-      raw += sgr::BOLD;
+      raw += sgr::Bold;
       raw += colors_.link_hint_fg.sgr_fg();
       raw += colors_.link_hint_bg.sgr_bg();
       raw += hint.label;
-      raw += sgr::RESET;
+      raw += sgr::Reset;
     }
     std::string out = tmux_dcs_wrap(raw);
     tty_write(out);
@@ -386,11 +360,11 @@ void NeovimFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints) 
       int row = hint.row + offset_row_;
       int col = hint.col + offset_col_;
       sgr::move_to(out, row + 1, col + 1);
-      out += sgr::BOLD;
+      out += sgr::Bold;
       out += colors_.link_hint_fg.sgr_fg();
       out += colors_.link_hint_bg.sgr_bg();
       out += hint.label;
-      out += sgr::RESET;
+      out += sgr::Reset;
     }
     tty_write(out);
   }
@@ -403,15 +377,7 @@ void NeovimFrontend::write_raw(const char* data, size_t len) {
   std::fflush(tty_);
 }
 
-bool NeovimFrontend::supports_image_viewporting() const {
-  return !in_tmux_;
-}
-
-void NeovimFrontend::set_color_scheme(const ColorScheme& scheme) {
-  colors_ = scheme;
-}
-
-std::optional<RpcCommand> NeovimFrontend::pop_command() {
+std::optional<Command> NeovimFrontend::pop_command() {
   if (command_queue_.empty()) {
     return std::nullopt;
   }

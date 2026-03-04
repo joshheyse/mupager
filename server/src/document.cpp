@@ -35,7 +35,7 @@ int Document::page_count() const {
   return fz_count_pages(ctx_.get(), doc_.get());
 }
 
-std::pair<float, float> Document::page_size(int page_num) const {
+DocSize Document::page_size(int page_num) const {
   fz_context* raw_ctx = ctx_.get();
   fz_page* page = nullptr;
   fz_rect bounds;
@@ -136,19 +136,19 @@ Outline Document::load_outline() const {
 }
 
 SearchResults Document::search(const std::string& needle) const {
-  static constexpr int MAX_HITS_PER_PAGE = 512;
+  static constexpr int MaxHitsPerPage = 512;
   fz_context* raw_ctx = ctx_.get();
   SearchResults results;
   int pages = page_count();
 
   for (int p = 0; p < pages; ++p) {
     fz_page* page = nullptr;
-    fz_quad hits[MAX_HITS_PER_PAGE];
+    fz_quad hits[MaxHitsPerPage];
     int n = 0;
 
     fz_try(raw_ctx) {
       page = fz_load_page(raw_ctx, doc_.get(), p);
-      n = fz_search_page(raw_ctx, page, needle.c_str(), nullptr, hits, MAX_HITS_PER_PAGE);
+      n = fz_search_page(raw_ctx, page, needle.c_str(), nullptr, hits, MaxHitsPerPage);
     }
     fz_always(raw_ctx) {
       fz_drop_page(raw_ctx, page);
@@ -162,7 +162,7 @@ SearchResults Document::search(const std::string& needle) const {
       float y0 = std::min({hits[i].ul.y, hits[i].ur.y, hits[i].ll.y, hits[i].lr.y});
       float x1 = std::max({hits[i].ul.x, hits[i].ur.x, hits[i].ll.x, hits[i].lr.x});
       float y1 = std::max({hits[i].ul.y, hits[i].ur.y, hits[i].ll.y, hits[i].lr.y});
-      results.push_back({p, x0, y0, x1 - x0, y1 - y0});
+      results.push_back({p, {x0, y0, x1 - x0, y1 - y0}});
     }
   }
   return results;
@@ -195,14 +195,9 @@ std::vector<PageLink> Document::load_links(int page_num) const {
     for (fz_link* link = links; link != nullptr; link = link->next) {
       PageLink pl;
       pl.page = page_num;
-      pl.x = link->rect.x0;
-      pl.y = link->rect.y0;
-      pl.w = link->rect.x1 - link->rect.x0;
-      pl.h = link->rect.y1 - link->rect.y0;
+      pl.rect = {link->rect.x0, link->rect.y0, link->rect.x1 - link->rect.x0, link->rect.y1 - link->rect.y0};
       pl.uri = link->uri ? link->uri : "";
       pl.dest_page = -1;
-      pl.dest_x = 0;
-      pl.dest_y = 0;
 
       if (!pl.uri.empty() && pl.uri[0] == '#') {
         float dx = 0;
@@ -210,8 +205,7 @@ std::vector<PageLink> Document::load_links(int page_num) const {
         fz_location loc = fz_resolve_link(raw_ctx, doc_.get(), pl.uri.c_str(), &dx, &dy);
         if (loc.page >= 0) {
           pl.dest_page = loc.page;
-          pl.dest_x = dx;
-          pl.dest_y = dy;
+          pl.dest = {dx, dy};
         }
       }
 
@@ -236,7 +230,7 @@ std::string Document::copy_text(const PagePoint& a, const PagePoint& b) const {
   // Normalize so start <= end
   PagePoint start = a;
   PagePoint end = b;
-  if (start.page > end.page || (start.page == end.page && (start.y > end.y || (start.y == end.y && start.x > end.x)))) {
+  if (start.page > end.page || (start.page == end.page && (start.pos.y > end.pos.y || (start.pos.y == end.pos.y && start.pos.x > end.pos.x)))) {
     std::swap(start, end);
   }
 
@@ -255,13 +249,13 @@ std::string Document::copy_text(const PagePoint& a, const PagePoint& b) const {
 
       fz_point pa, pb;
       if (p == start.page) {
-        pa = {start.x, start.y};
+        pa = {start.pos.x, start.pos.y};
       }
       else {
         pa = {0, 0};
       }
       if (p == end.page) {
-        pb = {end.x, end.y};
+        pb = {end.pos.x, end.pos.y};
       }
       else {
         fz_rect bounds = fz_bound_page(raw_ctx, page);
@@ -290,7 +284,7 @@ std::string Document::copy_text(const PagePoint& a, const PagePoint& b) const {
 }
 
 std::vector<SearchHit> Document::selection_quads(int page_num, const PagePoint& a, const PagePoint& b) const {
-  static constexpr int MAX_QUADS = 1024;
+  static constexpr int MaxQuads = 1024;
   fz_context* raw_ctx = ctx_.get();
   std::vector<SearchHit> results;
 
@@ -300,13 +294,13 @@ std::vector<SearchHit> Document::selection_quads(int page_num, const PagePoint& 
 
   fz_stext_page* stext = nullptr;
   fz_page* page = nullptr;
-  fz_quad quads[MAX_QUADS];
+  fz_quad quads[MaxQuads];
   int n = 0;
 
   // Determine selection points for this page
   PagePoint start = a;
   PagePoint end = b;
-  if (start.page > end.page || (start.page == end.page && (start.y > end.y || (start.y == end.y && start.x > end.x)))) {
+  if (start.page > end.page || (start.page == end.page && (start.pos.y > end.pos.y || (start.pos.y == end.pos.y && start.pos.x > end.pos.x)))) {
     std::swap(start, end);
   }
 
@@ -320,20 +314,20 @@ std::vector<SearchHit> Document::selection_quads(int page_num, const PagePoint& 
 
     fz_point pa, pb;
     if (page_num == start.page) {
-      pa = {start.x, start.y};
+      pa = {start.pos.x, start.pos.y};
     }
     else {
       pa = {0, 0};
     }
     if (page_num == end.page) {
-      pb = {end.x, end.y};
+      pb = {end.pos.x, end.pos.y};
     }
     else {
       fz_rect bounds = fz_bound_page(raw_ctx, page);
       pb = {bounds.x1, bounds.y1};
     }
 
-    n = fz_highlight_selection(raw_ctx, stext, pa, pb, quads, MAX_QUADS);
+    n = fz_highlight_selection(raw_ctx, stext, pa, pb, quads, MaxQuads);
   }
   fz_always(raw_ctx) {
     fz_drop_stext_page(raw_ctx, stext);
@@ -348,7 +342,7 @@ std::vector<SearchHit> Document::selection_quads(int page_num, const PagePoint& 
     float y0 = std::min({quads[i].ul.y, quads[i].ur.y, quads[i].ll.y, quads[i].lr.y});
     float x1 = std::max({quads[i].ul.x, quads[i].ur.x, quads[i].ll.x, quads[i].lr.x});
     float y1 = std::max({quads[i].ul.y, quads[i].ur.y, quads[i].ll.y, quads[i].lr.y});
-    results.push_back({page_num, x0, y0, x1 - x0, y1 - y0});
+    results.push_back({page_num, {x0, y0, x1 - x0, y1 - y0}});
   }
   return results;
 }
@@ -447,7 +441,7 @@ std::vector<SearchHit> Document::rect_selection_quads(int page_num, float x0, fl
             float qy0 = std::min({ch->quad.ul.y, ch->quad.ur.y, ch->quad.ll.y, ch->quad.lr.y});
             float qx1 = std::max({ch->quad.ul.x, ch->quad.ur.x, ch->quad.ll.x, ch->quad.lr.x});
             float qy1 = std::max({ch->quad.ul.y, ch->quad.ur.y, ch->quad.ll.y, ch->quad.lr.y});
-            results.push_back({page_num, qx0, qy0, qx1 - qx0, qy1 - qy0});
+            results.push_back({page_num, {qx0, qy0, qx1 - qx0, qy1 - qy0}});
           }
         }
       }
@@ -530,8 +524,8 @@ PagePoint Document::next_word_boundary(const PagePoint& from) const {
       // Find nearest char to from point
       float best_dist = 1e18f;
       for (size_t i = 0; i < chars.size(); ++i) {
-        float dx = chars[i].x - from.x;
-        float dy = chars[i].y - from.y;
+        float dx = chars[i].x - from.pos.x;
+        float dy = chars[i].y - from.pos.y;
         float dist = dy * 10000.0f + dx; // prioritize y, then x
         if (dist >= -1.0f && dist < best_dist) {
           best_dist = dist;
@@ -559,7 +553,7 @@ PagePoint Document::next_word_boundary(const PagePoint& from) const {
     }
 
     if (i < chars.size()) {
-      return {p, chars[i].x, chars[i].y};
+      return {p, {chars[i].x, chars[i].y}};
     }
 
     // End of page — try next page
@@ -571,7 +565,7 @@ PagePoint Document::next_word_boundary(const PagePoint& from) const {
         ++j;
       }
       if (j < next_chars.size()) {
-        return {p + 1, next_chars[j].x, next_chars[j].y};
+        return {p + 1, {next_chars[j].x, next_chars[j].y}};
       }
     }
   }
@@ -593,8 +587,8 @@ PagePoint Document::end_of_word_boundary(const PagePoint& from) const {
     if (p == from.page) {
       float best_dist = 1e18f;
       for (size_t i = 0; i < chars.size(); ++i) {
-        float dx = chars[i].x - from.x;
-        float dy = chars[i].y - from.y;
+        float dx = chars[i].x - from.pos.x;
+        float dy = chars[i].y - from.pos.y;
         float dist = dy * 10000.0f + dx;
         if (dist >= -1.0f && dist < best_dist) {
           best_dist = dist;
@@ -627,7 +621,7 @@ PagePoint Document::end_of_word_boundary(const PagePoint& from) const {
           while (j + 1 < next_chars.size() && next_chars[j + 1].cls == cls) {
             ++j;
           }
-          return {p + 1, next_chars[j].x, next_chars[j].y};
+          return {p + 1, {next_chars[j].x, next_chars[j].y}};
         }
       }
       continue;
@@ -639,7 +633,7 @@ PagePoint Document::end_of_word_boundary(const PagePoint& from) const {
       ++i;
     }
 
-    return {p, chars[i].x, chars[i].y};
+    return {p, {chars[i].x, chars[i].y}};
   }
 
   return from;
@@ -728,9 +722,9 @@ PagePoint Document::line_start(const PagePoint& from) const {
   if (from.page < 0 || from.page >= page_count()) {
     return from;
   }
-  auto range = find_line_at(ctx_.get(), doc_.get(), from.page, from.y);
+  auto range = find_line_at(ctx_.get(), doc_.get(), from.page, from.pos.y);
   if (range.found) {
-    return {from.page, range.first_x, range.first_y};
+    return {from.page, {range.first_x, range.first_y}};
   }
   return from;
 }
@@ -739,9 +733,9 @@ PagePoint Document::line_end(const PagePoint& from) const {
   if (from.page < 0 || from.page >= page_count()) {
     return from;
   }
-  auto range = find_line_at(ctx_.get(), doc_.get(), from.page, from.y);
+  auto range = find_line_at(ctx_.get(), doc_.get(), from.page, from.pos.y);
   if (range.found) {
-    return {from.page, range.last_x, range.last_y};
+    return {from.page, {range.last_x, range.last_y}};
   }
   return from;
 }
@@ -750,9 +744,9 @@ PagePoint Document::first_non_space(const PagePoint& from) const {
   if (from.page < 0 || from.page >= page_count()) {
     return from;
   }
-  auto range = find_line_at(ctx_.get(), doc_.get(), from.page, from.y);
+  auto range = find_line_at(ctx_.get(), doc_.get(), from.page, from.pos.y);
   if (range.found) {
-    return {from.page, range.first_non_space_x, range.first_non_space_y};
+    return {from.page, {range.first_non_space_x, range.first_non_space_y}};
   }
   return from;
 }
@@ -771,8 +765,8 @@ PagePoint Document::prev_word_boundary(const PagePoint& from) const {
     if (p == from.page) {
       float best_dist = 1e18f;
       for (size_t i = 0; i < chars.size(); ++i) {
-        float dx = from.x - chars[i].x;
-        float dy = from.y - chars[i].y;
+        float dx = from.pos.x - chars[i].x;
+        float dy = from.pos.y - chars[i].y;
         float dist = dy * 10000.0f + dx;
         if (dist >= -1.0f && dist < best_dist) {
           best_dist = dist;
@@ -806,7 +800,7 @@ PagePoint Document::prev_word_boundary(const PagePoint& from) const {
       --i;
     }
 
-    return {p, chars[i].x, chars[i].y};
+    return {p, {chars[i].x, chars[i].y}};
   }
 
   return from;

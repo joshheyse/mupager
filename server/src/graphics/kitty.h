@@ -10,52 +10,52 @@ namespace kitty {
 
 /// Kitty graphics protocol action for transmission commands.
 enum class TransmitAction : char {
-  TRANSMIT = 't',         ///< a=t — transmit only, store for later placement.
-  TRANSMIT_DISPLAY = 'T', ///< a=T — transmit and display immediately.
-  QUERY = 'q',            ///< a=q — test-load without storing.
+  Transmit = 't',        ///< a=t — transmit only, store for later placement.
+  TransmitDisplay = 'T', ///< a=T — transmit and display immediately.
+  Query = 'q',           ///< a=q — test-load without storing.
 };
 
 /// Pixel data format.
 enum class PixelFormat : int {
-  RGB = 24,  ///< f=24 — 24-bit RGB, 3 bytes per pixel.
-  RGBA = 32, ///< f=32 — 32-bit RGBA, 4 bytes per pixel.
-  PNG = 100, ///< f=100 — PNG-encoded data.
+  Rgb = 24,  ///< f=24 — 24-bit RGB, 3 bytes per pixel.
+  Rgba = 32, ///< f=32 — 32-bit RGBA, 4 bytes per pixel.
+  Png = 100, ///< f=100 — PNG-encoded data.
 };
 
 /// How image data is delivered to the terminal.
 enum class Medium : char {
-  DIRECT = 'd',        ///< t=d — inline base64 in the escape sequence.
-  FILE = 'f',          ///< t=f — base64-encoded file path; file left on disk.
-  TEMP_FILE = 't',     ///< t=t — base64-encoded file path; terminal deletes after reading.
-  SHARED_MEMORY = 's', ///< t=s — base64-encoded POSIX shared memory object name.
+  Direct = 'd',       ///< t=d — inline base64 in the escape sequence.
+  File = 'f',         ///< t=f — base64-encoded file path; file left on disk.
+  TempFile = 't',     ///< t=t — base64-encoded file path; terminal deletes after reading.
+  SharedMemory = 's', ///< t=s — base64-encoded POSIX shared memory object name.
 };
 
 /// Compression applied to the payload.
 enum class Compression : char {
-  NONE = 0,  ///< No compression.
-  ZLIB = 'z' ///< o=z — RFC 1950 zlib deflate.
+  None = 0,  ///< No compression.
+  Zlib = 'z' ///< o=z — RFC 1950 zlib deflate.
 };
 
 /// Target specifier for delete commands.
 enum class DeleteTarget : char {
-  ALL = 'a',           ///< d=a — all visible placements.
-  BY_ID = 'i',         ///< d=i — by image ID, optionally by placement ID.
-  BY_NUMBER = 'n',     ///< d=n — by image number.
-  AT_CURSOR = 'c',     ///< d=c — at cursor position.
-  AT_POSITION = 'p',   ///< d=p — at cell position (x, y).
-  AT_POSITION_Z = 'q', ///< d=q — at cell position + z-index.
-  BY_COLUMN = 'x',     ///< d=x — by column.
-  BY_ROW = 'y',        ///< d=y — by row.
-  BY_Z_INDEX = 'z',    ///< d=z — by z-index.
-  BY_ID_RANGE = 'r',   ///< d=r — by image ID range (x=min, y=max).
-  FRAMES = 'f',        ///< d=f — animation frames for an image.
+  All = 'a',         ///< d=a — all visible placements.
+  ById = 'i',        ///< d=i — by image ID, optionally by placement ID.
+  ByNumber = 'n',    ///< d=n — by image number.
+  AtCursor = 'c',    ///< d=c — at cursor position.
+  AtPosition = 'p',  ///< d=p — at cell position (x, y).
+  AtPositionZ = 'q', ///< d=q — at cell position + z-index.
+  ByColumn = 'x',    ///< d=x — by column.
+  ByRow = 'y',       ///< d=y — by row.
+  ByZIndex = 'z',    ///< d=z — by z-index.
+  ByIdRange = 'r',   ///< d=r — by image ID range (x=min, y=max).
+  Frames = 'f',      ///< d=f — animation frames for an image.
 };
 
 /// Animation playback state.
 enum class AnimationState : int {
-  STOP = 1,    ///< s=1 — stop playback.
-  LOADING = 2, ///< s=2 — run, waiting for more frames.
-  RUN = 3,     ///< s=3 — run with normal looping.
+  Stop = 1,    ///< s=1 — stop playback.
+  Loading = 2, ///< s=2 — run, waiting for more frames.
+  Run = 3,     ///< s=3 — run with normal looping.
 };
 
 /// @brief Kitty graphics protocol command for transmitting pixel data.
@@ -67,10 +67,10 @@ struct TransmitCommand {
   uint32_t height = 0;
   uint32_t image_id = 0;
   uint32_t placement_id = 0;
-  TransmitAction action = TransmitAction::TRANSMIT; ///< a= — transmit action.
-  PixelFormat format = PixelFormat::RGB;            ///< f= — pixel data format.
-  Medium medium = Medium::DIRECT;                   ///< t= — data delivery medium.
-  Compression compression = Compression::NONE;      ///< o= — payload compression.
+  TransmitAction action = TransmitAction::Transmit; ///< a= — transmit action.
+  PixelFormat format = PixelFormat::Rgb;            ///< f= — pixel data format.
+  Medium medium = Medium::Direct;                   ///< t= — data delivery medium.
+  Compression compression = Compression::None;      ///< o= — payload compression.
   bool unicode = false;                             ///< U=1 — unicode placeholders (for tmux).
   uint32_t columns = 0;                             ///< c= — placement columns (0 = omit).
   uint32_t rows = 0;                                ///< r= — placement rows (0 = omit).
@@ -121,7 +121,7 @@ struct PlaceCommand {
 /// The target field selects the delete mode (d= key), and the free flag
 /// selects uppercase (free image data) vs lowercase (placements only).
 struct DeleteCommand {
-  DeleteTarget target = DeleteTarget::ALL; ///< d= — what to delete.
+  DeleteTarget target = DeleteTarget::All; ///< d= — what to delete.
   bool free = false;                       ///< true → uppercase target (free data), false → lowercase (placements only).
   uint32_t image_id = 0;                   ///< i= — image ID (for BY_ID, FRAMES targets).
   uint32_t placement_id = 0;               ///< p= — placement ID (optional, for BY_ID, BY_NUMBER targets).
@@ -138,9 +138,9 @@ struct DeleteCommand {
 /// @brief Kitty graphics protocol command for transferring animation frame data (a=f).
 struct AnimationFrameCommand {
   uint32_t image_id = 0;                       ///< i= — target image.
-  PixelFormat format = PixelFormat::RGBA;      ///< f= — pixel format.
-  Medium medium = Medium::DIRECT;              ///< t= — data delivery.
-  Compression compression = Compression::NONE; ///< o= — compression.
+  PixelFormat format = PixelFormat::Rgba;      ///< f= — pixel format.
+  Medium medium = Medium::Direct;              ///< t= — data delivery.
+  Compression compression = Compression::None; ///< o= — compression.
   uint32_t data_size = 0;                      ///< S= — bytes to read.
   uint32_t data_offset = 0;                    ///< O= — byte offset.
   uint32_t x = 0;                              ///< x= — frame rect X offset.
@@ -162,7 +162,7 @@ struct AnimationFrameCommand {
 struct AnimationControlCommand {
   uint32_t image_id = 0;                       ///< i= — target image.
   uint32_t image_number = 0;                   ///< I= — alternative: by image number.
-  AnimationState state = AnimationState::STOP; ///< s= — playback state.
+  AnimationState state = AnimationState::Stop; ///< s= — playback state.
   uint32_t loop_count = 0;                     ///< v= — 0=no change, 1=infinite, n=loop n-1 times.
   uint32_t current_frame = 0;                  ///< c= — jump to frame.
   uint32_t target_frame = 0;                   ///< r= — frame whose gap to modify.

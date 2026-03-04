@@ -1,16 +1,16 @@
-#include "kitty.h"
+#include "graphics/kitty.h"
 
 #include "document.h"
-#include "pixmap.h"
+#include "graphics/pixmap.h"
 
 #include <doctest/doctest.h>
 
 #include <string>
 
-static constexpr const char* FIXTURE_PDF = PROJECT_FIXTURE_DIR "/test.pdf";
+static constexpr const char* FixturePdf = PROJECT_FIXTURE_DIR "/test.pdf";
 
 TEST_CASE("kitty encode starts with ESC_G and ends with ST") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
   std::string out = kitty::encode(pix);
 
@@ -19,7 +19,7 @@ TEST_CASE("kitty encode starts with ESC_G and ends with ST") {
 }
 
 TEST_CASE("kitty encode contains correct format and dimensions") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
   std::string out = kitty::encode(pix);
 
@@ -29,7 +29,7 @@ TEST_CASE("kitty encode contains correct format and dimensions") {
 }
 
 TEST_CASE("kitty encode includes image_id when non-zero") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
 
   std::string with_id = kitty::encode(pix, 42);
@@ -40,7 +40,7 @@ TEST_CASE("kitty encode includes image_id when non-zero") {
 }
 
 TEST_CASE("kitty encode last chunk has m=0") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
   std::string out = kitty::encode(pix);
 
@@ -48,7 +48,7 @@ TEST_CASE("kitty encode last chunk has m=0") {
 }
 
 TEST_CASE("kitty encode large image produces multiple chunks") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 2.0f);
   std::string out = kitty::encode(pix);
 
@@ -82,7 +82,7 @@ TEST_CASE("kitty wrap_tmux wraps multiple APC sequences individually") {
 }
 
 TEST_CASE("kitty transmit with cols/rows produces unicode placeholder mode") {
-  Document doc(FIXTURE_PDF);
+  Document doc(FixturePdf);
   Pixmap pix = doc.render_page(0, 1.0f);
   std::string out = kitty::transmit(pix, 1, 3, 5);
 
@@ -119,7 +119,7 @@ TEST_CASE("TransmitCommand serialize display mode") {
   cmd.height = 3;
   cmd.image_id = 1;
   cmd.placement_id = 2;
-  cmd.action = kitty::TransmitAction::TRANSMIT_DISPLAY;
+  cmd.action = kitty::TransmitAction::TransmitDisplay;
   std::string out = cmd.serialize("AAAA");
 
   CHECK(out.find("a=T,") != std::string::npos);
@@ -131,7 +131,7 @@ TEST_CASE("TransmitCommand serialize unicode mode with columns and rows") {
   cmd.width = 16;
   cmd.height = 32;
   cmd.image_id = 3;
-  cmd.action = kitty::TransmitAction::TRANSMIT_DISPLAY;
+  cmd.action = kitty::TransmitAction::TransmitDisplay;
   cmd.unicode = true;
   cmd.columns = 2;
   cmd.rows = 4;
@@ -165,7 +165,7 @@ TEST_CASE("TransmitCommand omits image_id and placement_id when zero") {
   kitty::TransmitCommand cmd;
   cmd.width = 1;
   cmd.height = 1;
-  cmd.action = kitty::TransmitAction::TRANSMIT_DISPLAY;
+  cmd.action = kitty::TransmitAction::TransmitDisplay;
   std::string out = cmd.serialize("AA==");
 
   CHECK(out.find(",i=") == std::string::npos);
@@ -189,7 +189,7 @@ TEST_CASE("TransmitCommand query action") {
   kitty::TransmitCommand cmd;
   cmd.width = 1;
   cmd.height = 1;
-  cmd.action = kitty::TransmitAction::QUERY;
+  cmd.action = kitty::TransmitAction::Query;
   std::string out = cmd.serialize("AAAA");
 
   CHECK(out.find("a=q,") != std::string::npos);
@@ -199,7 +199,7 @@ TEST_CASE("TransmitCommand RGBA format") {
   kitty::TransmitCommand cmd;
   cmd.width = 1;
   cmd.height = 1;
-  cmd.format = kitty::PixelFormat::RGBA;
+  cmd.format = kitty::PixelFormat::Rgba;
   std::string out = cmd.serialize("AAAA");
 
   CHECK(out.find("f=32") != std::string::npos);
@@ -209,7 +209,7 @@ TEST_CASE("TransmitCommand PNG format") {
   kitty::TransmitCommand cmd;
   cmd.width = 1;
   cmd.height = 1;
-  cmd.format = kitty::PixelFormat::PNG;
+  cmd.format = kitty::PixelFormat::Png;
   std::string out = cmd.serialize("AAAA");
 
   CHECK(out.find("f=100") != std::string::npos);
@@ -219,7 +219,7 @@ TEST_CASE("TransmitCommand file medium") {
   kitty::TransmitCommand cmd;
   cmd.width = 1;
   cmd.height = 1;
-  cmd.medium = kitty::Medium::FILE;
+  cmd.medium = kitty::Medium::File;
   std::string out = cmd.serialize("AAAA");
 
   CHECK(out.find("t=f,") != std::string::npos);
@@ -229,7 +229,7 @@ TEST_CASE("TransmitCommand temp file medium") {
   kitty::TransmitCommand cmd;
   cmd.width = 1;
   cmd.height = 1;
-  cmd.medium = kitty::Medium::TEMP_FILE;
+  cmd.medium = kitty::Medium::TempFile;
   std::string out = cmd.serialize("AAAA");
 
   CHECK(out.find("t=t,") != std::string::npos);
@@ -239,7 +239,7 @@ TEST_CASE("TransmitCommand shared memory medium") {
   kitty::TransmitCommand cmd;
   cmd.width = 1;
   cmd.height = 1;
-  cmd.medium = kitty::Medium::SHARED_MEMORY;
+  cmd.medium = kitty::Medium::SharedMemory;
   std::string out = cmd.serialize("AAAA");
 
   CHECK(out.find("t=s,") != std::string::npos);
@@ -249,7 +249,7 @@ TEST_CASE("TransmitCommand zlib compression") {
   kitty::TransmitCommand cmd;
   cmd.width = 1;
   cmd.height = 1;
-  cmd.compression = kitty::Compression::ZLIB;
+  cmd.compression = kitty::Compression::Zlib;
   std::string out = cmd.serialize("AAAA");
 
   CHECK(out.find("o=z") != std::string::npos);
@@ -476,27 +476,27 @@ TEST_CASE("PlaceCommand custom quiet level") {
 
 TEST_CASE("DeleteCommand serialize by image ID") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::BY_ID;
+  cmd.target = kitty::DeleteTarget::ById;
   cmd.image_id = 42;
   CHECK(cmd.serialize() == "\x1b_Ga=d,d=i,q=2,i=42\x1b\\");
 }
 
 TEST_CASE("DeleteCommand serialize all placements") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::ALL;
+  cmd.target = kitty::DeleteTarget::All;
   CHECK(cmd.serialize() == "\x1b_Ga=d,d=a,q=2\x1b\\");
 }
 
 TEST_CASE("DeleteCommand free flag uses uppercase target") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::ALL;
+  cmd.target = kitty::DeleteTarget::All;
   cmd.free = true;
   CHECK(cmd.serialize() == "\x1b_Ga=d,d=A,q=2\x1b\\");
 }
 
 TEST_CASE("DeleteCommand by ID with placement ID") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::BY_ID;
+  cmd.target = kitty::DeleteTarget::ById;
   cmd.image_id = 10;
   cmd.placement_id = 3;
   std::string out = cmd.serialize();
@@ -508,7 +508,7 @@ TEST_CASE("DeleteCommand by ID with placement ID") {
 
 TEST_CASE("DeleteCommand by ID with free flag") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::BY_ID;
+  cmd.target = kitty::DeleteTarget::ById;
   cmd.free = true;
   cmd.image_id = 5;
   std::string out = cmd.serialize();
@@ -519,7 +519,7 @@ TEST_CASE("DeleteCommand by ID with free flag") {
 
 TEST_CASE("DeleteCommand by image number") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::BY_NUMBER;
+  cmd.target = kitty::DeleteTarget::ByNumber;
   cmd.image_number = 77;
   std::string out = cmd.serialize();
 
@@ -529,7 +529,7 @@ TEST_CASE("DeleteCommand by image number") {
 
 TEST_CASE("DeleteCommand at cursor") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::AT_CURSOR;
+  cmd.target = kitty::DeleteTarget::AtCursor;
   std::string out = cmd.serialize();
 
   CHECK(out.find("d=c") != std::string::npos);
@@ -537,7 +537,7 @@ TEST_CASE("DeleteCommand at cursor") {
 
 TEST_CASE("DeleteCommand at position") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::AT_POSITION;
+  cmd.target = kitty::DeleteTarget::AtPosition;
   cmd.x = 5;
   cmd.y = 10;
   std::string out = cmd.serialize();
@@ -549,7 +549,7 @@ TEST_CASE("DeleteCommand at position") {
 
 TEST_CASE("DeleteCommand at position with z-index") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::AT_POSITION_Z;
+  cmd.target = kitty::DeleteTarget::AtPositionZ;
   cmd.x = 2;
   cmd.y = 3;
   cmd.z = -1;
@@ -563,7 +563,7 @@ TEST_CASE("DeleteCommand at position with z-index") {
 
 TEST_CASE("DeleteCommand by column") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::BY_COLUMN;
+  cmd.target = kitty::DeleteTarget::ByColumn;
   cmd.x = 15;
   std::string out = cmd.serialize();
 
@@ -573,7 +573,7 @@ TEST_CASE("DeleteCommand by column") {
 
 TEST_CASE("DeleteCommand by row") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::BY_ROW;
+  cmd.target = kitty::DeleteTarget::ByRow;
   cmd.y = 20;
   std::string out = cmd.serialize();
 
@@ -583,7 +583,7 @@ TEST_CASE("DeleteCommand by row") {
 
 TEST_CASE("DeleteCommand by z-index") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::BY_Z_INDEX;
+  cmd.target = kitty::DeleteTarget::ByZIndex;
   cmd.z = 3;
   std::string out = cmd.serialize();
 
@@ -593,7 +593,7 @@ TEST_CASE("DeleteCommand by z-index") {
 
 TEST_CASE("DeleteCommand by ID range") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::BY_ID_RANGE;
+  cmd.target = kitty::DeleteTarget::ByIdRange;
   cmd.x = 10;
   cmd.y = 50;
   std::string out = cmd.serialize();
@@ -605,7 +605,7 @@ TEST_CASE("DeleteCommand by ID range") {
 
 TEST_CASE("DeleteCommand animation frames") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::FRAMES;
+  cmd.target = kitty::DeleteTarget::Frames;
   cmd.image_id = 8;
   std::string out = cmd.serialize();
 
@@ -615,7 +615,7 @@ TEST_CASE("DeleteCommand animation frames") {
 
 TEST_CASE("DeleteCommand custom quiet level") {
   kitty::DeleteCommand cmd;
-  cmd.target = kitty::DeleteTarget::ALL;
+  cmd.target = kitty::DeleteTarget::All;
   cmd.quiet = 0;
   std::string out = cmd.serialize();
 
@@ -642,9 +642,9 @@ TEST_CASE("AnimationFrameCommand serialize defaults") {
 TEST_CASE("AnimationFrameCommand serialize with all fields") {
   kitty::AnimationFrameCommand cmd;
   cmd.image_id = 5;
-  cmd.format = kitty::PixelFormat::RGB;
-  cmd.medium = kitty::Medium::FILE;
-  cmd.compression = kitty::Compression::ZLIB;
+  cmd.format = kitty::PixelFormat::Rgb;
+  cmd.medium = kitty::Medium::File;
+  cmd.compression = kitty::Compression::Zlib;
   cmd.data_size = 2048;
   cmd.data_offset = 100;
   cmd.x = 10;
@@ -713,7 +713,7 @@ TEST_CASE("AnimationControlCommand serialize with all fields") {
   kitty::AnimationControlCommand cmd;
   cmd.image_id = 3;
   cmd.image_number = 7;
-  cmd.state = kitty::AnimationState::RUN;
+  cmd.state = kitty::AnimationState::Run;
   cmd.loop_count = 5;
   cmd.current_frame = 2;
   cmd.target_frame = 4;
@@ -732,7 +732,7 @@ TEST_CASE("AnimationControlCommand serialize with all fields") {
 TEST_CASE("AnimationControlCommand LOADING state") {
   kitty::AnimationControlCommand cmd;
   cmd.image_id = 1;
-  cmd.state = kitty::AnimationState::LOADING;
+  cmd.state = kitty::AnimationState::Loading;
   std::string out = cmd.serialize();
 
   CHECK(out.find("s=2") != std::string::npos);

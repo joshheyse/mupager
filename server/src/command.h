@@ -3,10 +3,14 @@
 #include <string>
 #include <variant>
 
-/// @brief RPC command types sent from the Neovim plugin to the server.
+/// @brief Application command types for dispatch.
 namespace cmd {
 
-struct Quit {};
+// Bindable actions have a static constexpr `action` name used by key bindings config.
+
+struct Quit {
+  static constexpr const char* Action = "quit";
+};
 
 struct Resize {
   int cols;       ///< Window width in columns.
@@ -16,23 +20,38 @@ struct Resize {
 };
 
 struct ScrollDown {
+  static constexpr const char* Action = "scroll-down";
   int count = 1;
 };
 
 struct ScrollUp {
+  static constexpr const char* Action = "scroll-up";
   int count = 1;
 };
 
-struct HalfPageDown {};
-struct HalfPageUp {};
-struct PageDown {};
-struct PageUp {};
+struct HalfPageDown {
+  static constexpr const char* Action = "half-page-down";
+};
+
+struct HalfPageUp {
+  static constexpr const char* Action = "half-page-up";
+};
+
+struct PageDown {
+  static constexpr const char* Action = "page-down";
+};
+
+struct PageUp {
+  static constexpr const char* Action = "page-up";
+};
 
 struct ScrollLeft {
+  static constexpr const char* Action = "scroll-left";
   int count = 1;
 };
 
 struct ScrollRight {
+  static constexpr const char* Action = "scroll-right";
   int count = 1;
 };
 
@@ -40,18 +59,37 @@ struct GotoPage {
   int page; ///< 1-based page number.
 };
 
-struct GotoFirstPage {};
-struct GotoLastPage {};
-struct ZoomIn {};
-struct ZoomOut {};
-struct ZoomReset {};
-struct ToggleViewMode {};
+struct GotoFirstPage {
+  static constexpr const char* Action = "first-page";
+};
+
+struct GotoLastPage {
+  static constexpr const char* Action = "last-page";
+};
+
+struct ZoomIn {
+  static constexpr const char* Action = "zoom-in";
+};
+
+struct ZoomOut {
+  static constexpr const char* Action = "zoom-out";
+};
+
+struct ZoomReset {
+  static constexpr const char* Action = "zoom-reset";
+};
+
+struct ToggleViewMode {
+  static constexpr const char* Action = "toggle-view";
+};
 
 struct SetViewMode {
   std::string mode;
 };
 
-struct ToggleTheme {};
+struct ToggleTheme {
+  static constexpr const char* Action = "toggle-theme";
+};
 
 struct SetTheme {
   std::string theme;
@@ -61,18 +99,39 @@ struct SetRenderScale {
   std::string strategy;
 };
 
+struct SetSidebarWidth {
+  int cols; ///< Sidebar width in columns (0 = default).
+};
+
 struct Reload {};
 
 struct Search {
   std::string term;
 };
 
-struct SearchNext {};
-struct SearchPrev {};
-struct ClearSearch {};
-struct JumpBack {};
-struct JumpForward {};
-struct EnterLinkHints {};
+struct SearchNext {
+  static constexpr const char* Action = "next-match";
+};
+
+struct SearchPrev {
+  static constexpr const char* Action = "prev-match";
+};
+
+struct ClearSearch {
+  static constexpr const char* Action = "clear-search";
+};
+
+struct JumpBack {
+  static constexpr const char* Action = "jump-back";
+};
+
+struct JumpForward {
+  static constexpr const char* Action = "jump-forward";
+};
+
+struct EnterLinkHints {
+  static constexpr const char* Action = "link-hints";
+};
 
 struct LinkHintKey {
   char ch;
@@ -83,52 +142,26 @@ struct GetOutline {};
 struct GetLinks {};
 struct GetState {};
 
-// Outline popup
-struct OpenOutline {};
-struct OutlineNavigate {
-  int delta;
+// Terminal-only actions (dispatched via key bindings, intercepted by TerminalController)
+struct OpenOutline {
+  static constexpr const char* Action = "outline";
 };
-struct OutlineFilterChar {
-  char ch;
-};
-struct OutlineFilterBackspace {};
-struct OutlineJump {};
-struct CloseOutline {};
 
-// Sidebar
-struct ToggleSidebar {};
-struct SidebarUnfocus {};
-struct SidebarClose {};
-struct SidebarNavigate {
-  int delta;
+struct ToggleSidebar {
+  static constexpr const char* Action = "sidebar";
 };
-struct SidebarFilterChar {
-  char ch;
-};
-struct SidebarFilterBackspace {};
-struct SidebarJump {};
 
-// Command mode
-struct EnterCommandMode {};
-struct CommandChar {
-  char ch;
+struct EnterCommandMode {
+  static constexpr const char* Action = "command-mode";
 };
-struct CommandBackspace {};
-struct CommandExecute {};
-struct CommandCancel {};
 
-// Search mode
-struct EnterSearchMode {};
-struct SearchChar {
-  char ch;
+struct EnterSearchMode {
+  static constexpr const char* Action = "search";
 };
-struct SearchBackspace {};
-struct SearchExecute {};
-struct SearchCancel {};
 
-// Help
-struct ShowHelp {};
-struct DismissOverlay {};
+struct ShowHelp {
+  static constexpr const char* Action = "help";
+};
 
 struct Hide {};
 struct Show {};
@@ -143,15 +176,23 @@ struct ClickAt {
   int row; ///< Screen row (0-based cell).
 };
 
-struct EnterVisualMode {};
-struct EnterVisualBlockMode {};
+struct EnterVisualMode {
+  static constexpr const char* Action = "visual-mode";
+};
+
+struct EnterVisualBlockMode {
+  static constexpr const char* Action = "visual-block-mode";
+};
 
 struct SelectionMove {
   int dx; ///< Relative cell movement X.
   int dy; ///< Relative cell movement Y.
 };
 
-struct SelectionYank {};
+struct SelectionYank {
+  static constexpr const char* Action = "visual-yank";
+};
+
 struct SelectionCancel {};
 
 struct SelectionMoveWord {
@@ -160,12 +201,12 @@ struct SelectionMoveWord {
 
 /// @brief Target for selection goto commands.
 enum class SelectionTarget {
-  LINE_START,
-  LINE_END,
-  FIRST_NON_SPACE,
-  WORD_END,
-  DOC_START,
-  DOC_END
+  LineStart,
+  LineEnd,
+  FirstNonSpace,
+  WordEnd,
+  DocStart,
+  DocEnd
 };
 
 struct SelectionGoto {
@@ -189,8 +230,8 @@ struct DragEnd {
 
 } // namespace cmd
 
-/// @brief Variant type encompassing all RPC commands.
-using RpcCommand = std::variant<
+/// @brief Variant type encompassing all application commands.
+using Command = std::variant<
     cmd::Quit,
     cmd::Resize,
     cmd::ScrollDown,
@@ -212,6 +253,7 @@ using RpcCommand = std::variant<
     cmd::ToggleTheme,
     cmd::SetTheme,
     cmd::SetRenderScale,
+    cmd::SetSidebarWidth,
     cmd::Reload,
     cmd::Search,
     cmd::SearchNext,
@@ -226,30 +268,10 @@ using RpcCommand = std::variant<
     cmd::GetLinks,
     cmd::GetState,
     cmd::OpenOutline,
-    cmd::OutlineNavigate,
-    cmd::OutlineFilterChar,
-    cmd::OutlineFilterBackspace,
-    cmd::OutlineJump,
-    cmd::CloseOutline,
     cmd::ToggleSidebar,
-    cmd::SidebarUnfocus,
-    cmd::SidebarClose,
-    cmd::SidebarNavigate,
-    cmd::SidebarFilterChar,
-    cmd::SidebarFilterBackspace,
-    cmd::SidebarJump,
     cmd::EnterCommandMode,
-    cmd::CommandChar,
-    cmd::CommandBackspace,
-    cmd::CommandExecute,
-    cmd::CommandCancel,
     cmd::EnterSearchMode,
-    cmd::SearchChar,
-    cmd::SearchBackspace,
-    cmd::SearchExecute,
-    cmd::SearchCancel,
     cmd::ShowHelp,
-    cmd::DismissOverlay,
     cmd::Hide,
     cmd::Show,
     cmd::MouseScroll,

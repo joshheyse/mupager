@@ -1,25 +1,34 @@
 #pragma once
 
-#include "outline.h"
-#include "pixmap.h"
+#include "geometry.h"
+#include "graphics/pixmap.h"
 
 #include <mupdf/fitz.h>
 
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
+
+/// @brief A single entry from a document's table of contents.
+struct OutlineEntry {
+  std::string title; ///< Section title.
+  int page;          ///< Zero-based page number.
+  int level;         ///< Nesting depth (0 = top-level).
+};
+
+/// @brief Flattened document outline (table of contents).
+using Outline = std::vector<OutlineEntry>;
 
 /// @brief A point on a specific page in page coordinate space.
 struct PagePoint {
-  int page;   ///< Zero-based page index.
-  float x, y; ///< Position in page points.
+  int page;     ///< Zero-based page index.
+  DocPoint pos; ///< Position in page points.
 };
 
 /// @brief A single search hit: page index + bounding box in page points.
 struct SearchHit {
-  int page;         ///< Zero-based page index.
-  float x, y, w, h; ///< Bounding rect in page coordinate space (points at zoom=1).
+  int page;     ///< Zero-based page index.
+  DocRect rect; ///< Bounding rect in page coordinate space (points at zoom=1).
 };
 
 /// @brief All search results for a query.
@@ -27,11 +36,11 @@ using SearchResults = std::vector<SearchHit>;
 
 /// @brief A hyperlink extracted from a PDF page.
 struct PageLink {
-  int page;             ///< Source page (zero-based).
-  float x, y, w, h;     ///< Bounding box in page point coordinates.
-  std::string uri;      ///< Link destination URI.
-  int dest_page;        ///< Resolved destination page (-1 for external).
-  float dest_x, dest_y; ///< Resolved anchor position within dest page (points).
+  int page;        ///< Source page (zero-based).
+  DocRect rect;    ///< Bounding box in page point coordinates.
+  std::string uri; ///< Link destination URI.
+  int dest_page;   ///< Resolved destination page (-1 for external).
+  DocPoint dest;   ///< Resolved anchor position within dest page (points).
 };
 
 /// @brief Deleter for fz_context unique_ptr.
@@ -61,8 +70,7 @@ public:
 
   /// @brief Return the page dimensions in points at zoom=1.
   /// @param page_num Zero-based page index.
-  /// @return {width, height}.
-  std::pair<float, float> page_size(int page_num) const;
+  DocSize page_size(int page_num) const;
 
   /// @brief Render a page to an RGB pixmap.
   /// @param page_num Zero-based page index.

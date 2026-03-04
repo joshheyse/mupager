@@ -1,15 +1,15 @@
-#include "rpc_transport.h"
+#include "neovim/rpc_transport.h"
 
 #include <poll.h>
 #include <spdlog/spdlog.h>
 #include <unistd.h>
 
-static constexpr size_t READ_BUF_SIZE = 65536;
+static constexpr size_t ReadBufSize = 65536;
 
 RpcTransport::RpcTransport(int read_fd, int write_fd)
     : read_fd_(read_fd)
     , write_fd_(write_fd) {
-  unpacker_.reserve_buffer(READ_BUF_SIZE);
+  unpacker_.reserve_buffer(ReadBufSize);
 }
 
 std::optional<RpcMessage> RpcTransport::poll(int timeout_ms) {
@@ -28,7 +28,7 @@ std::optional<RpcMessage> RpcTransport::poll(int timeout_ms) {
     RpcMessage msg;
     if (type_val == 0 && obj.via.array.size >= 4) {
       // Request: [0, msgid, method, params]
-      msg.type = RpcMessageType::REQUEST;
+      msg.type = RpcMessageType::Request;
       msg.msgid = arr[1].as<uint32_t>();
       msg.method = arr[2].as<std::string>();
       // Clone the params into an owned handle
@@ -38,7 +38,7 @@ std::optional<RpcMessage> RpcTransport::poll(int timeout_ms) {
     }
     else if (type_val == 2 && obj.via.array.size >= 3) {
       // Notification: [2, method, params]
-      msg.type = RpcMessageType::NOTIFICATION;
+      msg.type = RpcMessageType::Notification;
       msg.method = arr[1].as<std::string>();
       msgpack::zone* z = new msgpack::zone;
       msgpack::object params_copy(arr[2], *z);
@@ -69,7 +69,7 @@ std::optional<RpcMessage> RpcTransport::poll(int timeout_ms) {
   }
 
   // Read available data
-  unpacker_.reserve_buffer(READ_BUF_SIZE);
+  unpacker_.reserve_buffer(ReadBufSize);
   ssize_t n = ::read(read_fd_, unpacker_.buffer(), unpacker_.buffer_capacity());
   if (n <= 0) {
     spdlog::info("rpc: read returned {}", n);
@@ -90,7 +90,7 @@ std::optional<RpcMessage> RpcTransport::poll(int timeout_ms) {
 
     RpcMessage msg;
     if (type_val == 0 && obj.via.array.size >= 4) {
-      msg.type = RpcMessageType::REQUEST;
+      msg.type = RpcMessageType::Request;
       msg.msgid = arr[1].as<uint32_t>();
       msg.method = arr[2].as<std::string>();
       msgpack::zone* z = new msgpack::zone;
@@ -98,7 +98,7 @@ std::optional<RpcMessage> RpcTransport::poll(int timeout_ms) {
       msg.params = msgpack::object_handle(params_copy, std::unique_ptr<msgpack::zone>(z));
     }
     else if (type_val == 2 && obj.via.array.size >= 3) {
-      msg.type = RpcMessageType::NOTIFICATION;
+      msg.type = RpcMessageType::Notification;
       msg.method = arr[1].as<std::string>();
       msgpack::zone* z = new msgpack::zone;
       msgpack::object params_copy(arr[2], *z);
@@ -172,7 +172,7 @@ void RpcTransport::notify(const std::string& method, const msgpack::sbuffer& par
 }
 
 void RpcTransport::notify_nvim_lua(const std::string& method, const msgpack::sbuffer& params_buf) {
-  static const std::string LUA_CODE = "require('mupager.server')._dispatch(...)";
+  static const std::string LuaCode = "require('mupager.server')._dispatch(...)";
 
   msgpack::sbuffer args;
   msgpack::packer<msgpack::sbuffer> apk(args);
@@ -183,13 +183,13 @@ void RpcTransport::notify_nvim_lua(const std::string& method, const msgpack::sbu
   msgpack::sbuffer outer;
   msgpack::packer<msgpack::sbuffer> pk(outer);
   pk.pack_array(2);
-  pk.pack(LUA_CODE);
+  pk.pack(LuaCode);
   outer.write(args.data(), args.size());
 
   notify("nvim_exec_lua", outer);
 }
 
-std::optional<RpcCommand> RpcTransport::parse_command(const std::string& method, const msgpack::object& params) {
+std::optional<Command> RpcTransport::parse_command(const std::string& method, const msgpack::object& params) {
   if (method == "quit") {
     return cmd::Quit{};
   }

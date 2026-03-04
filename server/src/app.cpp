@@ -1,10 +1,8 @@
 #include "app.h"
 
-#include "base64.h"
 #include "converter.h"
-#include "sgr.h"
-#include "stopwatch.h"
-#include "terminal_input.h"
+#include "util/base64.h"
+#include "util/stopwatch.h"
 
 #include <spdlog/spdlog.h>
 #include <sys/stat.h>
@@ -13,31 +11,34 @@
 #include <algorithm>
 #include <string>
 
+/// @brief Discrete zoom levels for step-zoom in/out.
+static constexpr float ZoomLevels[] = {1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
+
 std::optional<ViewMode> parse_view_mode(const std::string& s) {
   if (s == "continuous") {
-    return ViewMode::CONTINUOUS;
+    return ViewMode::Continuous;
   }
   if (s == "page" || s == "page-width") {
-    return ViewMode::PAGE_WIDTH;
+    return ViewMode::PageWidth;
   }
   if (s == "page-height") {
-    return ViewMode::PAGE_HEIGHT;
+    return ViewMode::PageHeight;
   }
   if (s == "side-by-side") {
-    return ViewMode::SIDE_BY_SIDE;
+    return ViewMode::SideBySide;
   }
   return std::nullopt;
 }
 
 const char* to_label(Theme t, Theme effective) {
   switch (t) {
-    case Theme::LIGHT:
+    case Theme::Light:
       return "Light";
-    case Theme::DARK:
+    case Theme::Dark:
       return "Dark";
-    case Theme::AUTO:
-      return (effective == Theme::DARK) ? "Auto/Dark" : "Auto/Light";
-    case Theme::TERMINAL:
+    case Theme::Auto:
+      return (effective == Theme::Dark) ? "Auto/Dark" : "Auto/Light";
+    case Theme::Terminal:
       return "Terminal";
   }
   return "";
@@ -45,16 +46,16 @@ const char* to_label(Theme t, Theme effective) {
 
 std::optional<Theme> parse_theme(const std::string& s) {
   if (s == "dark") {
-    return Theme::DARK;
+    return Theme::Dark;
   }
   if (s == "light") {
-    return Theme::LIGHT;
+    return Theme::Light;
   }
   if (s == "auto") {
-    return Theme::AUTO;
+    return Theme::Auto;
   }
   if (s == "terminal") {
-    return Theme::TERMINAL;
+    return Theme::Terminal;
   }
   return std::nullopt;
 }
@@ -90,6 +91,19 @@ App::App(std::unique_ptr<Frontend> frontend, const Args& args, std::optional<Col
   spdlog::info("opened document: {} pages, mode: {}, theme: {}", doc_.page_count(), args.view_mode, args.theme);
 }
 
+InputMode App::input_mode() const {
+  switch (app_mode_) {
+    case AppMode::Visual:
+      return InputMode::Visual;
+    case AppMode::VisualBlock:
+      return InputMode::VisualBlock;
+    case AppMode::LinkHints:
+      return InputMode::LinkHints;
+    default:
+      return InputMode::Normal;
+  }
+}
+
 void App::build_layout() {
   auto client = frontend_->client_info();
   layout_size_ = client.pixel;
@@ -98,33 +112,28 @@ void App::build_layout() {
   int vh = vp.height;
   int vw = vp.width;
 
-  int sidebar_cols = sidebar_effective_width();
-  if (sidebar_cols > 0 && client.cell.width > 0) {
-    vw -= sidebar_cols * client.cell.width;
-  }
-
   spdlog::debug("build_layout: pixel={} vp={} cell={} pages={} zoom={:.2f}", client.pixel, vp, client.cell, num_pages, user_zoom_);
   layout_.resize(num_pages);
 
-  if (view_mode_ == ViewMode::PAGE_HEIGHT) {
+  if (view_mode_ == ViewMode::PageHeight) {
     for (int i = 0; i < num_pages; ++i) {
-      auto [page_w, page_h] = doc_.page_size(i);
-      float zoom = std::min(static_cast<float>(vw) / page_w, static_cast<float>(vh) / page_h);
-      int rendered_w = static_cast<int>(page_w * zoom);
-      int slot_h = std::max(vh, static_cast<int>(page_h * zoom * user_zoom_));
+      auto ps = doc_.page_size(i);
+      float zoom = std::min(static_cast<float>(vw) / ps.width, static_cast<float>(vh) / ps.height);
+      int rendered_w = static_cast<int>(ps.width * zoom);
+      int slot_h = std::max(vh, static_cast<int>(ps.height * zoom * user_zoom_));
       layout_[i] = {{0, i * slot_h, rendered_w, slot_h}, zoom};
     }
   }
-  else if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
+  else if (view_mode_ == ViewMode::SideBySide) {
     int half_w = vw / 2;
     int y = 0;
     for (int i = 0; i < num_pages; ++i) {
-      auto [page_w, page_h] = doc_.page_size(i);
+      auto ps = doc_.page_size(i);
       bool is_last_odd = (i == num_pages - 1) && (i % 2 == 0);
       int fit_w = is_last_odd ? vw : half_w;
-      float zoom = std::min(static_cast<float>(fit_w) / page_w, static_cast<float>(vh) / page_h);
-      int rendered_w = static_cast<int>(page_w * zoom);
-      int slot_h = std::max(vh, static_cast<int>(page_h * zoom * user_zoom_));
+      float zoom = std::min(static_cast<float>(fit_w) / ps.width, static_cast<float>(vh) / ps.height);
+      int rendered_w = static_cast<int>(ps.width * zoom);
+      int slot_h = std::max(vh, static_cast<int>(ps.height * zoom * user_zoom_));
       if (i % 2 == 0) {
         layout_[i] = {{0, y, rendered_w, slot_h}, zoom};
       }
@@ -141,14 +150,14 @@ void App::build_layout() {
   else {
     int cell_h = client.cell.height;
     int gap = 0;
-    if (view_mode_ == ViewMode::CONTINUOUS && cell_h > 0) {
-      gap = std::max(1, (PAGE_GAP_PX + cell_h - 1) / cell_h) * cell_h;
+    if (view_mode_ == ViewMode::Continuous && cell_h > 0) {
+      gap = std::max(1, (PageGapPx + cell_h - 1) / cell_h) * cell_h;
     }
     int y = 0;
     for (int i = 0; i < num_pages; ++i) {
-      auto [page_w, page_h] = doc_.page_size(i);
-      float zoom = static_cast<float>(vw) / page_w;
-      int h = static_cast<int>(page_h * zoom * user_zoom_);
+      auto ps = doc_.page_size(i);
+      float zoom = static_cast<float>(vw) / ps.width;
+      int h = static_cast<int>(ps.height * zoom * user_zoom_);
       layout_[i] = {{0, y, vw, h}, zoom};
       y += h + gap;
     }
@@ -179,11 +188,11 @@ int App::page_at_y(int y) const {
 float App::effective_render_scale() const {
   RenderScale setting = render_scale_setting_;
 
-  if (setting == RenderScale::AUTO) {
-    setting = frontend_->supports_image_viewporting() ? RenderScale::X05 : RenderScale::NEVER;
+  if (setting == RenderScale::Auto) {
+    setting = frontend_->supports_image_viewporting() ? RenderScale::X05 : RenderScale::Never;
   }
 
-  if (setting == RenderScale::NEVER) {
+  if (setting == RenderScale::Never) {
     return 0.0f;
   }
 
@@ -210,11 +219,6 @@ void App::handle_zoom_change(float old_zoom) {
   auto client = frontend_->client_info();
   int vw = client.viewport_pixel().width;
   int vh = client.viewport_pixel().height;
-
-  int sb_cols = sidebar_effective_width();
-  if (sb_cols > 0 && client.cell.width > 0) {
-    vw -= sb_cols * client.cell.width;
-  }
 
   // Scale scroll positions to match the new zoom
   if (old_zoom > 0.0f && user_zoom_ != old_zoom) {
@@ -282,10 +286,10 @@ void App::ensure_pages_uploaded(int first, int last) {
     }();
 
     Theme eff = effective_theme();
-    if (eff == Theme::DARK) {
+    if (eff == Theme::Dark) {
       pixmap.invert();
     }
-    else if (eff == Theme::TERMINAL) {
+    else if (eff == Theme::Terminal) {
       auto [fg, bg] = resolve_recolor_colors();
       pixmap.recolor(fg, bg, colors_.recolor_accent);
     }
@@ -302,9 +306,9 @@ void App::ensure_pages_uploaded(int first, int last) {
     // Grid dimensions based on display size (not rendered pixel size)
     // so images display at correct width in tmux unicode placeholder mode.
     float display_zoom = base_zoom * user_zoom_;
-    auto [pw, ph] = doc_.page_size(i);
-    int display_w = static_cast<int>(pw * display_zoom);
-    int display_h = static_cast<int>(ph * display_zoom);
+    auto ps = doc_.page_size(i);
+    int display_w = static_cast<int>(ps.width * display_zoom);
+    int display_h = static_cast<int>(ps.height * display_zoom);
     int cols = (display_w + client.cell.width - 1) / client.cell.width;
     int rows = (display_h + client.cell.height - 1) / client.cell.height;
 
@@ -394,7 +398,6 @@ void App::pre_upload_adjacent() {
     }
     // Upload one page per idle cycle
     ensure_pages_uploaded(page, page);
-    update_statusline();
     return;
   }
 }
@@ -438,69 +441,6 @@ std::pair<std::string, size_t> App::cache_stats() const {
   return {result, total};
 }
 
-void App::update_statusline() {
-  std::string left;
-  if (input_mode_ == InputMode::COMMAND) {
-    left = std::format(":{}", command_input_);
-  }
-  else if (input_mode_ == InputMode::SEARCH) {
-    left = std::format("/{}", search_term_);
-  }
-  else if (!search_results_.empty() && input_mode_ == InputMode::NORMAL) {
-    // Count matches on current page
-    int cur = current_page();
-    search_page_matches_ = 0;
-    for (const auto& hit : search_results_) {
-      if (hit.page == cur) {
-        ++search_page_matches_;
-      }
-    }
-    search_total_matches_ = static_cast<int>(search_results_.size());
-    left = std::format("/{} [{}/{}]", search_term_, search_current_ + 1, search_total_matches_);
-  }
-  else if (input_mode_ == InputMode::VISUAL) {
-    left = "-- VISUAL --";
-  }
-  else if (input_mode_ == InputMode::VISUAL_BLOCK) {
-    left = "-- VISUAL BLOCK --";
-  }
-  else if (last_action_.active()) {
-    left = last_action_.text();
-  }
-
-  const char* mode_str = to_label(view_mode_);
-  const char* theme_str = to_label(theme_, effective_theme());
-  int zoom_pct = static_cast<int>(user_zoom_ * 100.0f + 0.5f);
-  int page = current_page() + 1;
-  int total = doc_.page_count();
-  std::string right = mode_str;
-  if (zoom_pct != 100) {
-    right += std::format(" \xe2\x94\x82 {}%", zoom_pct);
-  }
-  right += std::format(" \xe2\x94\x82 {} \xe2\x94\x82 {}/{}", theme_str, page, total);
-
-  if (show_stats_) {
-    float rs = effective_render_scale();
-    if (rs == 0.0f) {
-      right += std::format(" \xe2\x94\x82 rs:exact");
-    }
-    else {
-      right += std::format(" \xe2\x94\x82 rs:{:.2g}x", rs);
-    }
-    auto [cached_pages, cached_bytes] = cache_stats();
-    if (!cached_pages.empty()) {
-      if (cached_bytes >= 1024 * 1024) {
-        right += std::format(" [{}] {:.1f}M", cached_pages, static_cast<double>(cached_bytes) / (1024.0 * 1024.0));
-      }
-      else {
-        right += std::format(" [{}] {:.0f}K", cached_pages, static_cast<double>(cached_bytes) / 1024.0);
-      }
-    }
-  }
-
-  frontend_->statusline(left, right);
-}
-
 void App::update_viewport() {
   auto client = frontend_->client_info();
   if (!client.is_valid() || layout_.empty()) {
@@ -512,13 +452,6 @@ void App::update_viewport() {
   int vh = vp.height;
   int vw = vp.width;
 
-  int sidebar_cols = sidebar_effective_width();
-  int sidebar_px = 0;
-  if (sidebar_cols > 0 && client.cell.width > 0) {
-    sidebar_px = sidebar_cols * client.cell.width;
-    vw -= sidebar_px;
-  }
-
   int num_pages = static_cast<int>(layout_.size());
   spdlog::debug("update_viewport: scroll={} vp={} cell={}", scroll_, vp, client.cell);
 
@@ -527,7 +460,7 @@ void App::update_viewport() {
   int last = first;
 
   // In SIDE_BY_SIDE, snap back to pair start
-  if (view_mode_ == ViewMode::SIDE_BY_SIDE && first > 0 && layout_[first - 1].rect.y == layout_[first].rect.y) {
+  if (view_mode_ == ViewMode::SideBySide && first > 0 && layout_[first - 1].rect.y == layout_[first].rect.y) {
     first = first - 1;
   }
 
@@ -557,9 +490,9 @@ void App::update_viewport() {
     int page_top = lay.rect.y - scroll_.y;
 
     // Zoomed page dimensions (what the user sees on screen)
-    auto [page_w, page_h] = doc_.page_size(i);
-    int zoomed_w = static_cast<int>(page_w * lay.zoom * user_zoom_);
-    int zoomed_h = static_cast<int>(page_h * lay.zoom * user_zoom_);
+    auto ps = doc_.page_size(i);
+    int zoomed_w = static_cast<int>(ps.width * lay.zoom * user_zoom_);
+    int zoomed_h = static_cast<int>(ps.height * lay.zoom * user_zoom_);
 
     // Scale factor: zoomed-content pixels -> image pixels
     float img_scale;
@@ -572,44 +505,44 @@ void App::update_viewport() {
 
     // Where the actual rendered content starts in viewport coordinates.
     int content_top = page_top;
-    int dst_col = sidebar_cols;
+    int dst_col = 0;
 
-    if (view_mode_ == ViewMode::PAGE_HEIGHT) {
+    if (view_mode_ == ViewMode::PageHeight) {
       int vert_pad = std::max(0, (lay.rect.height - zoomed_h) / 2);
       content_top = page_top + vert_pad;
       if (zoomed_w < vw) {
-        dst_col = sidebar_cols + (vw - zoomed_w) / 2 / client.cell.width;
+        dst_col = (vw - zoomed_w) / 2 / client.cell.width;
       }
     }
-    else if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
+    else if (view_mode_ == ViewMode::SideBySide) {
       int vert_pad = std::max(0, (lay.rect.height - zoomed_h) / 2);
       content_top = page_top + vert_pad;
       bool is_last_odd = (i == num_pages - 1) && (i % 2 == 0);
       if (is_last_odd) {
         if (zoomed_w < vw) {
-          dst_col = sidebar_cols + (vw - zoomed_w) / 2 / client.cell.width;
+          dst_col = (vw - zoomed_w) / 2 / client.cell.width;
         }
       }
       else if (i % 2 == 0) {
         int half_w = vw / 2;
         if (zoomed_w < half_w) {
-          dst_col = sidebar_cols + (half_w - zoomed_w) / 2 / client.cell.width;
+          dst_col = (half_w - zoomed_w) / 2 / client.cell.width;
         }
       }
       else {
         int half_w = vw / 2;
         if (zoomed_w < half_w) {
-          dst_col = sidebar_cols + (half_w + (half_w - zoomed_w) / 2) / client.cell.width;
+          dst_col = (half_w + (half_w - zoomed_w) / 2) / client.cell.width;
         }
         else {
-          dst_col = sidebar_cols + half_w / client.cell.width;
+          dst_col = half_w / client.cell.width;
         }
       }
     }
     else {
       // CONTINUOUS / PAGE_WIDTH: center when zoomed content is narrower than viewport
       if (zoomed_w < vw) {
-        dst_col = sidebar_cols + (vw - zoomed_w) / 2 / client.cell.width;
+        dst_col = (vw - zoomed_w) / 2 / client.cell.width;
       }
     }
 
@@ -621,21 +554,16 @@ void App::update_viewport() {
       continue;
     }
 
-    // Source rect in image pixel coordinates
-    int max_scroll_x = std::max(0, zoomed_w - vw);
-    int clamped_scroll_x = std::clamp(scroll_.x, 0, max_scroll_x);
-    int src_x = static_cast<int>(clamped_scroll_x * img_scale);
-    int src_y = static_cast<int>((visible.top() - content_top) * img_scale);
-    int src_w = static_cast<int>(std::min(zoomed_w, vw) * img_scale);
-    int src_h = static_cast<int>(visible.height * img_scale);
-
-    // Clamp source rect to actual image dimensions
-    src_x = std::min(src_x, std::max(0, cached.pixel_size.width - 1));
-    src_y = std::min(src_y, std::max(0, cached.pixel_size.height - 1));
-    src_w = std::min(src_w, cached.pixel_size.width - src_x);
-    src_h = std::min(src_h, cached.pixel_size.height - src_y);
-
-    PixelRect src = {src_x, src_y, src_w, src_h};
+    // Source rect in image pixel coordinates, clamped to image bounds
+    int clamped_scroll_x = std::clamp(scroll_.x, 0, std::max(0, zoomed_w - vw));
+    PixelRect image_bounds = {0, 0, cached.pixel_size.width, cached.pixel_size.height};
+    PixelRect src = PixelRect::from_xywh(
+                        static_cast<int>(clamped_scroll_x * img_scale),
+                        static_cast<int>((visible.top() - content_top) * img_scale),
+                        static_cast<int>(std::min(zoomed_w, vw) * img_scale),
+                        static_cast<int>(visible.height * img_scale)
+    )
+                        .intersect(image_bounds);
 
     // Destination in cells
     int visible_px_w = std::min(zoomed_w, vw);
@@ -649,8 +577,6 @@ void App::update_viewport() {
 
   spdlog::debug("update_viewport: pages [{},{}] slices={}", first, last, slices.size());
   frontend_->show_pages(slices);
-  update_sidebar();
-  update_statusline();
 }
 
 int App::current_page() const {
@@ -666,18 +592,13 @@ void App::scroll(int dx, int dy) {
   int vh = client.viewport_pixel().height;
   int vw = client.viewport_pixel().width;
 
-  int sb_cols = sidebar_effective_width();
-  if (sb_cols > 0 && client.cell.width > 0) {
-    vw -= sb_cols * client.cell.width;
-  }
-
   int total_height = document_height();
   int max_y = std::max(0, total_height - vh);
 
   int new_y = std::clamp(scroll_.y + dy, 0, max_y);
 
   // In non-continuous modes, clamp scroll to stay within the current page
-  if (view_mode_ != ViewMode::CONTINUOUS) {
+  if (view_mode_ != ViewMode::Continuous) {
     int p = page_at_y(new_y);
     int page_top = layout_[p].rect.y;
     int page_max = page_top + std::max(0, layout_[p].rect.height - vh);
@@ -686,8 +607,7 @@ void App::scroll(int dx, int dy) {
 
   // Clamp horizontal scroll based on zoomed page width
   int p = page_at_y(new_y);
-  auto [pw, ph] = doc_.page_size(p);
-  int zoomed_w = static_cast<int>(pw * layout_[p].zoom * user_zoom_);
+  int zoomed_w = static_cast<int>(doc_.page_size(p).width * layout_[p].zoom * user_zoom_);
   int max_x = std::max(0, zoomed_w - vw);
   int new_x = std::clamp(scroll_.x + dx, 0, max_x);
 
@@ -715,11 +635,6 @@ void App::render() {
     int vh = client.viewport_pixel().height;
     int vw = client.viewport_pixel().width;
 
-    int sb_cols = sidebar_effective_width();
-    if (sb_cols > 0 && client.cell.width > 0) {
-      vw -= sb_cols * client.cell.width;
-    }
-
     int total_height = document_height();
     int max_y = std::max(0, total_height - vh);
     scroll_.y = std::clamp(scroll_.y, 0, max_y);
@@ -729,8 +644,7 @@ void App::render() {
     }
     else {
       int p = page_at_y(scroll_.y);
-      auto [pw, ph] = doc_.page_size(p);
-      int zoomed_w = static_cast<int>(pw * layout_[p].zoom * user_zoom_);
+      int zoomed_w = static_cast<int>(doc_.page_size(p).width * layout_[p].zoom * user_zoom_);
       int max_x = std::max(0, zoomed_w - vw);
       scroll_.x = std::clamp(scroll_.x, 0, max_x);
     }
@@ -744,7 +658,7 @@ void App::jump_to_page(int page) {
   int num_pages = static_cast<int>(layout_.size());
   page = std::clamp(page, 0, num_pages - 1);
   // In SIDE_BY_SIDE, snap to even page index (pair start)
-  if (view_mode_ == ViewMode::SIDE_BY_SIDE && page % 2 != 0) {
+  if (view_mode_ == ViewMode::SideBySide && page % 2 != 0) {
     page = page - 1;
   }
   scroll_.y = layout_[page].rect.y;
@@ -778,7 +692,6 @@ void App::idle_tick() {
     }
     if (last_action_.expired()) {
       last_action_.clear();
-      update_statusline();
     }
   }
 
@@ -798,9 +711,7 @@ void App::idle_tick() {
         }
       }
       spdlog::info("watch: file changed, reloading");
-      command_input_ = "reload";
-      execute_command();
-      command_input_.clear();
+      do_reload();
     }
   }
 }
@@ -821,7 +732,7 @@ std::vector<PageLink> App::visible_links() const {
   return all_links;
 }
 
-void App::handle_command(const RpcCommand& cmd) {
+void App::handle_command(const Command& cmd) {
   last_activity_time_ = std::chrono::steady_clock::now();
 
   std::visit(
@@ -859,10 +770,10 @@ void App::handle_command(const RpcCommand& cmd) {
         else if constexpr (std::is_same_v<T, cmd::PageDown>) {
           if (!layout_.empty()) {
             int p = current_page();
-            if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
+            if (view_mode_ == ViewMode::SideBySide) {
               jump_to_page(p + 2);
             }
-            else if (view_mode_ != ViewMode::CONTINUOUS) {
+            else if (view_mode_ != ViewMode::Continuous) {
               jump_to_page(p + 1);
             }
             else {
@@ -873,10 +784,10 @@ void App::handle_command(const RpcCommand& cmd) {
         else if constexpr (std::is_same_v<T, cmd::PageUp>) {
           if (!layout_.empty()) {
             int p = current_page();
-            if (view_mode_ == ViewMode::SIDE_BY_SIDE) {
+            if (view_mode_ == ViewMode::SideBySide) {
               jump_to_page(p - 2);
             }
-            else if (view_mode_ != ViewMode::CONTINUOUS) {
+            else if (view_mode_ != ViewMode::Continuous) {
               jump_to_page(p - 1);
             }
             else {
@@ -913,9 +824,8 @@ void App::handle_command(const RpcCommand& cmd) {
           }
         }
         else if constexpr (std::is_same_v<T, cmd::ZoomIn>) {
-          static constexpr float LEVELS[] = {1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
           float old = user_zoom_;
-          for (float lvl : LEVELS) {
+          for (float lvl : ZoomLevels) {
             if (lvl > user_zoom_ + 0.01f) {
               user_zoom_ = lvl;
               break;
@@ -925,10 +835,9 @@ void App::handle_command(const RpcCommand& cmd) {
           handle_zoom_change(old);
         }
         else if constexpr (std::is_same_v<T, cmd::ZoomOut>) {
-          static constexpr float LEVELS[] = {1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
           float old = user_zoom_;
-          float best = 1.0f;
-          for (float lvl : LEVELS) {
+          float best = ZoomLevels[0];
+          for (float lvl : ZoomLevels) {
             if (lvl < user_zoom_ - 0.01f) {
               best = lvl;
             }
@@ -946,17 +855,17 @@ void App::handle_command(const RpcCommand& cmd) {
         }
         else if constexpr (std::is_same_v<T, cmd::ToggleViewMode>) {
           switch (view_mode_) {
-            case ViewMode::CONTINUOUS:
-              view_mode_ = ViewMode::PAGE_WIDTH;
+            case ViewMode::Continuous:
+              view_mode_ = ViewMode::PageWidth;
               break;
-            case ViewMode::PAGE_WIDTH:
-              view_mode_ = ViewMode::PAGE_HEIGHT;
+            case ViewMode::PageWidth:
+              view_mode_ = ViewMode::PageHeight;
               break;
-            case ViewMode::PAGE_HEIGHT:
-              view_mode_ = ViewMode::SIDE_BY_SIDE;
+            case ViewMode::PageHeight:
+              view_mode_ = ViewMode::SideBySide;
               break;
-            case ViewMode::SIDE_BY_SIDE:
-              view_mode_ = ViewMode::CONTINUOUS;
+            case ViewMode::SideBySide:
+              view_mode_ = ViewMode::Continuous;
               break;
           }
           user_zoom_ = 1.0f;
@@ -964,37 +873,31 @@ void App::handle_command(const RpcCommand& cmd) {
           render();
         }
         else if constexpr (std::is_same_v<T, cmd::SetViewMode>) {
-          command_input_ = "set mode " + arg.mode;
-          execute_command();
-          command_input_.clear();
+          apply_view_mode(arg.mode);
         }
         else if constexpr (std::is_same_v<T, cmd::ToggleTheme>) {
-          if (theme_ == Theme::DARK) {
-            theme_ = Theme::LIGHT;
+          if (theme_ == Theme::Dark) {
+            theme_ = Theme::Light;
           }
-          else if (theme_ == Theme::LIGHT) {
-            theme_ = Theme::TERMINAL;
+          else if (theme_ == Theme::Light) {
+            theme_ = Theme::Terminal;
           }
           else {
-            theme_ = Theme::DARK;
+            theme_ = Theme::Dark;
           }
           frontend_->clear();
           render();
         }
         else if constexpr (std::is_same_v<T, cmd::SetTheme>) {
-          command_input_ = "set theme " + arg.theme;
-          execute_command();
-          command_input_.clear();
+          apply_theme(arg.theme);
         }
         else if constexpr (std::is_same_v<T, cmd::SetRenderScale>) {
-          command_input_ = "set render-scale " + arg.strategy;
-          execute_command();
-          command_input_.clear();
+          apply_render_scale(arg.strategy);
+        }
+        else if constexpr (std::is_same_v<T, cmd::SetSidebarWidth>) {
         }
         else if constexpr (std::is_same_v<T, cmd::Reload>) {
-          command_input_ = "reload";
-          execute_command();
-          command_input_.clear();
+          do_reload();
         }
         else if constexpr (std::is_same_v<T, cmd::JumpBack>) {
           if (!jump_history_.empty()) {
@@ -1050,7 +953,7 @@ void App::handle_command(const RpcCommand& cmd) {
           enter_link_hints();
         }
         else if constexpr (std::is_same_v<T, cmd::LinkHintKey>) {
-          if (input_mode_ == InputMode::LINK_HINTS) {
+          if (app_mode_ == AppMode::LinkHints) {
             link_hint_input_ += arg.ch;
             std::vector<ActiveLinkHint> matches;
             for (const auto& hint : link_hints_) {
@@ -1070,7 +973,7 @@ void App::handle_command(const RpcCommand& cmd) {
           }
         }
         else if constexpr (std::is_same_v<T, cmd::LinkHintCancel>) {
-          if (input_mode_ == InputMode::LINK_HINTS) {
+          if (app_mode_ == AppMode::LinkHints) {
             exit_link_hints();
           }
         }
@@ -1086,173 +989,14 @@ void App::handle_command(const RpcCommand& cmd) {
           // Data is fetched by the caller via view_state()
         }
         else if constexpr (std::is_same_v<T, cmd::OpenOutline>) {
-          if (outline_.empty()) {
-            outline_ = doc_.load_outline();
-          }
-          if (outline_.empty()) {
-            last_action_.set("No outline");
-          }
-          else {
-            input_mode_ = InputMode::OUTLINE;
-            outline_cursor_ = 0;
-            outline_scroll_ = 0;
-            outline_filter_.clear();
-            outline_apply_filter();
-            show_outline_popup();
-          }
-        }
-        else if constexpr (std::is_same_v<T, cmd::OutlineNavigate>) {
-          outline_navigate(arg.delta);
-        }
-        else if constexpr (std::is_same_v<T, cmd::OutlineFilterChar>) {
-          outline_filter_ += arg.ch;
-          outline_apply_filter();
-          show_outline_popup();
-        }
-        else if constexpr (std::is_same_v<T, cmd::OutlineFilterBackspace>) {
-          if (!outline_filter_.empty()) {
-            outline_filter_.pop_back();
-            outline_apply_filter();
-            show_outline_popup();
-          }
-        }
-        else if constexpr (std::is_same_v<T, cmd::OutlineJump>) {
-          outline_jump();
-        }
-        else if constexpr (std::is_same_v<T, cmd::CloseOutline>) {
-          input_mode_ = InputMode::NORMAL;
-          frontend_->clear_overlay();
-          update_viewport();
-          update_statusline();
         }
         else if constexpr (std::is_same_v<T, cmd::ToggleSidebar>) {
-          if (sidebar_visible_) {
-            sidebar_visible_ = false;
-            sidebar_filter_.clear();
-            frontend_->clear();
-            render();
-          }
-          else {
-            if (outline_.empty()) {
-              outline_ = doc_.load_outline();
-            }
-            if (outline_.empty()) {
-              last_action_.set("No outline");
-            }
-            else {
-              sidebar_visible_ = true;
-              sidebar_scroll_ = 0;
-              input_mode_ = InputMode::SIDEBAR;
-              sidebar_filter_.clear();
-              sidebar_apply_filter();
-              int active = active_outline_index();
-              if (active >= 0) {
-                for (int fi = 0; fi < static_cast<int>(sidebar_filtered_.size()); ++fi) {
-                  if (sidebar_filtered_[fi] == active) {
-                    sidebar_cursor_ = fi;
-                    break;
-                  }
-                }
-              }
-              frontend_->clear();
-              render();
-            }
-          }
-        }
-        else if constexpr (std::is_same_v<T, cmd::SidebarUnfocus>) {
-          input_mode_ = InputMode::NORMAL;
-          sidebar_filter_.clear();
-          sidebar_apply_filter();
-          update_sidebar();
-          update_statusline();
-        }
-        else if constexpr (std::is_same_v<T, cmd::SidebarClose>) {
-          input_mode_ = InputMode::NORMAL;
-          sidebar_visible_ = false;
-          sidebar_filter_.clear();
-          frontend_->clear();
-          render();
-        }
-        else if constexpr (std::is_same_v<T, cmd::SidebarNavigate>) {
-          sidebar_navigate(arg.delta);
-        }
-        else if constexpr (std::is_same_v<T, cmd::SidebarFilterChar>) {
-          sidebar_filter_ += arg.ch;
-          sidebar_apply_filter();
-          update_sidebar();
-          update_statusline();
-        }
-        else if constexpr (std::is_same_v<T, cmd::SidebarFilterBackspace>) {
-          if (!sidebar_filter_.empty()) {
-            sidebar_filter_.pop_back();
-            sidebar_apply_filter();
-            update_sidebar();
-            update_statusline();
-          }
-        }
-        else if constexpr (std::is_same_v<T, cmd::SidebarJump>) {
-          sidebar_jump();
         }
         else if constexpr (std::is_same_v<T, cmd::EnterCommandMode>) {
-          input_mode_ = InputMode::COMMAND;
-          command_input_.clear();
-          update_statusline();
-        }
-        else if constexpr (std::is_same_v<T, cmd::CommandChar>) {
-          command_input_ += arg.ch;
-          update_statusline();
-        }
-        else if constexpr (std::is_same_v<T, cmd::CommandBackspace>) {
-          if (!command_input_.empty()) {
-            command_input_.pop_back();
-          }
-          update_statusline();
-        }
-        else if constexpr (std::is_same_v<T, cmd::CommandExecute>) {
-          execute_command();
-          input_mode_ = InputMode::NORMAL;
-          command_input_.clear();
-          update_statusline();
-        }
-        else if constexpr (std::is_same_v<T, cmd::CommandCancel>) {
-          input_mode_ = InputMode::NORMAL;
-          command_input_.clear();
-          update_statusline();
         }
         else if constexpr (std::is_same_v<T, cmd::EnterSearchMode>) {
-          input_mode_ = InputMode::SEARCH;
-          search_term_.clear();
-          update_statusline();
-        }
-        else if constexpr (std::is_same_v<T, cmd::SearchChar>) {
-          search_term_ += arg.ch;
-          update_statusline();
-        }
-        else if constexpr (std::is_same_v<T, cmd::SearchBackspace>) {
-          if (!search_term_.empty()) {
-            search_term_.pop_back();
-          }
-          update_statusline();
-        }
-        else if constexpr (std::is_same_v<T, cmd::SearchExecute>) {
-          execute_search();
-          input_mode_ = InputMode::NORMAL;
-          update_statusline();
-        }
-        else if constexpr (std::is_same_v<T, cmd::SearchCancel>) {
-          input_mode_ = InputMode::NORMAL;
-          search_term_.clear();
-          update_statusline();
         }
         else if constexpr (std::is_same_v<T, cmd::ShowHelp>) {
-          input_mode_ = InputMode::HELP;
-          show_help();
-        }
-        else if constexpr (std::is_same_v<T, cmd::DismissOverlay>) {
-          input_mode_ = InputMode::NORMAL;
-          frontend_->clear_overlay();
-          update_viewport();
-          update_statusline();
         }
         else if constexpr (std::is_same_v<T, cmd::Hide>) {
           frontend_->show_pages({});
@@ -1272,7 +1016,7 @@ void App::handle_command(const RpcCommand& cmd) {
           // Hit-test against page links
           auto page_links = doc_.load_links(pp.page);
           for (auto& pl : page_links) {
-            if (pp.x >= pl.x && pp.x <= pl.x + pl.w && pp.y >= pl.y && pp.y <= pl.y + pl.h) {
+            if (pl.rect.contains(pp.pos)) {
               follow_link(pl);
               return;
             }
@@ -1308,17 +1052,17 @@ void App::handle_command(const RpcCommand& cmd) {
           has_click_point_ = (last_click_point_.page >= 0);
         }
         else if constexpr (std::is_same_v<T, cmd::DragUpdate>) {
-          if (input_mode_ == InputMode::NORMAL && has_click_point_) {
+          if (app_mode_ == AppMode::Normal && has_click_point_) {
             selection_anchor_ = last_click_point_;
             selection_extent_ = last_click_point_;
-            input_mode_ = InputMode::VISUAL;
+            app_mode_ = AppMode::Visual;
           }
-          if (input_mode_ == InputMode::VISUAL || input_mode_ == InputMode::VISUAL_BLOCK) {
+          if (app_mode_ == AppMode::Visual || app_mode_ == AppMode::VisualBlock) {
             update_selection_extent(arg.col, arg.row);
           }
         }
         else if constexpr (std::is_same_v<T, cmd::DragEnd>) {
-          if (input_mode_ == InputMode::VISUAL || input_mode_ == InputMode::VISUAL_BLOCK) {
+          if (app_mode_ == AppMode::Visual || app_mode_ == AppMode::VisualBlock) {
             update_selection_extent(arg.col, arg.row);
           }
         }
@@ -1327,421 +1071,89 @@ void App::handle_command(const RpcCommand& cmd) {
   );
 }
 
-void App::execute_command() {
-  std::string cmd = command_input_;
-
-  // Trim leading/trailing whitespace
-  auto start = cmd.find_first_not_of(' ');
-  if (start == std::string::npos) {
-    return;
-  }
-  cmd = cmd.substr(start);
-  auto end = cmd.find_last_not_of(' ');
-  cmd = cmd.substr(0, end + 1);
-
-  // Bare number → goto page
+void App::do_reload() {
   try {
-    size_t pos = 0;
-    int page = std::stoi(cmd, &pos);
-    if (pos == cmd.size()) {
-      jump_to_page(page - 1);
-      return;
+    for (auto& [page, cached] : page_cache_) {
+      frontend_->free_image(cached.image_id);
     }
+    page_cache_.clear();
+
+    doc_.reload(file_path_);
+
+    outline_.clear();
+    search_results_.clear();
+    search_term_.clear();
+    search_current_ = -1;
+
+    build_layout();
+
+    auto client = frontend_->client_info();
+    int vh = client.viewport_pixel().height;
+    int total_height = document_height();
+    int max_y = std::max(0, total_height - vh);
+    scroll_.y = std::clamp(scroll_.y, 0, max_y);
+
+    frontend_->clear();
+    update_viewport();
+    last_action_.set("Reloaded");
   }
-  catch (...) {
+  catch (const std::runtime_error& e) {
+    last_action_.set("Reload failed: {}", e.what());
   }
+}
 
-  // Split into command name + args
-  auto space = cmd.find(' ');
-  std::string name = (space != std::string::npos) ? cmd.substr(0, space) : cmd;
-  std::string args = (space != std::string::npos) ? cmd.substr(space + 1) : "";
-
-  // Trim args
-  auto args_start = args.find_first_not_of(' ');
-  if (args_start != std::string::npos) {
-    args = args.substr(args_start);
-  }
-
-  if (name == "goto" || name == "g") {
-    try {
-      int page = std::stoi(args);
-      jump_to_page(page - 1);
-    }
-    catch (...) {
-      last_action_.set("Invalid page number");
-    }
-  }
-  else if (name == "q" || name == "quit") {
-    running_ = false;
-  }
-  else if (name == "reload") {
-    try {
-      // Free all cached images
-      for (auto& [page, cached] : page_cache_) {
-        frontend_->free_image(cached.image_id);
-      }
-      page_cache_.clear();
-
-      doc_.reload(file_path_);
-
-      // Clear derived state
-      outline_.clear();
-      sidebar_filtered_.clear();
-      search_results_.clear();
-      search_term_.clear();
-      search_current_ = -1;
-
-      // Rebuild and render
-      build_layout();
-
-      auto client = frontend_->client_info();
-      int vh = client.viewport_pixel().height;
-      int total_height = document_height();
-      int max_y = std::max(0, total_height - vh);
-      scroll_.y = std::clamp(scroll_.y, 0, max_y);
-
-      frontend_->clear();
-      update_viewport();
-      last_action_.set("Reloaded");
-    }
-    catch (const std::runtime_error& e) {
-      last_action_.set("Reload failed: {}", e.what());
-    }
-  }
-  else if (name == "set") {
-    auto key_space = args.find(' ');
-    std::string key = (key_space != std::string::npos) ? args.substr(0, key_space) : args;
-    std::string value = (key_space != std::string::npos) ? args.substr(key_space + 1) : "";
-
-    // Trim value
-    auto val_start = value.find_first_not_of(' ');
-    if (val_start != std::string::npos) {
-      value = value.substr(val_start);
-    }
-    auto val_end = value.find_last_not_of(' ');
-    if (val_end != std::string::npos) {
-      value = value.substr(0, val_end + 1);
-    }
-
-    if (key == "theme") {
-      auto th = parse_theme(value);
-      if (th) {
-        theme_ = *th;
-        frontend_->clear();
-        render();
-      }
-      else {
-        last_action_.set("Unknown theme: {}", value);
-      }
-    }
-    else if (key == "mode") {
-      auto vm = parse_view_mode(value);
-      if (!vm) {
-        last_action_.set("Unknown mode: {}", value);
-        return;
-      }
-      view_mode_ = *vm;
-      user_zoom_ = 1.0f;
-      scroll_.x = 0;
-      render();
-    }
-    else if (key == "render-scale") {
-      if (value == "auto") {
-        render_scale_setting_ = RenderScale::AUTO;
-      }
-      else if (value == "never") {
-        render_scale_setting_ = RenderScale::NEVER;
-      }
-      else if (value == "0.25") {
-        render_scale_setting_ = RenderScale::X025;
-      }
-      else if (value == "0.5") {
-        render_scale_setting_ = RenderScale::X05;
-      }
-      else if (value == "1") {
-        render_scale_setting_ = RenderScale::X1;
-      }
-      else if (value == "2") {
-        render_scale_setting_ = RenderScale::X2;
-      }
-      else if (value == "4") {
-        render_scale_setting_ = RenderScale::X4;
-      }
-      else {
-        last_action_.set("Unknown render-scale: {}", value);
-        return;
-      }
-      frontend_->clear();
-      render();
-    }
-    else if (key == "sidebar-width") {
-      try {
-        int w = std::stoi(value);
-        if (w < 0) {
-          last_action_.set("Invalid width");
-        }
-        else {
-          sidebar_width_cols_ = w;
-          if (sidebar_visible_) {
-            frontend_->clear();
-            render();
-          }
-        }
-      }
-      catch (...) {
-        last_action_.set("Invalid width: {}", value);
-      }
-    }
-    else {
-      last_action_.set("Unknown setting: {}", key);
-    }
+void App::apply_theme(const std::string& name) {
+  auto th = parse_theme(name);
+  if (th) {
+    theme_ = *th;
+    frontend_->clear();
+    render();
   }
   else {
-    last_action_.set("Unknown: {}", name);
+    last_action_.set("Unknown theme: {}", name);
   }
 }
 
-void App::show_help() {
-  auto bindings = bindings_.help_bindings();
-
-  int max_key_len = 0;
-  for (const auto& hb : bindings) {
-    max_key_len = std::max(max_key_len, static_cast<int>(hb.key_label.size()));
-  }
-
-  auto format_line = [&](const std::string& key, const std::string& desc) {
-    std::string line = key;
-    line += std::string(max_key_len - static_cast<int>(key.size()) + 3, ' ');
-    line += desc;
-    return line;
-  };
-
-  std::vector<std::string> lines;
-  lines.emplace_back("Key Bindings");
-  lines.emplace_back("");
-
-  for (const auto& hb : bindings) {
-    lines.push_back(format_line(hb.key_label, hb.description));
-  }
-
-  frontend_->show_overlay("Help", lines);
-}
-
-bool App::fuzzy_match(const std::string& text, const std::string& pattern) {
-  size_t ti = 0;
-  for (size_t pi = 0; pi < pattern.size(); ++pi) {
-    char pc = static_cast<char>(std::tolower(static_cast<unsigned char>(pattern[pi])));
-    bool found = false;
-    while (ti < text.size()) {
-      char tc = static_cast<char>(std::tolower(static_cast<unsigned char>(text[ti])));
-      ++ti;
-      if (tc == pc) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      return false;
-    }
-  }
-  return true;
-}
-
-void App::outline_apply_filter() {
-  filtered_indices_.clear();
-  for (int i = 0; i < static_cast<int>(outline_.size()); ++i) {
-    if (outline_filter_.empty() || fuzzy_match(outline_[i].title, outline_filter_)) {
-      filtered_indices_.push_back(i);
-    }
-  }
-  outline_cursor_ = 0;
-  outline_scroll_ = 0;
-}
-
-void App::outline_navigate(int delta) {
-  if (filtered_indices_.empty()) {
+void App::apply_view_mode(const std::string& name) {
+  auto vm = parse_view_mode(name);
+  if (!vm) {
+    last_action_.set("Unknown mode: {}", name);
     return;
   }
-  outline_cursor_ = std::clamp(outline_cursor_ + delta, 0, static_cast<int>(filtered_indices_.size()) - 1);
-  show_outline_popup();
+  view_mode_ = *vm;
+  user_zoom_ = 1.0f;
+  scroll_.x = 0;
+  render();
 }
 
-void App::outline_jump() {
-  if (filtered_indices_.empty()) {
+void App::apply_render_scale(const std::string& name) {
+  if (name == "auto") {
+    render_scale_setting_ = RenderScale::Auto;
+  }
+  else if (name == "never") {
+    render_scale_setting_ = RenderScale::Never;
+  }
+  else if (name == "0.25") {
+    render_scale_setting_ = RenderScale::X025;
+  }
+  else if (name == "0.5") {
+    render_scale_setting_ = RenderScale::X05;
+  }
+  else if (name == "1") {
+    render_scale_setting_ = RenderScale::X1;
+  }
+  else if (name == "2") {
+    render_scale_setting_ = RenderScale::X2;
+  }
+  else if (name == "4") {
+    render_scale_setting_ = RenderScale::X4;
+  }
+  else {
+    last_action_.set("Unknown render-scale: {}", name);
     return;
   }
-  int page = outline_[filtered_indices_[outline_cursor_]].page;
-  input_mode_ = InputMode::NORMAL;
-  frontend_->clear_overlay();
-  // jump_to_page already calls push_jump_history()
-  jump_to_page(page);
-  update_statusline();
-}
-
-void App::show_outline_popup() {
-  auto client = frontend_->client_info();
-
-  // Fixed 75% of terminal dimensions (minus status bar row and gap row)
-  int box_lines = std::max(4, client.rows * 3 / 4 - 2);
-  int box_width = std::max(20, client.cols * 3 / 4);
-
-  // Header: filter line + separator line
-  int max_visible = box_lines - 2;
-
-  // Scroll window follows cursor
-  if (outline_cursor_ < outline_scroll_) {
-    outline_scroll_ = outline_cursor_;
-  }
-  if (outline_cursor_ >= outline_scroll_ + max_visible) {
-    outline_scroll_ = outline_cursor_ - max_visible + 1;
-  }
-
-  // Pad a line to box_width (accounting for ANSI escapes not taking display space).
-  // The overlay adds borders: │ SP content SP │ → 3 chars each side = 6 total.
-  int content_w = box_width - 6;
-  auto pad_line = [content_w](const std::string& text, int visible_len) -> std::string {
-    if (visible_len >= content_w) {
-      return text;
-    }
-    return text + std::string(content_w - visible_len, ' ');
-  };
-
-  // Truncate a string to fit within max_cols display columns.
-  auto truncate_to = [](const std::string& text, int max_cols) -> std::string {
-    int cols = 0;
-    size_t pos = 0;
-    while (pos < text.size() && cols < max_cols) {
-      auto c = static_cast<unsigned char>(text[pos]);
-      if (c == 0x1B && pos + 1 < text.size() && text[pos + 1] == '[') {
-        pos += 2;
-        while (pos < text.size() && static_cast<unsigned char>(text[pos]) < 0x40) {
-          ++pos;
-        }
-        if (pos < text.size()) {
-          ++pos;
-        }
-        continue;
-      }
-      size_t char_len = 1;
-      if (c >= 0xF0) {
-        char_len = 4;
-      }
-      else if (c >= 0xE0) {
-        char_len = 3;
-      }
-      else if (c >= 0x80) {
-        char_len = 2;
-      }
-      pos += char_len;
-      ++cols;
-    }
-    return text.substr(0, pos);
-  };
-
-  std::string border_title = "Table of Contents";
-
-  std::vector<std::string> lines;
-
-  auto filter_line = std::format("> {}", outline_filter_);
-  lines.push_back(pad_line(filter_line, static_cast<int>(filter_line.size())));
-  // Separator: thin horizontal line
-  std::string sep;
-  for (int i = 0; i < content_w; ++i) {
-    sep += "\xe2\x94\x80"; // ─
-  }
-  lines.push_back(sep);
-
-  int end = std::min(outline_scroll_ + max_visible, static_cast<int>(filtered_indices_.size()));
-  for (int vi = outline_scroll_; vi < end; ++vi) {
-    const auto& entry = outline_[filtered_indices_[vi]];
-    std::string indent(entry.level * 2, ' ');
-    auto page_str = std::to_string(entry.page + 1);
-    auto title_part = std::format("{}{}", indent, entry.title);
-    int title_len = static_cast<int>(title_part.size());
-    int page_len = static_cast<int>(page_str.size());
-
-    // Truncate title with ellipsis if it would overflow content_w
-    int max_title = content_w - page_len - 1;
-    if (title_len > max_title && max_title > 3) {
-      title_part = truncate_to(title_part, max_title - 3) + "...";
-      title_len = max_title;
-    }
-
-    int gap = std::max(1, content_w - title_len - page_len);
-    auto visible_text = std::format("{}{:>{}}{}", title_part, "", gap, page_str);
-
-    if (vi == outline_cursor_) {
-      auto line = std::format("{}{}", sgr::BOLD, visible_text);
-      lines.push_back(line);
-    }
-    else {
-      lines.push_back(visible_text);
-    }
-  }
-
-  if (filtered_indices_.empty()) {
-    lines.push_back(pad_line("  (no matches)", 14));
-  }
-
-  // Pad remaining rows to fill the fixed height
-  while (static_cast<int>(lines.size()) < box_lines) {
-    lines.push_back(pad_line("", 0));
-  }
-
-  frontend_->show_overlay(border_title, lines);
-}
-
-int App::sidebar_effective_width() const {
-  if (!sidebar_visible_) {
-    return 0;
-  }
-  auto client = frontend_->client_info();
-  if (sidebar_width_cols_ > 0) {
-    return std::min(sidebar_width_cols_, client.cols - 10);
-  }
-  return std::max(15, client.cols / 5);
-}
-
-int App::active_outline_index() const {
-  int cp = current_page();
-  int best = -1;
-  for (int i = 0; i < static_cast<int>(outline_.size()); ++i) {
-    if (outline_[i].page <= cp) {
-      best = i;
-    }
-  }
-  return best;
-}
-
-void App::sidebar_apply_filter() {
-  sidebar_filtered_.clear();
-  for (int i = 0; i < static_cast<int>(outline_.size()); ++i) {
-    if (sidebar_filter_.empty() || fuzzy_match(outline_[i].title, sidebar_filter_)) {
-      sidebar_filtered_.push_back(i);
-    }
-  }
-  sidebar_cursor_ = 0;
-  sidebar_scroll_ = 0;
-}
-
-void App::sidebar_navigate(int delta) {
-  if (sidebar_filtered_.empty()) {
-    return;
-  }
-  sidebar_cursor_ = std::clamp(sidebar_cursor_ + delta, 0, static_cast<int>(sidebar_filtered_.size()) - 1);
-  update_sidebar();
-  update_statusline();
-}
-
-void App::sidebar_jump() {
-  if (sidebar_filtered_.empty()) {
-    return;
-  }
-  int page = outline_[sidebar_filtered_[sidebar_cursor_]].page;
-  input_mode_ = InputMode::NORMAL;
-  sidebar_filter_.clear();
-  sidebar_apply_filter();
-  jump_to_page(page);
+  frontend_->clear();
+  render();
 }
 
 void App::execute_search() {
@@ -1768,7 +1180,7 @@ void App::execute_search() {
       continue;
     }
     float page_zoom = layout_[hit.page].zoom * user_zoom_;
-    int hit_global_y = layout_[hit.page].rect.y + static_cast<int>(hit.y * page_zoom);
+    int hit_global_y = layout_[hit.page].rect.y + static_cast<int>(hit.rect.y * page_zoom);
     if (hit_global_y >= scroll_.y && hit_global_y < scroll_.y + vh) {
       first_visible = i;
       break;
@@ -1827,13 +1239,13 @@ void App::scroll_to_search_hit() {
   int page = hit.page;
   page = std::clamp(page, 0, static_cast<int>(layout_.size()) - 1);
 
-  if (view_mode_ == ViewMode::SIDE_BY_SIDE && page % 2 != 0) {
+  if (view_mode_ == ViewMode::SideBySide && page % 2 != 0) {
     page = page - 1;
   }
 
   // Convert hit Y from page points to pixels within the page
   float page_zoom = layout_[hit.page].zoom * user_zoom_;
-  int hit_y_px = static_cast<int>(hit.y * page_zoom);
+  int hit_y_px = static_cast<int>(hit.rect.y * page_zoom);
 
   // Global Y = page top + hit offset within page
   scroll_.y = layout_[hit.page].rect.y + hit_y_px;
@@ -1860,10 +1272,10 @@ void App::highlight_page_matches(Pixmap& pixmap, int page_num, float render_zoom
     }
 
     PixelRect rect
-        = {static_cast<int>(hit.x * render_zoom),
-           static_cast<int>(hit.y * render_zoom),
-           static_cast<int>(hit.w * render_zoom),
-           static_cast<int>(hit.h * render_zoom)};
+        = {static_cast<int>(hit.rect.x * render_zoom),
+           static_cast<int>(hit.rect.y * render_zoom),
+           static_cast<int>(hit.rect.width * render_zoom),
+           static_cast<int>(hit.rect.height * render_zoom)};
 
     if (i == search_current_) {
       pixmap.highlight_rect(rect, colors_.search_active, colors_.search_active_alpha);
@@ -1875,15 +1287,15 @@ void App::highlight_page_matches(Pixmap& pixmap, int page_num, float render_zoom
 }
 
 Theme App::effective_theme() const {
-  if (theme_ != Theme::AUTO) {
+  if (theme_ != Theme::Auto) {
     return theme_;
   }
   // AUTO: resolve based on detected bg luminance
   if (detected_terminal_bg_) {
-    return detected_terminal_bg_->luminance() < 0.5f ? Theme::DARK : Theme::LIGHT;
+    return detected_terminal_bg_->luminance() < 0.5f ? Theme::Dark : Theme::Light;
   }
   // No detection → default to DARK
-  return Theme::DARK;
+  return Theme::Dark;
 }
 
 std::pair<Color, Color> App::resolve_recolor_colors() const {
@@ -1909,7 +1321,7 @@ std::pair<Color, Color> App::resolve_recolor_colors() const {
 }
 
 void App::push_jump_history() {
-  static constexpr int MAX_JUMP_HISTORY = 100;
+  static constexpr int MaxJumpHistory = 100;
 
   JumpPoint current = {scroll_.x, scroll_.y};
 
@@ -1930,7 +1342,7 @@ void App::push_jump_history() {
   jump_history_.push_back(current);
 
   // Cap at maximum
-  if (static_cast<int>(jump_history_.size()) > MAX_JUMP_HISTORY) {
+  if (static_cast<int>(jump_history_.size()) > MaxJumpHistory) {
     jump_history_.erase(jump_history_.begin());
   }
 }
@@ -1945,13 +1357,6 @@ void App::enter_link_hints() {
   int vh = vp.height;
   int vw = vp.width;
 
-  int sidebar_cols = sidebar_effective_width();
-  int sidebar_px = 0;
-  if (sidebar_cols > 0 && client.cell.width > 0) {
-    sidebar_px = sidebar_cols * client.cell.width;
-    vw -= sidebar_px;
-  }
-
   // Collect links from visible pages
   link_hints_.clear();
   link_hint_input_.clear();
@@ -1961,19 +1366,19 @@ void App::enter_link_hints() {
     for (auto& pl : page_links) {
       // Convert page points → screen cells
       float page_zoom = layout_[p].zoom * user_zoom_;
-      int px_x = static_cast<int>(pl.x * page_zoom);
-      int px_y = static_cast<int>(pl.y * page_zoom);
+      int px_x = static_cast<int>(pl.rect.x * page_zoom);
+      int px_y = static_cast<int>(pl.rect.y * page_zoom);
 
       // Global pixel coordinates
       int global_x = layout_[p].rect.x + px_x;
       int global_y = layout_[p].rect.y + px_y;
 
       // Viewport pixel coordinates
-      int vp_x = global_x - scroll_.x + sidebar_px;
+      int vp_x = global_x - scroll_.x;
       int vp_y = global_y - scroll_.y;
 
       // Check visibility
-      if (vp_y < 0 || vp_y >= vh || vp_x < 0 || vp_x >= vw + sidebar_px) {
+      if (vp_y < 0 || vp_y >= vh || vp_x < 0 || vp_x >= vw) {
         continue;
       }
 
@@ -1991,23 +1396,23 @@ void App::enter_link_hints() {
   }
 
   // Assign labels
-  static const char HINT_CHARS[] = "asdfghjklqwertyuiopzxcvbnm";
-  static const int NUM_CHARS = 26;
+  static const char HintChars[] = "asdfghjklqwertyuiopzxcvbnm";
+  static const int NumChars = 26;
 
-  if (static_cast<int>(link_hints_.size()) <= NUM_CHARS) {
+  if (static_cast<int>(link_hints_.size()) <= NumChars) {
     for (int i = 0; i < static_cast<int>(link_hints_.size()); ++i) {
-      link_hints_[i].label = std::string(1, HINT_CHARS[i]);
+      link_hints_[i].label = std::string(1, HintChars[i]);
     }
   }
   else {
     int idx = 0;
     for (auto& hint : link_hints_) {
-      hint.label = std::string(1, HINT_CHARS[idx / NUM_CHARS]) + HINT_CHARS[idx % NUM_CHARS];
+      hint.label = std::string(1, HintChars[idx / NumChars]) + HintChars[idx % NumChars];
       ++idx;
     }
   }
 
-  input_mode_ = InputMode::LINK_HINTS;
+  app_mode_ = AppMode::LinkHints;
   render_link_hints();
 }
 
@@ -2019,11 +1424,10 @@ void App::render_link_hints() {
     }
   }
   frontend_->show_link_hints(displays);
-  update_statusline();
 }
 
 void App::follow_link(const PageLink& link) {
-  input_mode_ = InputMode::NORMAL;
+  app_mode_ = AppMode::Normal;
   link_hints_.clear();
   link_hint_input_.clear();
 
@@ -2032,7 +1436,7 @@ void App::follow_link(const PageLink& link) {
     push_jump_history();
     int page = std::clamp(link.dest_page, 0, static_cast<int>(layout_.size()) - 1);
     float page_zoom = layout_[page].zoom * user_zoom_;
-    int dest_y_px = layout_[page].rect.y + static_cast<int>(link.dest_y * page_zoom);
+    int dest_y_px = layout_[page].rect.y + static_cast<int>(link.dest.y * page_zoom);
     scroll_.y = dest_y_px;
 
     // Clamp
@@ -2067,136 +1471,47 @@ void App::follow_link(const PageLink& link) {
     else {
       last_action_.set("Copied: {}", link.uri);
     }
-    update_statusline();
   }
 }
 
 void App::exit_link_hints() {
-  input_mode_ = InputMode::NORMAL;
+  app_mode_ = AppMode::Normal;
   link_hints_.clear();
   link_hint_input_.clear();
   frontend_->clear_overlay();
   update_viewport();
-  update_statusline();
-}
-
-void App::update_sidebar() {
-  if (!sidebar_visible_ || outline_.empty()) {
-    return;
-  }
-
-  auto client = frontend_->client_info();
-  int sidebar_cols = sidebar_effective_width();
-  int visible_rows = client.rows - 1; // Exclude status bar
-  bool focused = (input_mode_ == InputMode::SIDEBAR);
-
-  if (focused) {
-    // Focused mode: show filtered entries with header + filter line
-    int header_rows = 2;
-    int max_visible = visible_rows - header_rows;
-
-    // Scroll window follows cursor
-    if (sidebar_cursor_ < sidebar_scroll_) {
-      sidebar_scroll_ = sidebar_cursor_;
-    }
-    if (sidebar_cursor_ >= sidebar_scroll_ + max_visible) {
-      sidebar_scroll_ = sidebar_cursor_ - max_visible + 1;
-    }
-
-    std::vector<std::string> lines;
-    lines.emplace_back("TOC");
-
-    if (!sidebar_filter_.empty()) {
-      lines.push_back(std::format("> {}", sidebar_filter_));
-    }
-    else {
-      lines.emplace_back("");
-    }
-
-    int highlight_line = -1;
-    int end = std::min(sidebar_scroll_ + max_visible, static_cast<int>(sidebar_filtered_.size()));
-    for (int vi = sidebar_scroll_; vi < end; ++vi) {
-      const auto& entry = outline_[sidebar_filtered_[vi]];
-      std::string indent(entry.level * 2, ' ');
-      lines.push_back(std::format("{}{}", indent, entry.title));
-      if (vi == sidebar_cursor_) {
-        highlight_line = static_cast<int>(lines.size()) - 1;
-      }
-    }
-
-    if (sidebar_filtered_.empty()) {
-      lines.emplace_back("  (no matches)");
-    }
-
-    frontend_->show_sidebar(lines, highlight_line, sidebar_cols, true);
-  }
-  else {
-    // Passive mode: show all entries, highlight active section
-    int active = active_outline_index();
-
-    // Auto-scroll to keep active entry visible
-    if (active >= 0) {
-      if (active < sidebar_scroll_) {
-        sidebar_scroll_ = active;
-      }
-      if (active >= sidebar_scroll_ + visible_rows) {
-        sidebar_scroll_ = active - visible_rows + 1;
-      }
-    }
-
-    std::vector<std::string> lines;
-    int highlight_line = -1;
-    int end = std::min(sidebar_scroll_ + visible_rows, static_cast<int>(outline_.size()));
-    for (int i = sidebar_scroll_; i < end; ++i) {
-      const auto& entry = outline_[i];
-      std::string indent(entry.level * 2, ' ');
-      lines.push_back(std::format("{}{}", indent, entry.title));
-      if (i == active) {
-        highlight_line = static_cast<int>(lines.size()) - 1;
-      }
-    }
-
-    frontend_->show_sidebar(lines, highlight_line, sidebar_cols, false);
-  }
 }
 
 PagePoint App::screen_to_page_point(int col, int row) const {
   auto client = frontend_->client_info();
   if (!client.is_valid() || layout_.empty() || client.cell.width == 0 || client.cell.height == 0) {
-    return {-1, 0, 0};
-  }
-
-  int sidebar_cols = sidebar_effective_width();
-  int sidebar_px = 0;
-  if (sidebar_cols > 0 && client.cell.width > 0) {
-    sidebar_px = sidebar_cols * client.cell.width;
+    return {-1, {}};
   }
 
   int vp_x = col * client.cell.width;
   int vp_y = row * client.cell.height;
-  int global_x = vp_x - sidebar_px + scroll_.x;
+  int global_x = vp_x + scroll_.x;
   int global_y = vp_y + scroll_.y;
 
   int p = page_at_y(global_y);
   if (p < 0 || p >= static_cast<int>(layout_.size())) {
-    return {-1, 0, 0};
+    return {-1, {}};
   }
 
   float page_zoom = layout_[p].zoom * user_zoom_;
   if (page_zoom <= 0.0f) {
-    return {-1, 0, 0};
+    return {-1, {}};
   }
   float pt_x = static_cast<float>(global_x - layout_[p].rect.x) / page_zoom;
   float pt_y = static_cast<float>(global_y - layout_[p].rect.y) / page_zoom;
-  return {p, pt_x, pt_y};
+  return {p, {pt_x, pt_y}};
 }
 
 void App::enter_visual_mode(bool block_mode) {
-  InputMode new_mode = block_mode ? InputMode::VISUAL_BLOCK : InputMode::VISUAL;
+  AppMode new_app_mode = block_mode ? AppMode::VisualBlock : AppMode::Visual;
 
-  if (input_mode_ == InputMode::VISUAL || input_mode_ == InputMode::VISUAL_BLOCK) {
-    // Already in a visual mode — switch type, keep anchor
-    input_mode_ = new_mode;
+  if (app_mode_ == AppMode::Visual || app_mode_ == AppMode::VisualBlock) {
+    app_mode_ = new_app_mode;
     refresh_selection_pages();
     update_viewport();
     return;
@@ -2211,7 +1526,7 @@ void App::enter_visual_mode(bool block_mode) {
 
   selection_anchor_ = pp;
   selection_extent_ = pp;
-  input_mode_ = new_mode;
+  app_mode_ = new_app_mode;
   refresh_selection_pages();
   update_viewport();
 }
@@ -2240,12 +1555,10 @@ void App::move_selection_extent(int dx_cells, int dy_cells) {
   }
 
   float page_zoom = layout_[p].zoom * user_zoom_;
-  int sidebar_cols = sidebar_effective_width();
-  int sidebar_px = (sidebar_cols > 0 && client.cell.width > 0) ? sidebar_cols * client.cell.width : 0;
 
-  int global_x = static_cast<int>(selection_extent_.x * page_zoom) + layout_[p].rect.x;
-  int global_y = static_cast<int>(selection_extent_.y * page_zoom) + layout_[p].rect.y;
-  int vp_x = global_x - scroll_.x + sidebar_px;
+  int global_x = static_cast<int>(selection_extent_.pos.x * page_zoom) + layout_[p].rect.x;
+  int global_y = static_cast<int>(selection_extent_.pos.y * page_zoom) + layout_[p].rect.y;
+  int vp_x = global_x - scroll_.x;
   int vp_y = global_y - scroll_.y;
 
   int col = vp_x / client.cell.width + dx_cells;
@@ -2273,7 +1586,7 @@ void App::move_selection_extent(int dx_cells, int dy_cells) {
 }
 
 void App::move_selection_word(int direction) {
-  if (input_mode_ != InputMode::VISUAL && input_mode_ != InputMode::VISUAL_BLOCK) {
+  if (app_mode_ != AppMode::Visual && app_mode_ != AppMode::VisualBlock) {
     return;
   }
 
@@ -2285,7 +1598,7 @@ void App::move_selection_word(int direction) {
     target = doc_.prev_word_boundary(selection_extent_);
   }
 
-  if (target.page == selection_extent_.page && target.x == selection_extent_.x && target.y == selection_extent_.y) {
+  if (target.page == selection_extent_.page && target.pos == selection_extent_.pos) {
     return;
   }
 
@@ -2294,7 +1607,7 @@ void App::move_selection_word(int direction) {
   // Auto-scroll to keep the extent visible
   if (target.page >= 0 && target.page < static_cast<int>(layout_.size())) {
     float page_zoom = layout_[target.page].zoom * user_zoom_;
-    int global_y = static_cast<int>(target.y * page_zoom) + layout_[target.page].rect.y;
+    int global_y = static_cast<int>(target.pos.y * page_zoom) + layout_[target.page].rect.y;
     auto client = frontend_->client_info();
     int vh = client.viewport_pixel().height;
     if (global_y < scroll_.y) {
@@ -2310,36 +1623,36 @@ void App::move_selection_word(int direction) {
 }
 
 void App::selection_goto(cmd::SelectionTarget target) {
-  if (input_mode_ != InputMode::VISUAL && input_mode_ != InputMode::VISUAL_BLOCK) {
+  if (app_mode_ != AppMode::Visual && app_mode_ != AppMode::VisualBlock) {
     return;
   }
 
   PagePoint dest;
   switch (target) {
-    case cmd::SelectionTarget::WORD_END:
+    case cmd::SelectionTarget::WordEnd:
       dest = doc_.end_of_word_boundary(selection_extent_);
       break;
-    case cmd::SelectionTarget::LINE_START:
+    case cmd::SelectionTarget::LineStart:
       dest = doc_.line_start(selection_extent_);
       break;
-    case cmd::SelectionTarget::LINE_END:
+    case cmd::SelectionTarget::LineEnd:
       dest = doc_.line_end(selection_extent_);
       break;
-    case cmd::SelectionTarget::FIRST_NON_SPACE:
+    case cmd::SelectionTarget::FirstNonSpace:
       dest = doc_.first_non_space(selection_extent_);
       break;
-    case cmd::SelectionTarget::DOC_START: {
+    case cmd::SelectionTarget::DocStart: {
       // Go to first char on page 0
-      auto chars_first = doc_.line_start({0, 0, 0});
+      auto chars_first = doc_.line_start({0, {}});
       dest = chars_first;
       break;
     }
-    case cmd::SelectionTarget::DOC_END: {
+    case cmd::SelectionTarget::DocEnd: {
       // Go to last char on last page
       int last_page = doc_.page_count() - 1;
       if (last_page >= 0) {
-        auto [w, h] = doc_.page_size(last_page);
-        dest = doc_.line_end({last_page, w, h});
+        auto ps = doc_.page_size(last_page);
+        dest = doc_.line_end({last_page, {ps.width, ps.height}});
       }
       else {
         return;
@@ -2348,7 +1661,7 @@ void App::selection_goto(cmd::SelectionTarget target) {
     }
   }
 
-  if (dest.page == selection_extent_.page && dest.x == selection_extent_.x && dest.y == selection_extent_.y) {
+  if (dest.page == selection_extent_.page && dest.pos == selection_extent_.pos) {
     return;
   }
 
@@ -2357,7 +1670,7 @@ void App::selection_goto(cmd::SelectionTarget target) {
   // Auto-scroll to keep the extent visible
   if (dest.page >= 0 && dest.page < static_cast<int>(layout_.size())) {
     float page_zoom = layout_[dest.page].zoom * user_zoom_;
-    int global_y = static_cast<int>(dest.y * page_zoom) + layout_[dest.page].rect.y;
+    int global_y = static_cast<int>(dest.pos.y * page_zoom) + layout_[dest.page].rect.y;
     auto client = frontend_->client_info();
     int vh = client.viewport_pixel().height;
     if (global_y < scroll_.y) {
@@ -2418,20 +1731,20 @@ void App::refresh_selection_pages() {
 }
 
 void App::highlight_selection(Pixmap& pixmap, int page_num, float render_zoom) {
-  if (input_mode_ != InputMode::VISUAL && input_mode_ != InputMode::VISUAL_BLOCK) {
+  if (app_mode_ != AppMode::Visual && app_mode_ != AppMode::VisualBlock) {
     return;
   }
 
   std::vector<SearchHit> quads;
-  if (input_mode_ == InputMode::VISUAL) {
+  if (app_mode_ == AppMode::Visual) {
     quads = doc_.selection_quads(page_num, selection_anchor_, selection_extent_);
   }
   else {
     // VISUAL_BLOCK: compute rect from anchor/extent
-    float x0 = std::min(selection_anchor_.x, selection_extent_.x);
-    float y0 = std::min(selection_anchor_.y, selection_extent_.y);
-    float x1 = std::max(selection_anchor_.x, selection_extent_.x);
-    float y1 = std::max(selection_anchor_.y, selection_extent_.y);
+    float x0 = std::min(selection_anchor_.pos.x, selection_extent_.pos.x);
+    float y0 = std::min(selection_anchor_.pos.y, selection_extent_.pos.y);
+    float x1 = std::max(selection_anchor_.pos.x, selection_extent_.pos.x);
+    float y1 = std::max(selection_anchor_.pos.y, selection_extent_.pos.y);
 
     // For block mode, only highlight on pages in range
     int lo = std::min(selection_anchor_.page, selection_extent_.page);
@@ -2445,26 +1758,26 @@ void App::highlight_selection(Pixmap& pixmap, int page_num, float render_zoom) {
 
   for (const auto& hit : quads) {
     PixelRect rect
-        = {static_cast<int>(hit.x * render_zoom),
-           static_cast<int>(hit.y * render_zoom),
-           static_cast<int>(hit.w * render_zoom),
-           static_cast<int>(hit.h * render_zoom)};
+        = {static_cast<int>(hit.rect.x * render_zoom),
+           static_cast<int>(hit.rect.y * render_zoom),
+           static_cast<int>(hit.rect.width * render_zoom),
+           static_cast<int>(hit.rect.height * render_zoom)};
     pixmap.highlight_rect(rect, colors_.selection_highlight, colors_.selection_highlight_alpha);
   }
 }
 
 void App::yank_selection() {
   std::string text;
-  if (input_mode_ == InputMode::VISUAL) {
+  if (app_mode_ == AppMode::Visual) {
     text = doc_.copy_text(selection_anchor_, selection_extent_);
   }
-  else if (input_mode_ == InputMode::VISUAL_BLOCK) {
+  else if (app_mode_ == AppMode::VisualBlock) {
     int lo = std::min(selection_anchor_.page, selection_extent_.page);
     int hi = std::max(selection_anchor_.page, selection_extent_.page);
-    float x0 = std::min(selection_anchor_.x, selection_extent_.x);
-    float y0 = std::min(selection_anchor_.y, selection_extent_.y);
-    float x1 = std::max(selection_anchor_.x, selection_extent_.x);
-    float y1 = std::max(selection_anchor_.y, selection_extent_.y);
+    float x0 = std::min(selection_anchor_.pos.x, selection_extent_.pos.x);
+    float y0 = std::min(selection_anchor_.pos.y, selection_extent_.pos.y);
+    float x1 = std::max(selection_anchor_.pos.x, selection_extent_.pos.x);
+    float y1 = std::max(selection_anchor_.pos.y, selection_extent_.pos.y);
     for (int p = lo; p <= hi; ++p) {
       auto page_text = doc_.copy_rect_text(p, x0, y0, x1, y1);
       if (!page_text.empty()) {
@@ -2482,7 +1795,7 @@ void App::yank_selection() {
 }
 
 void App::cancel_selection() {
-  input_mode_ = InputMode::NORMAL;
+  app_mode_ = AppMode::Normal;
   has_click_point_ = false;
   refresh_selection_pages();
   update_viewport();
@@ -2518,10 +1831,10 @@ void App::copy_to_clipboard(const std::string& text) {
 
 ViewState App::view_state() const {
   std::string vis_mode;
-  if (input_mode_ == InputMode::VISUAL) {
+  if (app_mode_ == AppMode::Visual) {
     vis_mode = "visual";
   }
-  else if (input_mode_ == InputMode::VISUAL_BLOCK) {
+  else if (app_mode_ == AppMode::VisualBlock) {
     vis_mode = "visual-block";
   }
 
@@ -2534,16 +1847,21 @@ ViewState App::view_state() const {
       search_term_,
       search_current_ >= 0 ? search_current_ + 1 : 0,
       static_cast<int>(search_results_.size()),
-      input_mode_ == InputMode::LINK_HINTS,
+      app_mode_ == AppMode::LinkHints,
       std::move(vis_mode),
       {},
       0,
+      {},
   };
 
   if (show_stats_) {
     auto [pages, bytes] = cache_stats();
     vs.cache_pages = std::move(pages);
     vs.cache_bytes = bytes;
+  }
+
+  if (last_action_.active()) {
+    vs.flash_message = last_action_.text();
   }
 
   return vs;

@@ -1,15 +1,15 @@
 #pragma once
 
+#include "command.h"
 #include "geometry.h"
 #include "input_event.h"
 #include "key_bindings.h"
-#include "rpc_command.h"
 
 #include <optional>
 
 enum class InputMode;
 
-/// @brief Translates terminal key events into RpcCommands.
+/// @brief Translates terminal key events into Commands.
 ///
 /// Owns vim-style prefix state (pending_prefix_, pending_count_) and converts
 /// raw InputEvents into commands based on the current input mode.
@@ -26,7 +26,7 @@ public:
   /// @param terminal_rows Number of terminal rows (for page-size calculations).
   /// @param cell Cell dimensions in pixels (for mouse pixel conversion).
   /// @return The translated command, or nullopt if the event was consumed without producing a command.
-  std::optional<RpcCommand> translate(const InputEvent& event, InputMode mode, int terminal_rows, CellSize cell = {});
+  std::optional<Command> translate(const InputEvent& event, InputMode mode, int terminal_rows, CellSize cell = {});
 
   /// @brief Access the key bindings.
   const KeyBindings& bindings() const {

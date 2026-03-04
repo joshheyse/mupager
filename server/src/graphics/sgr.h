@@ -7,23 +7,23 @@
 namespace sgr {
 
 /// @brief Reset all attributes.
-constexpr auto RESET = "\x1b[0m";
+constexpr auto Reset = "\x1b[0m";
 /// @brief Bold attribute.
-constexpr auto BOLD = "\x1b[1m";
+constexpr auto Bold = "\x1b[1m";
 /// @brief Underline attribute.
-constexpr auto UNDERLINE = "\x1b[4m";
+constexpr auto Underline = "\x1b[4m";
 /// @brief Reverse video attribute.
-constexpr auto REVERSE = "\x1b[7m";
+constexpr auto Reverse = "\x1b[7m";
 /// @brief Bold + reverse video.
-constexpr auto BOLD_REVERSE = "\x1b[1;7m";
+constexpr auto BoldReverse = "\x1b[1;7m";
 /// @brief Reset + bold + underline (for highlighted text within reverse regions).
-constexpr auto RESET_BOLD_UNDERLINE = "\x1b[0m\x1b[1;4m";
+constexpr auto ResetBoldUnderline = "\x1b[0m\x1b[1;4m";
 /// @brief Default foreground color.
-constexpr auto DEFAULT_FG = "\x1b[39m";
+constexpr auto DefaultFg = "\x1b[39m";
 /// @brief Default background color.
-constexpr auto DEFAULT_BG = "\x1b[49m";
+constexpr auto DefaultBg = "\x1b[49m";
 /// @brief Colon-separated 24-bit foreground color prefix (Kitty placeholder protocol).
-constexpr auto FG_COLOR_COLON_PREFIX = "\x1b[38:2:";
+constexpr auto FgColorColonPrefix = "\x1b[38:2:";
 
 /// @brief Append cursor-positioning escape sequence to an output string.
 /// Row and col are 1-based terminal coordinates.
