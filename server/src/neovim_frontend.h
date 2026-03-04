@@ -24,7 +24,7 @@ public:
   void free_image(uint32_t image_id) override;
   void show_pages(const std::vector<PageSlice>& slices) override;
   void statusline(const std::string& left, const std::string& right) override;
-  void show_overlay(const std::vector<std::string>& lines) override;
+  void show_overlay(const std::string& title, const std::vector<std::string>& lines) override;
   void clear_overlay() override;
   void show_sidebar(const std::vector<std::string>& lines, int highlight_line, int width_cols, bool focused) override;
   void show_link_hints(const std::vector<LinkHintDisplay>& hints) override;

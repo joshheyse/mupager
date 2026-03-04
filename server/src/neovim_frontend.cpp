@@ -346,7 +346,7 @@ void NeovimFrontend::statusline(const std::string& /*left*/, const std::string& 
   state_dirty_ = true;
 }
 
-void NeovimFrontend::show_overlay(const std::vector<std::string>& /*lines*/) {
+void NeovimFrontend::show_overlay(const std::string& /*title*/, const std::vector<std::string>& /*lines*/) {
   // No-op: plugin uses floating windows for overlays.
 }
 

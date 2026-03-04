@@ -1417,7 +1417,7 @@ void App::show_help() {
     lines.push_back(format_line(hb.key_label, hb.description));
   }
 
-  frontend_->show_overlay(lines);
+  frontend_->show_overlay("Help", lines);
 }
 
 bool App::fuzzy_match(const std::string& text, const std::string& pattern) {
@@ -1478,7 +1478,7 @@ void App::show_outline_popup() {
   int box_lines = std::max(4, client.rows * 3 / 4 - 2);
   int box_width = std::max(20, client.cols * 3 / 4);
 
-  // Header takes 2 lines (title + filter/blank)
+  // Header: filter line + separator line
   int max_visible = box_lines - 2;
 
   // Scroll window follows cursor
@@ -1531,11 +1531,32 @@ void App::show_outline_popup() {
     return text.substr(0, pos);
   };
 
+  // Build border title: "DocTitle - Table of Contents"
+  std::string border_title;
+  if (!outline_.empty()) {
+    border_title = outline_[0].title + " - Table of Contents";
+  }
+  else {
+    // Extract filename stem from path
+    auto pos = file_path_.find_last_of('/');
+    auto name = (pos != std::string::npos) ? file_path_.substr(pos + 1) : file_path_;
+    auto dot = name.find_last_of('.');
+    if (dot != std::string::npos) {
+      name = name.substr(0, dot);
+    }
+    border_title = name + " - Table of Contents";
+  }
+
   std::vector<std::string> lines;
-  lines.push_back(pad_line("Table of Contents", 17));
 
   auto filter_line = std::format("> {}", outline_filter_);
   lines.push_back(pad_line(filter_line, static_cast<int>(filter_line.size())));
+  // Separator: thin horizontal line
+  std::string sep;
+  for (int i = 0; i < content_w; ++i) {
+    sep += "\xe2\x94\x80"; // ─
+  }
+  lines.push_back(sep);
 
   int end = std::min(outline_scroll_ + max_visible, static_cast<int>(filtered_indices_.size()));
   for (int vi = outline_scroll_; vi < end; ++vi) {
@@ -1546,10 +1567,10 @@ void App::show_outline_popup() {
     int title_len = static_cast<int>(title_part.size());
     int page_len = static_cast<int>(page_str.size());
 
-    // Truncate title if it would overflow content_w
+    // Truncate title with ellipsis if it would overflow content_w
     int max_title = content_w - page_len - 1;
-    if (title_len > max_title && max_title > 0) {
-      title_part = truncate_to(title_part, max_title);
+    if (title_len > max_title && max_title > 3) {
+      title_part = truncate_to(title_part, max_title - 3) + "...";
       title_len = max_title;
     }
 
@@ -1557,7 +1578,7 @@ void App::show_outline_popup() {
     auto visible_text = std::format("{}{:>{}}{}", title_part, "", gap, page_str);
 
     if (vi == outline_cursor_) {
-      auto line = std::format("{}{}{}", sgr::BOLD, sgr::UNDERLINE, visible_text);
+      auto line = std::format("{}{}", sgr::BOLD, visible_text);
       lines.push_back(line);
     }
     else {
@@ -1574,7 +1595,7 @@ void App::show_outline_popup() {
     lines.push_back(pad_line("", 0));
   }
 
-  frontend_->show_overlay(lines);
+  frontend_->show_overlay(border_title, lines);
 }
 
 int App::sidebar_effective_width() const {

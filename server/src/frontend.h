@@ -64,9 +64,10 @@ public:
   /// @param right Right-aligned text (mode, theme, page info).
   virtual void statusline(const std::string& left, const std::string& right) = 0;
 
-  /// @brief Show a centered overlay box with the given lines of text.
-  /// @param lines Lines to display in the overlay.
-  virtual void show_overlay(const std::vector<std::string>& lines) = 0;
+  /// @brief Show a centered overlay box with a title in the top border and body lines.
+  /// @param title Title text displayed in the top border row.
+  /// @param lines Body lines to display inside the overlay.
+  virtual void show_overlay(const std::string& title, const std::vector<std::string>& lines) = 0;
 
   /// @brief Clear the overlay (no-op if repainting handles it).
   virtual void clear_overlay() = 0;

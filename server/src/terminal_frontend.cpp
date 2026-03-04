@@ -332,7 +332,7 @@ void TerminalFrontend::statusline(const std::string& left, const std::string& ri
   std::fflush(stdout);
 }
 
-void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
+void TerminalFrontend::show_overlay(const std::string& title, const std::vector<std::string>& lines) {
   if (ws_row_ == 0 || ws_col_ == 0 || lines.empty()) {
     return;
   }
@@ -373,12 +373,29 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
   std::string out;
   out.reserve(box_h * (box_w + 128));
 
-  // Top border: ╭──────────────╮
+  // Top border: ╭─ Title ─────────╮
+  int title_w = display_width(title);
+  int border_inner = box_w - 2; // between TL and TR
   sgr::move_to(out, start_row, start_col);
   out += border_sgr;
   out += corner_tl;
-  for (int i = 0; i < box_w - 2; ++i) {
+  if (title_w > 0 && title_w + 4 <= border_inner) {
+    // ─ SP Title SP ───...
     out += horiz;
+    out += " ";
+    out += content_sgr;
+    out += title;
+    out += border_sgr;
+    out += " ";
+    for (int i = 0; i < border_inner - title_w - 4; ++i) {
+      out += horiz;
+    }
+    out += horiz;
+  }
+  else {
+    for (int i = 0; i < border_inner; ++i) {
+      out += horiz;
+    }
   }
   out += corner_tr;
   out += sgr::RESET;
