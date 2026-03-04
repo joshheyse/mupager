@@ -17,9 +17,18 @@ std::optional<RpcCommand> TerminalInputHandler::translate(const InputEvent& even
     return cmd::MouseScroll{0, sign * cell.height * scroll_lines_};
   }
   if (event.id == input::MOUSE_PRESS) {
+    if (mode == InputMode::VISUAL || mode == InputMode::VISUAL_BLOCK) {
+      return cmd::DragStart{event.mouse_col, event.mouse_row};
+    }
     return cmd::ClickAt{event.mouse_col, event.mouse_row};
   }
+  if (event.id == input::MOUSE_DRAG) {
+    return cmd::DragUpdate{event.mouse_col, event.mouse_row};
+  }
   if (event.id == input::MOUSE_RELEASE) {
+    if (mode == InputMode::VISUAL || mode == InputMode::VISUAL_BLOCK) {
+      return cmd::DragEnd{event.mouse_col, event.mouse_row};
+    }
     return std::nullopt;
   }
 
@@ -118,6 +127,79 @@ std::optional<RpcCommand> TerminalInputHandler::translate(const InputEvent& even
     if (event.id >= 'a' && event.id <= 'z') {
       return cmd::LinkHintKey{static_cast<char>(event.id)};
     }
+    return std::nullopt;
+  }
+
+  // Visual mode input
+  if (mode == InputMode::VISUAL || mode == InputMode::VISUAL_BLOCK) {
+    if (event.id == 27) {
+      return cmd::SelectionCancel{};
+    }
+
+    auto action = bindings_.lookup(event.id);
+    if (action) {
+      if (*action == Action::VISUAL_MODE) {
+        return (mode == InputMode::VISUAL) ? RpcCommand{cmd::SelectionCancel{}} : RpcCommand{cmd::EnterVisualMode{}};
+      }
+      if (*action == Action::VISUAL_BLOCK_MODE) {
+        return (mode == InputMode::VISUAL_BLOCK) ? RpcCommand{cmd::SelectionCancel{}} : RpcCommand{cmd::EnterVisualBlockMode{}};
+      }
+      if (*action == Action::VISUAL_YANK) {
+        return cmd::SelectionYank{};
+      }
+      if (*action == Action::SCROLL_LEFT) {
+        return cmd::SelectionMove{-1, 0};
+      }
+      if (*action == Action::SCROLL_RIGHT) {
+        return cmd::SelectionMove{1, 0};
+      }
+      if (*action == Action::SCROLL_DOWN) {
+        return cmd::SelectionMove{0, 1};
+      }
+      if (*action == Action::SCROLL_UP) {
+        return cmd::SelectionMove{0, -1};
+      }
+    }
+
+    // Hard-coded visual mode motions (overlap normal-mode bindings)
+    if (event.id == 'w') {
+      pending_prefix_ = false;
+      return cmd::SelectionMoveWord{1};
+    }
+    if (event.id == 'b') {
+      pending_prefix_ = false;
+      return cmd::SelectionMoveWord{-1};
+    }
+    if (event.id == 'e') {
+      pending_prefix_ = false;
+      return cmd::SelectionGoto{cmd::SelectionTarget::WORD_END};
+    }
+    if (event.id == '0') {
+      pending_prefix_ = false;
+      return cmd::SelectionGoto{cmd::SelectionTarget::LINE_START};
+    }
+    if (event.id == '$') {
+      pending_prefix_ = false;
+      return cmd::SelectionGoto{cmd::SelectionTarget::LINE_END};
+    }
+    if (event.id == '^') {
+      pending_prefix_ = false;
+      return cmd::SelectionGoto{cmd::SelectionTarget::FIRST_NON_SPACE};
+    }
+    if (event.id == 'G') {
+      pending_prefix_ = false;
+      return cmd::SelectionGoto{cmd::SelectionTarget::DOC_END};
+    }
+    if (event.id == 'g') {
+      if (pending_prefix_) {
+        pending_prefix_ = false;
+        return cmd::SelectionGoto{cmd::SelectionTarget::DOC_START};
+      }
+      pending_prefix_ = true;
+      return std::nullopt;
+    }
+
+    pending_prefix_ = false;
     return std::nullopt;
   }
 

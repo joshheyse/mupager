@@ -10,6 +10,12 @@
 #include <utility>
 #include <vector>
 
+/// @brief A point on a specific page in page coordinate space.
+struct PagePoint {
+  int page;   ///< Zero-based page index.
+  float x, y; ///< Position in page points.
+};
+
 /// @brief A single search hit: page index + bounding box in page points.
 struct SearchHit {
   int page;         ///< Zero-based page index.
@@ -91,6 +97,67 @@ public:
   /// @param page_num Zero-based page index.
   /// @return Vector of PageLink for the page.
   std::vector<PageLink> load_links(int page_num) const;
+
+  /// @brief Copy text between two page points (character-mode selection).
+  /// @param a Anchor point.
+  /// @param b Extent point.
+  /// @return Extracted text, pages joined by newlines.
+  std::string copy_text(const PagePoint& a, const PagePoint& b) const;
+
+  /// @brief Get highlight quads for a character-mode selection on a page.
+  /// @param page_num Zero-based page index.
+  /// @param a Anchor point.
+  /// @param b Extent point.
+  /// @return Bounding boxes for highlighted characters.
+  std::vector<SearchHit> selection_quads(int page_num, const PagePoint& a, const PagePoint& b) const;
+
+  /// @brief Copy text within a rectangular region on a page (block-mode selection).
+  /// @param page_num Zero-based page index.
+  /// @param x0 Left edge in page points.
+  /// @param y0 Top edge in page points.
+  /// @param x1 Right edge in page points.
+  /// @param y1 Bottom edge in page points.
+  /// @return Extracted text from the rectangle.
+  std::string copy_rect_text(int page_num, float x0, float y0, float x1, float y1) const;
+
+  /// @brief Get highlight quads for a rectangular selection on a page.
+  /// @param page_num Zero-based page index.
+  /// @param x0 Left edge in page points.
+  /// @param y0 Top edge in page points.
+  /// @param x1 Right edge in page points.
+  /// @param y1 Bottom edge in page points.
+  /// @return Bounding boxes for highlighted characters.
+  std::vector<SearchHit> rect_selection_quads(int page_num, float x0, float y0, float x1, float y1) const;
+
+  /// @brief Find the next word boundary after a given point.
+  /// @param from Starting point in page coordinates.
+  /// @return The page point at the next word boundary.
+  PagePoint next_word_boundary(const PagePoint& from) const;
+
+  /// @brief Find the previous word boundary before a given point.
+  /// @param from Starting point in page coordinates.
+  /// @return The page point at the previous word boundary.
+  PagePoint prev_word_boundary(const PagePoint& from) const;
+
+  /// @brief Find the end of the current or next word from a given point.
+  /// @param from Starting point in page coordinates.
+  /// @return The page point at the last character of the word.
+  PagePoint end_of_word_boundary(const PagePoint& from) const;
+
+  /// @brief Find the first character on the stext line containing a point.
+  /// @param from Starting point in page coordinates.
+  /// @return The page point at the start of the line.
+  PagePoint line_start(const PagePoint& from) const;
+
+  /// @brief Find the last character on the stext line containing a point.
+  /// @param from Starting point in page coordinates.
+  /// @return The page point at the end of the line.
+  PagePoint line_end(const PagePoint& from) const;
+
+  /// @brief Find the first non-whitespace character on the stext line containing a point.
+  /// @param from Starting point in page coordinates.
+  /// @return The page point at the first non-space character.
+  PagePoint first_non_space(const PagePoint& from) const;
 
   /// @brief Return the underlying MuPDF context.
   fz_context* ctx() const;

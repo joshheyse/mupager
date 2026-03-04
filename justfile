@@ -3,7 +3,7 @@ default:
 
 # Configure the build directory
 init:
-    cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER="${CC:-cc}" -DCMAKE_CXX_COMPILER="${CXX:-c++}" -S . -B build
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER="${CXX:-c++}" -S . -B build
     ln -sf build/compile_commands.json compile_commands.json
     cmake --build build
 

@@ -39,6 +39,17 @@ enum class Action {
   SIDEBAR,
   HELP,
   CLEAR_SEARCH,
+  VISUAL_MODE,
+  VISUAL_BLOCK_MODE,
+  VISUAL_YANK,
+  VISUAL_NEXT_WORD,
+  VISUAL_PREV_WORD,
+  VISUAL_WORD_END,
+  VISUAL_LINE_START,
+  VISUAL_LINE_END,
+  VISUAL_FIRST_NON_SPACE,
+  VISUAL_DOC_START,
+  VISUAL_DOC_END,
 };
 
 /// @brief A single key specification for binding.

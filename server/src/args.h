@@ -27,14 +27,14 @@ struct Args {
   std::string mode = "terminal"; ///< Frontend mode: "terminal" or "neovim".
   std::string theme = "dark";    ///< Initial theme.
   RenderScale render_scale = RenderScale::AUTO;
-  int scroll_lines = 3;                   ///< Lines per scroll step.
+  int scroll_lines = 3;                     ///< Lines per scroll step.
   size_t max_page_cache = 64 * 1024 * 1024; ///< Max page cache size in bytes (default 64 MB).
-  bool show_stats = false;                ///< Show cache stats in the statusline.
-  ColorScheme colors;                     ///< Color scheme from config.
-  std::optional<std::string> config_file; ///< Explicit config file path (overrides XDG default).
-  std::optional<std::string> terminal_fg; ///< Override for detected terminal foreground.
-  std::optional<std::string> terminal_bg; ///< Override for detected terminal background.
-  KeyBindings key_bindings;               ///< Configurable key bindings.
+  bool show_stats = false;                  ///< Show cache stats in the statusline.
+  ColorScheme colors;                       ///< Color scheme from config.
+  std::optional<std::string> config_file;   ///< Explicit config file path (overrides XDG default).
+  std::optional<std::string> terminal_fg;   ///< Override for detected terminal foreground.
+  std::optional<std::string> terminal_bg;   ///< Override for detected terminal background.
+  KeyBindings key_bindings;                 ///< Configurable key bindings.
 
   Args(int argc, char* argv[]);
 

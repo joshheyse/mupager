@@ -21,6 +21,14 @@ public:
   /// @brief Take ownership of a MuPDF pixmap.
   Pixmap(fz_context* ctx, fz_pixmap* pix);
 
+  /// @brief Create a pixmap from packed pixel data.
+  /// @param ctx MuPDF context.
+  /// @param w Width in pixels.
+  /// @param h Height in pixels.
+  /// @param comp Number of components per pixel.
+  /// @param data Packed pixel data (w*h*comp bytes).
+  static Pixmap from_pixels(fz_context* ctx, int w, int h, int comp, const unsigned char* data);
+
   /// @brief Width in pixels.
   int width() const;
 

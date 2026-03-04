@@ -9,6 +9,39 @@ local focus_timer = nil
 local float_timer = nil
 local opaque_ns = nil -- highlight namespace for float window bg override
 
+-- Default extensions for all MuPDF-supported formats
+local default_patterns = {
+  -- Documents
+  "*.pdf",
+  "*.epub",
+  "*.xps",
+  "*.oxps",
+  -- Comics
+  "*.cbz",
+  "*.cbr",
+  -- Ebooks
+  "*.fb2",
+  "*.mobi",
+  -- Vector/web
+  "*.svg",
+  "*.html",
+  "*.xhtml",
+  "*.htm",
+  -- Images
+  "*.png",
+  "*.jpg",
+  "*.jpeg",
+  "*.bmp",
+  "*.tiff",
+  "*.tif",
+  "*.gif",
+  "*.pnm",
+  "*.pam",
+  "*.pbm",
+  "*.pgm",
+  "*.ppm",
+}
+
 local function stop_timers()
   if focus_timer then
     focus_timer:stop()
@@ -44,9 +77,11 @@ function M.setup(opts)
     { desc = "Open mupager log file" }
   )
 
+  local patterns = config.patterns or default_patterns
+
   vim.api.nvim_create_autocmd("BufReadCmd", {
     group = vim.api.nvim_create_augroup("mupager_filetype", { clear = true }),
-    pattern = "*.pdf",
+    pattern = patterns,
     callback = function(ev)
       local file = vim.api.nvim_buf_get_name(ev.buf)
       log.info("BufReadCmd: intercepted buf=%d file=%s", ev.buf, file)

@@ -34,6 +34,9 @@ struct ColorScheme {
   Color search_active = Color::rgb(255, 165, 0);    ///< Active/focused match highlight color.
   uint8_t search_active_alpha = 120;                ///< Active match blend factor.
 
+  Color selection_highlight = Color::rgb(100, 149, 237); ///< Visual selection highlight color.
+  uint8_t selection_highlight_alpha = 80;                ///< Visual selection blend factor.
+
   Color recolor_dark = Color::terminal_default();   ///< Replaces black/text in terminal theme.
   Color recolor_light = Color::terminal_default();  ///< Replaces white/background in terminal theme.
   Color recolor_accent = Color::terminal_default(); ///< Tint for saturated pixels (links). Default = no tinting.

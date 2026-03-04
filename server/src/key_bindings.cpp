@@ -31,6 +31,9 @@ const ActionInfo ACTION_TABLE[] = {
     {"sidebar", "Toggle Sidebar TOC", Action::SIDEBAR},
     {"help", "Toggle Help", Action::HELP},
     {"clear-search", "Clear Search", Action::CLEAR_SEARCH},
+    {"visual-mode", "Visual Select", Action::VISUAL_MODE},
+    {"visual-block-mode", "Visual Block Select", Action::VISUAL_BLOCK_MODE},
+    {"visual-yank", "Yank Selection", Action::VISUAL_YANK},
 };
 
 const size_t ACTION_TABLE_SIZE = sizeof(ACTION_TABLE) / sizeof(ACTION_TABLE[0]);
@@ -170,6 +173,28 @@ RpcCommand action_to_command(Action a) {
       return cmd::ShowHelp{};
     case Action::CLEAR_SEARCH:
       return cmd::ClearSearch{};
+    case Action::VISUAL_MODE:
+      return cmd::EnterVisualMode{};
+    case Action::VISUAL_BLOCK_MODE:
+      return cmd::EnterVisualBlockMode{};
+    case Action::VISUAL_YANK:
+      return cmd::SelectionYank{};
+    case Action::VISUAL_NEXT_WORD:
+      return cmd::SelectionMoveWord{1};
+    case Action::VISUAL_PREV_WORD:
+      return cmd::SelectionMoveWord{-1};
+    case Action::VISUAL_WORD_END:
+      return cmd::SelectionGoto{cmd::SelectionTarget::WORD_END};
+    case Action::VISUAL_LINE_START:
+      return cmd::SelectionGoto{cmd::SelectionTarget::LINE_START};
+    case Action::VISUAL_LINE_END:
+      return cmd::SelectionGoto{cmd::SelectionTarget::LINE_END};
+    case Action::VISUAL_FIRST_NON_SPACE:
+      return cmd::SelectionGoto{cmd::SelectionTarget::FIRST_NON_SPACE};
+    case Action::VISUAL_DOC_START:
+      return cmd::SelectionGoto{cmd::SelectionTarget::DOC_START};
+    case Action::VISUAL_DOC_END:
+      return cmd::SelectionGoto{cmd::SelectionTarget::DOC_END};
   }
   return cmd::Quit{};
 }
@@ -217,6 +242,9 @@ KeyBindings KeyBindings::defaults() {
   bind_str(Action::SIDEBAR, "e");
   bind_str(Action::HELP, "?");
   bind_str(Action::CLEAR_SEARCH, "Esc");
+  bind_str(Action::VISUAL_MODE, "v");
+  bind_str(Action::VISUAL_BLOCK_MODE, "Ctrl+V");
+  bind_str(Action::VISUAL_YANK, "y");
 
   return kb;
 }

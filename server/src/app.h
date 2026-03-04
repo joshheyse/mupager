@@ -28,11 +28,15 @@ struct PageLayout {
 /// @brief Cached upload state for a rendered page.
 struct CachedPage {
   uint32_t image_id;
-  PixelSize pixel_size; ///< Rendered pixel dimensions.
-  CellSize cell_grid;   ///< Grid dimensions in cells.
-  float render_scale;   ///< Render scale this was rendered at (0 = exact zoom, no viewporting).
-  float render_zoom;    ///< Actual zoom passed to MuPDF (for cache invalidation in NEVER mode).
-  size_t memory_bytes;  ///< Uncompressed pixmap size (w * h * components).
+  PixelSize pixel_size;                   ///< Rendered pixel dimensions.
+  CellSize cell_grid;                     ///< Grid dimensions in cells.
+  float render_scale;                     ///< Render scale this was rendered at (0 = exact zoom, no viewporting).
+  float render_zoom;                      ///< Actual zoom passed to MuPDF (for cache invalidation in NEVER mode).
+  size_t memory_bytes;                    ///< Uncompressed pixmap size (w * h * components).
+  std::vector<unsigned char> base_pixels; ///< Post-theme, pre-highlight packed pixels (w*h*comp).
+  int base_w = 0;                         ///< Width of base_pixels.
+  int base_h = 0;                         ///< Height of base_pixels.
+  int base_comp = 0;                      ///< Components per pixel of base_pixels.
 };
 
 /// @brief View mode for page display.
@@ -116,6 +120,8 @@ enum class InputMode {
   HELP,
   OUTLINE,
   SIDEBAR,
+  VISUAL,
+  VISUAL_BLOCK,
   LINK_HINTS
 };
 
@@ -185,6 +191,7 @@ struct ViewState {
   int search_current; ///< 1-based index of current match (0 = none).
   int search_total;   ///< Total number of search matches.
   bool link_hints_active;
+  std::string visual_mode; ///< Visual mode string ("visual", "visual-block", or "").
   std::string cache_pages; ///< Cached page ranges (e.g. "1-3,5,8-10"), empty when debug is off.
   size_t cache_bytes = 0;  ///< Total cached memory in bytes, 0 when debug is off.
 };
@@ -274,6 +281,19 @@ private:
   void follow_link(const PageLink& link);
   void exit_link_hints();
 
+  void enter_visual_mode(bool block_mode);
+  void update_selection_extent(int col, int row);
+  void move_selection_extent(int dx_cells, int dy_cells);
+  void move_selection_word(int direction);
+  void selection_goto(cmd::SelectionTarget target);
+  void yank_selection();
+  void cancel_selection();
+  void invalidate_selection_pages();
+  void refresh_selection_pages();
+  void highlight_selection(Pixmap& pixmap, int page_num, float render_zoom);
+  PagePoint screen_to_page_point(int col, int row) const;
+  void copy_to_clipboard(const std::string& text);
+
   /// @brief Resolve AUTO theme based on detected terminal bg luminance.
   Theme effective_theme() const;
 
@@ -291,7 +311,7 @@ private:
   std::optional<Color> detected_terminal_bg_;
   bool running_ = true;
   bool show_stats_ = false;
-  int scroll_lines_ = 3;              ///< Lines per scroll step (from config/CLI).
+  int scroll_lines_ = 3;                     ///< Lines per scroll step (from config/CLI).
   size_t max_page_cache_ = 64 * 1024 * 1024; ///< Max page cache size in bytes.
   PixelPoint scroll_;
   ViewMode view_mode_ = ViewMode::CONTINUOUS;
@@ -333,6 +353,11 @@ private:
 
   std::vector<ActiveLinkHint> link_hints_;
   std::string link_hint_input_;
+
+  PagePoint selection_anchor_{};
+  PagePoint selection_extent_{};
+  PagePoint last_click_point_{};
+  bool has_click_point_ = false;
 
   FlashMessage last_action_;
   std::chrono::steady_clock::time_point last_activity_time_; ///< Last render or input event, for deferring pre-uploads.

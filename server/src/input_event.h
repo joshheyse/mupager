@@ -19,6 +19,7 @@ static constexpr uint32_t MOUSE_SCROLL_UP = 0xFFFF'FF10; ///< Mouse scroll wheel
 static constexpr uint32_t MOUSE_SCROLL_DN = 0xFFFF'FF11; ///< Mouse scroll wheel down.
 static constexpr uint32_t MOUSE_PRESS = 0xFFFF'FF12;     ///< Mouse button press.
 static constexpr uint32_t MOUSE_RELEASE = 0xFFFF'FF13;   ///< Mouse button release.
+static constexpr uint32_t MOUSE_DRAG = 0xFFFF'FF14;      ///< Mouse drag (button held + motion).
 
 static constexpr unsigned MOD_CTRL = 1;  ///< Ctrl modifier bitmask.
 static constexpr unsigned MOD_SHIFT = 2; ///< Shift modifier bitmask.

@@ -34,6 +34,7 @@ private:
 
   ColorScheme colors_;
   bool in_tmux_ = false;
+  bool button1_held_ = false;
   uint32_t next_image_id_ = 1;
   std::unordered_set<uint32_t> uploaded_ids_;
   unsigned ws_col_ = 0;

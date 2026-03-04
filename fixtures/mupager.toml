@@ -39,6 +39,10 @@ search-highlight-alpha = 80
 search-active = "#ff9e64"
 search-active-alpha = 120
 
+# Selection highlights
+selection-highlight = "#7aa2f7"
+selection-highlight-alpha = 80
+
 # Terminal theme: remap PDF black->fg, white->bg, tint links
 recolor-dark = "#c0caf5"
 recolor-light = "#1a1b26"
@@ -79,3 +83,6 @@ recolor-accent = "#7aa2f7"
 # sidebar = "e"
 # help = "?"
 # clear-search = "Esc"
+# visual-mode = "v"
+# visual-block-mode = "Ctrl+V"
+# visual-yank = "y"

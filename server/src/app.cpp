@@ -278,7 +278,14 @@ void App::ensure_pages_uploaded(int first, int last) {
       pixmap.recolor(fg, bg, colors_.recolor_accent);
     }
 
+    // Save post-theme, pre-highlight pixels for fast selection refresh
+    auto base = pixmap.pack_pixels();
+    int base_w = pixmap.width();
+    int base_h = pixmap.height();
+    int base_comp = pixmap.components();
+
     highlight_page_matches(pixmap, i, render_zoom);
+    highlight_selection(pixmap, i, render_zoom);
 
     // Grid dimensions based on display size (not rendered pixel size)
     // so images display at correct width in tmux unicode placeholder mode.
@@ -291,7 +298,7 @@ void App::ensure_pages_uploaded(int first, int last) {
 
     uint32_t image_id = frontend_->upload_image(pixmap, cols, rows);
     size_t mem = static_cast<size_t>(pixmap.width()) * pixmap.height() * pixmap.components();
-    page_cache_[i] = {image_id, {pixmap.width(), pixmap.height()}, {cols, rows}, rs, render_zoom, mem};
+    page_cache_[i] = {image_id, {pixmap.width(), pixmap.height()}, {cols, rows}, rs, render_zoom, mem, std::move(base), base_w, base_h, base_comp};
   }
 }
 
@@ -330,9 +337,7 @@ void App::evict_distant_pages(int first, int last) {
   for (const auto& [page, cached] : page_cache_) {
     pages_by_distance.push_back(page);
   }
-  std::sort(pages_by_distance.begin(), pages_by_distance.end(), [mid](int a, int b) {
-    return std::abs(a - mid) > std::abs(b - mid);
-  });
+  std::sort(pages_by_distance.begin(), pages_by_distance.end(), [mid](int a, int b) { return std::abs(a - mid) > std::abs(b - mid); });
 
   for (int page : pages_by_distance) {
     if (total <= max_page_cache_) {
@@ -440,6 +445,12 @@ void App::update_statusline() {
     }
     search_total_matches_ = static_cast<int>(search_results_.size());
     left = std::format("/{} [{}/{}]", search_term_, search_current_ + 1, search_total_matches_);
+  }
+  else if (input_mode_ == InputMode::VISUAL) {
+    left = "-- VISUAL --";
+  }
+  else if (input_mode_ == InputMode::VISUAL_BLOCK) {
+    left = "-- VISUAL BLOCK --";
   }
   else if (last_action_.active()) {
     left = last_action_.text();
@@ -1219,44 +1230,62 @@ void App::handle_command(const RpcCommand& cmd) {
           scroll(arg.dx, arg.dy);
         }
         else if constexpr (std::is_same_v<T, cmd::ClickAt>) {
-          auto client = frontend_->client_info();
-          if (!client.is_valid() || layout_.empty() || client.cell.width == 0 || client.cell.height == 0) {
+          auto pp = screen_to_page_point(arg.col, arg.row);
+          if (pp.page < 0) {
             return;
           }
-
-          int sidebar_cols = sidebar_effective_width();
-          int sidebar_px = 0;
-          if (sidebar_cols > 0 && client.cell.width > 0) {
-            sidebar_px = sidebar_cols * client.cell.width;
-          }
-
-          // Screen cell → viewport pixel → global pixel
-          int vp_x = arg.col * client.cell.width;
-          int vp_y = arg.row * client.cell.height;
-          int global_x = vp_x - sidebar_px + scroll_.x;
-          int global_y = vp_y + scroll_.y;
-
-          // Find which page this point is on
-          int p = page_at_y(global_y);
-          if (p < 0 || p >= static_cast<int>(layout_.size())) {
-            return;
-          }
-
-          // Convert to page point coordinates
-          float page_zoom = layout_[p].zoom * user_zoom_;
-          if (page_zoom <= 0.0f) {
-            return;
-          }
-          float pt_x = static_cast<float>(global_x - layout_[p].rect.x) / page_zoom;
-          float pt_y = static_cast<float>(global_y - layout_[p].rect.y) / page_zoom;
 
           // Hit-test against page links
-          auto page_links = doc_.load_links(p);
+          auto page_links = doc_.load_links(pp.page);
           for (auto& pl : page_links) {
-            if (pt_x >= pl.x && pt_x <= pl.x + pl.w && pt_y >= pl.y && pt_y <= pl.y + pl.h) {
+            if (pp.x >= pl.x && pp.x <= pl.x + pl.w && pp.y >= pl.y && pp.y <= pl.y + pl.h) {
               follow_link(pl);
               return;
             }
+          }
+
+          // Store click point for potential drag-to-select
+          last_click_point_ = pp;
+          has_click_point_ = true;
+        }
+        else if constexpr (std::is_same_v<T, cmd::EnterVisualMode>) {
+          enter_visual_mode(false);
+        }
+        else if constexpr (std::is_same_v<T, cmd::EnterVisualBlockMode>) {
+          enter_visual_mode(true);
+        }
+        else if constexpr (std::is_same_v<T, cmd::SelectionMove>) {
+          move_selection_extent(arg.dx, arg.dy);
+        }
+        else if constexpr (std::is_same_v<T, cmd::SelectionMoveWord>) {
+          move_selection_word(arg.direction);
+        }
+        else if constexpr (std::is_same_v<T, cmd::SelectionGoto>) {
+          selection_goto(arg.target);
+        }
+        else if constexpr (std::is_same_v<T, cmd::SelectionYank>) {
+          yank_selection();
+        }
+        else if constexpr (std::is_same_v<T, cmd::SelectionCancel>) {
+          cancel_selection();
+        }
+        else if constexpr (std::is_same_v<T, cmd::DragStart>) {
+          last_click_point_ = screen_to_page_point(arg.col, arg.row);
+          has_click_point_ = (last_click_point_.page >= 0);
+        }
+        else if constexpr (std::is_same_v<T, cmd::DragUpdate>) {
+          if (input_mode_ == InputMode::NORMAL && has_click_point_) {
+            selection_anchor_ = last_click_point_;
+            selection_extent_ = last_click_point_;
+            input_mode_ = InputMode::VISUAL;
+          }
+          if (input_mode_ == InputMode::VISUAL || input_mode_ == InputMode::VISUAL_BLOCK) {
+            update_selection_extent(arg.col, arg.row);
+          }
+        }
+        else if constexpr (std::is_same_v<T, cmd::DragEnd>) {
+          if (input_mode_ == InputMode::VISUAL || input_mode_ == InputMode::VISUAL_BLOCK) {
+            update_selection_extent(arg.col, arg.row);
           }
         }
       },
@@ -2097,7 +2126,371 @@ void App::update_sidebar() {
   }
 }
 
+PagePoint App::screen_to_page_point(int col, int row) const {
+  auto client = frontend_->client_info();
+  if (!client.is_valid() || layout_.empty() || client.cell.width == 0 || client.cell.height == 0) {
+    return {-1, 0, 0};
+  }
+
+  int sidebar_cols = sidebar_effective_width();
+  int sidebar_px = 0;
+  if (sidebar_cols > 0 && client.cell.width > 0) {
+    sidebar_px = sidebar_cols * client.cell.width;
+  }
+
+  int vp_x = col * client.cell.width;
+  int vp_y = row * client.cell.height;
+  int global_x = vp_x - sidebar_px + scroll_.x;
+  int global_y = vp_y + scroll_.y;
+
+  int p = page_at_y(global_y);
+  if (p < 0 || p >= static_cast<int>(layout_.size())) {
+    return {-1, 0, 0};
+  }
+
+  float page_zoom = layout_[p].zoom * user_zoom_;
+  if (page_zoom <= 0.0f) {
+    return {-1, 0, 0};
+  }
+  float pt_x = static_cast<float>(global_x - layout_[p].rect.x) / page_zoom;
+  float pt_y = static_cast<float>(global_y - layout_[p].rect.y) / page_zoom;
+  return {p, pt_x, pt_y};
+}
+
+void App::enter_visual_mode(bool block_mode) {
+  InputMode new_mode = block_mode ? InputMode::VISUAL_BLOCK : InputMode::VISUAL;
+
+  if (input_mode_ == InputMode::VISUAL || input_mode_ == InputMode::VISUAL_BLOCK) {
+    // Already in a visual mode — switch type, keep anchor
+    input_mode_ = new_mode;
+    refresh_selection_pages();
+    update_viewport();
+    return;
+  }
+
+  // Enter visual mode with anchor at center of viewport
+  auto client = frontend_->client_info();
+  auto pp = screen_to_page_point(client.cols / 2, client.rows / 2);
+  if (pp.page < 0) {
+    return;
+  }
+
+  selection_anchor_ = pp;
+  selection_extent_ = pp;
+  input_mode_ = new_mode;
+  refresh_selection_pages();
+  update_viewport();
+}
+
+void App::update_selection_extent(int col, int row) {
+  auto pp = screen_to_page_point(col, row);
+  if (pp.page < 0) {
+    return;
+  }
+
+  selection_extent_ = pp;
+  refresh_selection_pages();
+  update_viewport();
+}
+
+void App::move_selection_extent(int dx_cells, int dy_cells) {
+  auto client = frontend_->client_info();
+  if (!client.is_valid() || layout_.empty() || client.cell.width == 0 || client.cell.height == 0) {
+    return;
+  }
+
+  // Convert current extent to approximate screen cell
+  int p = selection_extent_.page;
+  if (p < 0 || p >= static_cast<int>(layout_.size())) {
+    return;
+  }
+
+  float page_zoom = layout_[p].zoom * user_zoom_;
+  int sidebar_cols = sidebar_effective_width();
+  int sidebar_px = (sidebar_cols > 0 && client.cell.width > 0) ? sidebar_cols * client.cell.width : 0;
+
+  int global_x = static_cast<int>(selection_extent_.x * page_zoom) + layout_[p].rect.x;
+  int global_y = static_cast<int>(selection_extent_.y * page_zoom) + layout_[p].rect.y;
+  int vp_x = global_x - scroll_.x + sidebar_px;
+  int vp_y = global_y - scroll_.y;
+
+  int col = vp_x / client.cell.width + dx_cells;
+  int row = vp_y / client.cell.height + dy_cells;
+
+  // Auto-scroll if cursor moves beyond viewport
+  int max_row = client.rows - 2; // -1 for statusline
+  if (row < 0) {
+    scroll(0, row * client.cell.height);
+    row = 0;
+  }
+  else if (row > max_row) {
+    scroll(0, (row - max_row) * client.cell.height);
+    row = max_row;
+  }
+
+  auto pp = screen_to_page_point(col, row);
+  if (pp.page < 0) {
+    return;
+  }
+
+  selection_extent_ = pp;
+  refresh_selection_pages();
+  update_viewport();
+}
+
+void App::move_selection_word(int direction) {
+  if (input_mode_ != InputMode::VISUAL && input_mode_ != InputMode::VISUAL_BLOCK) {
+    return;
+  }
+
+  PagePoint target;
+  if (direction > 0) {
+    target = doc_.next_word_boundary(selection_extent_);
+  }
+  else {
+    target = doc_.prev_word_boundary(selection_extent_);
+  }
+
+  if (target.page == selection_extent_.page && target.x == selection_extent_.x && target.y == selection_extent_.y) {
+    return;
+  }
+
+  selection_extent_ = target;
+
+  // Auto-scroll to keep the extent visible
+  if (target.page >= 0 && target.page < static_cast<int>(layout_.size())) {
+    float page_zoom = layout_[target.page].zoom * user_zoom_;
+    int global_y = static_cast<int>(target.y * page_zoom) + layout_[target.page].rect.y;
+    auto client = frontend_->client_info();
+    int vh = client.viewport_pixel().height;
+    if (global_y < scroll_.y) {
+      scroll_.y = global_y;
+    }
+    else if (global_y > scroll_.y + vh - client.cell.height * 2) {
+      scroll_.y = global_y - vh + client.cell.height * 2;
+    }
+  }
+
+  refresh_selection_pages();
+  update_viewport();
+}
+
+void App::selection_goto(cmd::SelectionTarget target) {
+  if (input_mode_ != InputMode::VISUAL && input_mode_ != InputMode::VISUAL_BLOCK) {
+    return;
+  }
+
+  PagePoint dest;
+  switch (target) {
+    case cmd::SelectionTarget::WORD_END:
+      dest = doc_.end_of_word_boundary(selection_extent_);
+      break;
+    case cmd::SelectionTarget::LINE_START:
+      dest = doc_.line_start(selection_extent_);
+      break;
+    case cmd::SelectionTarget::LINE_END:
+      dest = doc_.line_end(selection_extent_);
+      break;
+    case cmd::SelectionTarget::FIRST_NON_SPACE:
+      dest = doc_.first_non_space(selection_extent_);
+      break;
+    case cmd::SelectionTarget::DOC_START: {
+      // Go to first char on page 0
+      auto chars_first = doc_.line_start({0, 0, 0});
+      dest = chars_first;
+      break;
+    }
+    case cmd::SelectionTarget::DOC_END: {
+      // Go to last char on last page
+      int last_page = doc_.page_count() - 1;
+      if (last_page >= 0) {
+        auto [w, h] = doc_.page_size(last_page);
+        dest = doc_.line_end({last_page, w, h});
+      }
+      else {
+        return;
+      }
+      break;
+    }
+  }
+
+  if (dest.page == selection_extent_.page && dest.x == selection_extent_.x && dest.y == selection_extent_.y) {
+    return;
+  }
+
+  selection_extent_ = dest;
+
+  // Auto-scroll to keep the extent visible
+  if (dest.page >= 0 && dest.page < static_cast<int>(layout_.size())) {
+    float page_zoom = layout_[dest.page].zoom * user_zoom_;
+    int global_y = static_cast<int>(dest.y * page_zoom) + layout_[dest.page].rect.y;
+    auto client = frontend_->client_info();
+    int vh = client.viewport_pixel().height;
+    if (global_y < scroll_.y) {
+      scroll_.y = global_y;
+    }
+    else if (global_y > scroll_.y + vh - client.cell.height * 2) {
+      scroll_.y = global_y - vh + client.cell.height * 2;
+    }
+  }
+
+  refresh_selection_pages();
+  update_viewport();
+}
+
+void App::invalidate_selection_pages() {
+  int lo = std::min(selection_anchor_.page, selection_extent_.page);
+  int hi = std::max(selection_anchor_.page, selection_extent_.page);
+  for (int p = lo; p <= hi; ++p) {
+    auto it = page_cache_.find(p);
+    if (it != page_cache_.end()) {
+      frontend_->free_image(it->second.image_id);
+      page_cache_.erase(it);
+    }
+  }
+}
+
+void App::refresh_selection_pages() {
+  // Determine which pages are affected by the selection
+  int lo = std::min(selection_anchor_.page, selection_extent_.page);
+  int hi = std::max(selection_anchor_.page, selection_extent_.page);
+  lo = std::max(lo, 0);
+  hi = std::min(hi, static_cast<int>(layout_.size()) - 1);
+
+  auto client = frontend_->client_info();
+  if (!client.is_valid()) {
+    return;
+  }
+
+  for (int p = lo; p <= hi; ++p) {
+    auto it = page_cache_.find(p);
+    if (it == page_cache_.end() || it->second.base_pixels.empty()) {
+      continue;
+    }
+
+    auto& cached = it->second;
+
+    // Reconstruct pixmap from cached base pixels
+    Pixmap pixmap = Pixmap::from_pixels(doc_.ctx(), cached.base_w, cached.base_h, cached.base_comp, cached.base_pixels.data());
+
+    // Re-apply highlights on the fresh copy
+    highlight_page_matches(pixmap, p, cached.render_zoom);
+    highlight_selection(pixmap, p, cached.render_zoom);
+
+    // Re-upload
+    frontend_->free_image(cached.image_id);
+    cached.image_id = frontend_->upload_image(pixmap, cached.cell_grid.width, cached.cell_grid.height);
+  }
+}
+
+void App::highlight_selection(Pixmap& pixmap, int page_num, float render_zoom) {
+  if (input_mode_ != InputMode::VISUAL && input_mode_ != InputMode::VISUAL_BLOCK) {
+    return;
+  }
+
+  std::vector<SearchHit> quads;
+  if (input_mode_ == InputMode::VISUAL) {
+    quads = doc_.selection_quads(page_num, selection_anchor_, selection_extent_);
+  }
+  else {
+    // VISUAL_BLOCK: compute rect from anchor/extent
+    float x0 = std::min(selection_anchor_.x, selection_extent_.x);
+    float y0 = std::min(selection_anchor_.y, selection_extent_.y);
+    float x1 = std::max(selection_anchor_.x, selection_extent_.x);
+    float y1 = std::max(selection_anchor_.y, selection_extent_.y);
+
+    // For block mode, only highlight on pages in range
+    int lo = std::min(selection_anchor_.page, selection_extent_.page);
+    int hi = std::max(selection_anchor_.page, selection_extent_.page);
+    if (page_num < lo || page_num > hi) {
+      return;
+    }
+
+    quads = doc_.rect_selection_quads(page_num, x0, y0, x1, y1);
+  }
+
+  for (const auto& hit : quads) {
+    PixelRect rect
+        = {static_cast<int>(hit.x * render_zoom),
+           static_cast<int>(hit.y * render_zoom),
+           static_cast<int>(hit.w * render_zoom),
+           static_cast<int>(hit.h * render_zoom)};
+    pixmap.highlight_rect(rect, colors_.selection_highlight, colors_.selection_highlight_alpha);
+  }
+}
+
+void App::yank_selection() {
+  std::string text;
+  if (input_mode_ == InputMode::VISUAL) {
+    text = doc_.copy_text(selection_anchor_, selection_extent_);
+  }
+  else if (input_mode_ == InputMode::VISUAL_BLOCK) {
+    int lo = std::min(selection_anchor_.page, selection_extent_.page);
+    int hi = std::max(selection_anchor_.page, selection_extent_.page);
+    float x0 = std::min(selection_anchor_.x, selection_extent_.x);
+    float y0 = std::min(selection_anchor_.y, selection_extent_.y);
+    float x1 = std::max(selection_anchor_.x, selection_extent_.x);
+    float y1 = std::max(selection_anchor_.y, selection_extent_.y);
+    for (int p = lo; p <= hi; ++p) {
+      auto page_text = doc_.copy_rect_text(p, x0, y0, x1, y1);
+      if (!page_text.empty()) {
+        if (!text.empty()) {
+          text += '\n';
+        }
+        text += page_text;
+      }
+    }
+  }
+
+  copy_to_clipboard(text);
+  last_action_.set("Yanked {} chars", text.size());
+  cancel_selection();
+}
+
+void App::cancel_selection() {
+  input_mode_ = InputMode::NORMAL;
+  has_click_point_ = false;
+  refresh_selection_pages();
+  update_viewport();
+}
+
+void App::copy_to_clipboard(const std::string& text) {
+  if (text.empty()) {
+    return;
+  }
+
+  // OSC 52 clipboard (works over SSH)
+  std::string osc52 = "\x1b]52;c;" + base64::encode(text) + "\x07";
+  frontend_->write_raw(osc52.data(), osc52.size());
+
+  // System clipboard fallback
+  pid_t pid = fork();
+  if (pid == 0) {
+#ifdef __APPLE__
+    FILE* pipe = popen("pbcopy", "w");
+#elif defined(__linux__)
+    const char* wayland = std::getenv("WAYLAND_DISPLAY");
+    FILE* pipe = popen(wayland ? "wl-copy" : "xclip -selection clipboard", "w");
+#else
+    FILE* pipe = nullptr;
+#endif
+    if (pipe) {
+      std::fwrite(text.data(), 1, text.size(), pipe);
+      pclose(pipe);
+    }
+    _exit(0);
+  }
+}
+
 ViewState App::view_state() const {
+  std::string vis_mode;
+  if (input_mode_ == InputMode::VISUAL) {
+    vis_mode = "visual";
+  }
+  else if (input_mode_ == InputMode::VISUAL_BLOCK) {
+    vis_mode = "visual-block";
+  }
+
   ViewState vs{
       current_page() + 1,
       doc_.page_count(),
@@ -2108,6 +2501,7 @@ ViewState App::view_state() const {
       search_current_ >= 0 ? search_current_ + 1 : 0,
       static_cast<int>(search_results_.size()),
       input_mode_ == InputMode::LINK_HINTS,
+      std::move(vis_mode),
       {},
       0,
   };

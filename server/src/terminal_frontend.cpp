@@ -23,7 +23,7 @@ TerminalFrontend::TerminalFrontend() {
   raw();
   noecho();
   keypad(stdscr, TRUE);
-  mousemask(ALL_MOUSE_EVENTS, nullptr);
+  mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, nullptr);
   mouseinterval(0);
   curs_set(0);
   refresh();
@@ -93,10 +93,17 @@ std::optional<InputEvent> TerminalFrontend::poll_input(int timeout_ms) {
 #endif
         else if (mevent.bstate & BUTTON1_PRESSED) {
           id = input::MOUSE_PRESS;
+          button1_held_ = true;
         }
         else if (mevent.bstate & BUTTON1_RELEASED) {
           id = input::MOUSE_RELEASE;
           etype = EventType::RELEASE;
+          button1_held_ = false;
+        }
+        else if (mevent.bstate & REPORT_MOUSE_POSITION) {
+          if (button1_held_) {
+            id = input::MOUSE_DRAG;
+          }
         }
         if (id != 0) {
           return InputEvent{id, mods, etype, mevent.x, mevent.y};

@@ -78,6 +78,51 @@ void run_terminal(App& app, TerminalFrontend& frontend, const KeyBindings& bindi
         app.handle_command(cmd::MouseScroll{dx, dy});
       }
     }
+    else if (auto* move = std::get_if<cmd::SelectionMove>(&*cmd)) {
+      int dx = move->dx;
+      int dy = move->dy;
+      while (auto next = frontend.poll_input(0)) {
+        auto next_cmd = input_handler.translate(*next, app.input_mode(), client.rows, client.cell);
+        if (next_cmd) {
+          if (auto* nm = std::get_if<cmd::SelectionMove>(&*next_cmd)) {
+            dx += nm->dx;
+            dy += nm->dy;
+          }
+          else {
+            app.handle_command(cmd::SelectionMove{dx, dy});
+            app.handle_command(*next_cmd);
+            dx = 0;
+            dy = 0;
+            break;
+          }
+        }
+      }
+      if (dx != 0 || dy != 0) {
+        app.handle_command(cmd::SelectionMove{dx, dy});
+      }
+    }
+    else if (auto* drag = std::get_if<cmd::DragUpdate>(&*cmd)) {
+      int col = drag->col;
+      int row = drag->row;
+      while (auto next = frontend.poll_input(0)) {
+        auto next_cmd = input_handler.translate(*next, app.input_mode(), client.rows, client.cell);
+        if (next_cmd) {
+          if (auto* nd = std::get_if<cmd::DragUpdate>(&*next_cmd)) {
+            col = nd->col;
+            row = nd->row;
+          }
+          else {
+            app.handle_command(cmd::DragUpdate{col, row});
+            app.handle_command(*next_cmd);
+            col = -1;
+            break;
+          }
+        }
+      }
+      if (col >= 0) {
+        app.handle_command(cmd::DragUpdate{col, row});
+      }
+    }
     else {
       app.handle_command(*cmd);
     }

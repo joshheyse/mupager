@@ -143,6 +143,50 @@ struct ClickAt {
   int row; ///< Screen row (0-based cell).
 };
 
+struct EnterVisualMode {};
+struct EnterVisualBlockMode {};
+
+struct SelectionMove {
+  int dx; ///< Relative cell movement X.
+  int dy; ///< Relative cell movement Y.
+};
+
+struct SelectionYank {};
+struct SelectionCancel {};
+
+struct SelectionMoveWord {
+  int direction; ///< +1 = forward (w), -1 = backward (b).
+};
+
+/// @brief Target for selection goto commands.
+enum class SelectionTarget {
+  LINE_START,
+  LINE_END,
+  FIRST_NON_SPACE,
+  WORD_END,
+  DOC_START,
+  DOC_END
+};
+
+struct SelectionGoto {
+  SelectionTarget target;
+};
+
+struct DragStart {
+  int col; ///< Screen column (0-based cell).
+  int row; ///< Screen row (0-based cell).
+};
+
+struct DragUpdate {
+  int col; ///< Screen column (0-based cell).
+  int row; ///< Screen row (0-based cell).
+};
+
+struct DragEnd {
+  int col; ///< Screen column (0-based cell).
+  int row; ///< Screen row (0-based cell).
+};
+
 } // namespace cmd
 
 /// @brief Variant type encompassing all RPC commands.
@@ -209,4 +253,14 @@ using RpcCommand = std::variant<
     cmd::Hide,
     cmd::Show,
     cmd::MouseScroll,
-    cmd::ClickAt>;
+    cmd::ClickAt,
+    cmd::EnterVisualMode,
+    cmd::EnterVisualBlockMode,
+    cmd::SelectionMove,
+    cmd::SelectionYank,
+    cmd::SelectionCancel,
+    cmd::SelectionMoveWord,
+    cmd::SelectionGoto,
+    cmd::DragStart,
+    cmd::DragUpdate,
+    cmd::DragEnd>;

@@ -10,6 +10,18 @@ void PixmapDeleter::operator()(fz_pixmap* pix) const {
 Pixmap::Pixmap(fz_context* ctx, fz_pixmap* pix)
     : pix_(pix, PixmapDeleter{ctx}) {}
 
+Pixmap Pixmap::from_pixels(fz_context* ctx, int w, int h, int comp, const unsigned char* data) {
+  fz_colorspace* cs = (comp >= 3) ? fz_device_rgb(ctx) : fz_device_gray(ctx);
+  fz_pixmap* pix = fz_new_pixmap(ctx, cs, w, h, nullptr, 0);
+  int stride = fz_pixmap_stride(ctx, pix);
+  int row_bytes = w * comp;
+  unsigned char* dst = fz_pixmap_samples(ctx, pix);
+  for (int y = 0; y < h; ++y) {
+    std::memcpy(dst + y * stride, data + y * row_bytes, row_bytes);
+  }
+  return Pixmap(ctx, pix);
+}
+
 int Pixmap::width() const {
   return fz_pixmap_width(pix_.get_deleter().ctx, pix_.get());
 }
