@@ -216,11 +216,12 @@ private:
   Document doc_;
   bool running_ = true;
   bool show_stats_ = false;
+  int scroll_lines_ = 3; ///< Lines per scroll step (from config/CLI).
   PixelPoint scroll_;
   ViewMode view_mode_ = ViewMode::CONTINUOUS;
   Theme theme_ = Theme::DARK;
   InputMode input_mode_ = InputMode::NORMAL;
-  float user_zoom_ = 1.0f;        ///< User zoom multiplier (1.0 = fit-to-viewport).
+  float user_zoom_ = 1.0f;           ///< User zoom multiplier (1.0 = fit-to-viewport).
   RenderScale render_scale_setting_; ///< From CLI --render-scale.
   std::string search_term_;
   std::string command_input_;

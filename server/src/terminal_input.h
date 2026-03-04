@@ -24,6 +24,10 @@ const std::vector<HelpBinding>& get_help_bindings();
 /// raw InputEvents into commands based on the current input mode.
 class TerminalInputHandler {
 public:
+  /// @brief Construct with the number of lines per scroll step.
+  explicit TerminalInputHandler(int scroll_lines = 3)
+      : scroll_lines_(scroll_lines) {}
+
   /// @brief Translate a key event into a command.
   /// @param event The input event to translate.
   /// @param mode Current input mode of the application.
@@ -33,6 +37,7 @@ public:
   std::optional<RpcCommand> translate(const InputEvent& event, InputMode mode, int terminal_rows, CellSize cell = {});
 
 private:
+  int scroll_lines_ = 3;
   bool pending_g_ = false;
   int pending_count_ = 0;
 };

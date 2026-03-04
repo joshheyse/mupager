@@ -1,5 +1,7 @@
 #include "args.h"
 
+#include "config.h"
+
 #include <cstdlib>
 #include <filesystem>
 
@@ -13,21 +15,45 @@ static std::string default_log_path() {
   return (dir / "mupager.log").string();
 }
 
+static RenderScale parse_render_scale(const std::string& s) {
+  if (s == "never") {
+    return RenderScale::NEVER;
+  }
+  else if (s == "0.25") {
+    return RenderScale::X025;
+  }
+  else if (s == "0.5") {
+    return RenderScale::X05;
+  }
+  else if (s == "1") {
+    return RenderScale::X1;
+  }
+  else if (s == "2") {
+    return RenderScale::X2;
+  }
+  else if (s == "4") {
+    return RenderScale::X4;
+  }
+  return RenderScale::AUTO;
+}
+
 Args::Args(int argc, char* argv[])
     : file{}
     , log_file{default_log_path()}
     , view_mode{"continuous"} {
   CLI::App cli{"mupager - terminal document viewer"};
   cli.add_option("file", file, "Document to open")->required();
-  auto* log_opt = cli.add_option("--log-level", log_level, "Log level (trace, debug, info, warn, error, critical)");
-  cli.add_option("--log-file", log_file, "Log file path");
-  cli.add_option("--view-mode", view_mode, "View mode (continuous, page, page-height, side-by-side)")
-      ->check(CLI::IsMember({"continuous", "page", "page-height", "side-by-side"}));
+  auto* log_level_opt = cli.add_option("--log-level", log_level, "Log level (trace, debug, info, warn, error, critical)");
+  auto* log_file_opt = cli.add_option("--log-file", log_file, "Log file path");
+  auto* view_mode_opt = cli.add_option("--view-mode", view_mode, "View mode (continuous, page, page-height, side-by-side)")
+                            ->check(CLI::IsMember({"continuous", "page", "page-height", "side-by-side"}));
   std::string scale_str = "auto";
-  cli.add_option("--render-scale", scale_str, "Render scale (auto, never, 0.25, 0.5, 1, 2, 4)")
-      ->check(CLI::IsMember({"auto", "never", "0.25", "0.5", "1", "2", "4"}));
+  auto* render_scale_opt = cli.add_option("--render-scale", scale_str, "Render scale (auto, never, 0.25, 0.5, 1, 2, 4)")
+                               ->check(CLI::IsMember({"auto", "never", "0.25", "0.5", "1", "2", "4"}));
   cli.add_option("--mode", mode, "Frontend mode (terminal, neovim)")->check(CLI::IsMember({"terminal", "neovim"}));
-  cli.add_flag("--show-stats", show_stats, "Show cache stats in the statusline");
+  auto* theme_opt = cli.add_option("--theme", theme, "Theme (dark, light)")->check(CLI::IsMember({"dark", "light"}));
+  auto* scroll_lines_opt = cli.add_option("--scroll-lines", scroll_lines, "Lines per scroll step");
+  auto* show_stats_opt = cli.add_flag("--show-stats", show_stats, "Show cache stats in the statusline");
   try {
     cli.parse(argc, argv);
   }
@@ -35,27 +61,58 @@ Args::Args(int argc, char* argv[])
     throw std::runtime_error(cli.help());
   }
 
-  if (!log_opt->count()) {
+  if (!log_level_opt->count()) {
     const char* env = std::getenv("SPDLOG_LEVEL");
     log_level = env ? env : "info";
   }
 
-  if (scale_str == "never") {
-    render_scale = RenderScale::NEVER;
+  render_scale = parse_render_scale(scale_str);
+
+  // Track which options were explicitly set on the CLI for apply_config().
+  cli_explicit_ = 0;
+  if (view_mode_opt->count()) {
+    cli_explicit_ |= CLI_VIEW_MODE;
   }
-  else if (scale_str == "0.25") {
-    render_scale = RenderScale::X025;
+  if (theme_opt->count()) {
+    cli_explicit_ |= CLI_THEME;
   }
-  else if (scale_str == "0.5") {
-    render_scale = RenderScale::X05;
+  if (render_scale_opt->count()) {
+    cli_explicit_ |= CLI_RENDER_SCALE;
   }
-  else if (scale_str == "1") {
-    render_scale = RenderScale::X1;
+  if (scroll_lines_opt->count()) {
+    cli_explicit_ |= CLI_SCROLL_LINES;
   }
-  else if (scale_str == "2") {
-    render_scale = RenderScale::X2;
+  if (log_level_opt->count()) {
+    cli_explicit_ |= CLI_LOG_LEVEL;
   }
-  else if (scale_str == "4") {
-    render_scale = RenderScale::X4;
+  if (log_file_opt->count()) {
+    cli_explicit_ |= CLI_LOG_FILE;
+  }
+  if (show_stats_opt->count()) {
+    cli_explicit_ |= CLI_SHOW_STATS;
+  }
+}
+
+void Args::apply_config(const Config& cfg) {
+  if (!(cli_explicit_ & CLI_VIEW_MODE) && cfg.view_mode) {
+    view_mode = *cfg.view_mode;
+  }
+  if (!(cli_explicit_ & CLI_THEME) && cfg.theme) {
+    theme = *cfg.theme;
+  }
+  if (!(cli_explicit_ & CLI_RENDER_SCALE) && cfg.render_scale) {
+    render_scale = parse_render_scale(*cfg.render_scale);
+  }
+  if (!(cli_explicit_ & CLI_SCROLL_LINES) && cfg.scroll_lines) {
+    scroll_lines = *cfg.scroll_lines;
+  }
+  if (!(cli_explicit_ & CLI_LOG_LEVEL) && cfg.log_level) {
+    log_level = *cfg.log_level;
+  }
+  if (!(cli_explicit_ & CLI_LOG_FILE) && cfg.log_file) {
+    log_file = *cfg.log_file;
+  }
+  if (!(cli_explicit_ & CLI_SHOW_STATS) && cfg.show_stats) {
+    show_stats = *cfg.show_stats;
   }
 }

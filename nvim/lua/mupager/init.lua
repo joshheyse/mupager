@@ -25,7 +25,8 @@ end
 --- Setup mupager plugin.
 --- @param opts table|nil Configuration options.
 function M.setup(opts)
-  config = opts or {}
+  local file_config = require("mupager.config").load()
+  config = vim.tbl_deep_extend("force", file_config, opts or {})
   if config.log_level then log.set_level(config.log_level) end
   log.info("setup: opts=%s", vim.inspect(config))
 
@@ -199,6 +200,8 @@ function M.open(file)
     render_scale = config.render_scale,
     log_level = config.log_level,
     show_stats = config.show_stats,
+    theme = config.theme,
+    scroll_lines = config.scroll_lines,
   })
 
   -- Set up keybindings

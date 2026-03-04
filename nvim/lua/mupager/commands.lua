@@ -126,32 +126,6 @@ function M.setup(bufnr, opts)
     server.notify("command", "quit")
     require("mupager").close()
   end, "Quit")
-
-  -- Help
-  map("?", function()
-    local help = {
-      "mupager keybindings:",
-      "",
-      "j/k         Scroll down/up",
-      "d/u         Half page down/up",
-      "Ctrl-F/B    Page down/up",
-      "h/l         Scroll left/right",
-      "gg/G        First/last page",
-      "[n]gg/[n]G  Go to page n",
-      "H/L         Jump back/forward",
-      "+/-         Zoom in/out",
-      "0/w         Fit width",
-      "Tab         Toggle view mode",
-      "t           Toggle theme",
-      "R           Reload",
-      "/           Search",
-      "n/N         Next/prev match",
-      "o           Table of contents",
-      "f           Link hints",
-      "q           Quit",
-    }
-    vim.notify(table.concat(help, "\n"), vim.log.levels.INFO)
-  end, "Show help")
 end
 
 return M

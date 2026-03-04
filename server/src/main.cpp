@@ -1,5 +1,6 @@
 #include "app.h"
 #include "args.h"
+#include "config.h"
 #include "neovim_frontend.h"
 #include "neovim_loop.h"
 #include "terminal_frontend.h"
@@ -23,6 +24,15 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  try {
+    auto cfg = load_config();
+    args->apply_config(cfg);
+  }
+  catch (const std::exception& e) {
+    std::fprintf(stderr, "config error: %s\n", e.what());
+    return 1;
+  }
+
   auto logger = spdlog::basic_logger_mt("mupager", args->log_file, true);
   spdlog::set_default_logger(logger);
   spdlog::set_level(spdlog::level::from_str(args->log_level));
@@ -40,7 +50,7 @@ int main(int argc, char* argv[]) {
       auto frontend = std::make_unique<TerminalFrontend>();
       auto* term = frontend.get();
       App app(std::move(frontend), *args);
-      run_terminal(app, *term);
+      run_terminal(app, *term, args->scroll_lines);
     }
   }
   catch (const std::exception& e) {

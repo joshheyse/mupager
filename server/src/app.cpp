@@ -5,16 +5,17 @@
 #include "terminal_input.h"
 
 #include <spdlog/spdlog.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <cstring>
 #include <string>
-#include <unistd.h>
 
 App::App(std::unique_ptr<Frontend> frontend, const Args& args)
     : frontend_(std::move(frontend))
     , doc_(args.file)
     , show_stats_(args.show_stats)
+    , scroll_lines_(args.scroll_lines)
     , render_scale_setting_(args.render_scale)
     , file_path_(args.file) {
   if (args.view_mode == "page") {
@@ -26,7 +27,10 @@ App::App(std::unique_ptr<Frontend> frontend, const Args& args)
   else if (args.view_mode == "side-by-side") {
     view_mode_ = ViewMode::SIDE_BY_SIDE;
   }
-  spdlog::info("opened document: {} pages, mode: {}", doc_.page_count(), args.view_mode);
+  if (args.theme == "light") {
+    theme_ = Theme::LIGHT;
+  }
+  spdlog::info("opened document: {} pages, mode: {}, theme: {}", doc_.page_count(), args.view_mode, args.theme);
 }
 
 void App::build_layout() {
@@ -719,12 +723,12 @@ void App::handle_command(const RpcCommand& cmd) {
         else if constexpr (std::is_same_v<T, cmd::ScrollDown>) {
           auto client = frontend_->client_info();
           int count = std::max(1, arg.count);
-          scroll(0, client.cell.height * count);
+          scroll(0, client.cell.height * scroll_lines_ * count);
         }
         else if constexpr (std::is_same_v<T, cmd::ScrollUp>) {
           auto client = frontend_->client_info();
           int count = std::max(1, arg.count);
-          scroll(0, -client.cell.height * count);
+          scroll(0, -client.cell.height * scroll_lines_ * count);
         }
         else if constexpr (std::is_same_v<T, cmd::HalfPageDown>) {
           auto client = frontend_->client_info();
@@ -765,12 +769,12 @@ void App::handle_command(const RpcCommand& cmd) {
         else if constexpr (std::is_same_v<T, cmd::ScrollLeft>) {
           auto client = frontend_->client_info();
           int count = std::max(1, arg.count);
-          scroll(-client.cell.width * count, 0);
+          scroll(-client.cell.width * scroll_lines_ * count, 0);
         }
         else if constexpr (std::is_same_v<T, cmd::ScrollRight>) {
           auto client = frontend_->client_info();
           int count = std::max(1, arg.count);
-          scroll(client.cell.width * count, 0);
+          scroll(client.cell.width * scroll_lines_ * count, 0);
         }
         else if constexpr (std::is_same_v<T, cmd::GotoPage>) {
           jump_to_page(arg.page - 1);

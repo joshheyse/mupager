@@ -30,9 +30,9 @@ static std::optional<std::pair<int, int>> scroll_delta(const RpcCommand& cmd, co
   return std::nullopt;
 }
 
-void run_terminal(App& app, TerminalFrontend& frontend) {
+void run_terminal(App& app, TerminalFrontend& frontend, int scroll_lines) {
   app.initialize();
-  TerminalInputHandler input_handler;
+  TerminalInputHandler input_handler(scroll_lines);
 
   while (app.is_running()) {
     auto event = frontend.poll_input(100);

@@ -129,11 +129,10 @@ std::optional<RpcCommand> TerminalInputHandler::translate(const InputEvent& even
     if (event.modifiers & input::MOD_CTRL) {
       return (sign < 0) ? RpcCommand{cmd::ZoomIn{}} : RpcCommand{cmd::ZoomOut{}};
     }
-    int step = 3;
     if (event.modifiers & input::MOD_SHIFT) {
-      return cmd::MouseScroll{sign * cell.width * step, 0};
+      return cmd::MouseScroll{sign * cell.width * scroll_lines_, 0};
     }
-    return cmd::MouseScroll{0, sign * cell.height * step};
+    return cmd::MouseScroll{0, sign * cell.height * scroll_lines_};
   }
   if (event.id == input::MOUSE_PRESS) {
     return cmd::ClickAt{event.mouse_col, event.mouse_row};

@@ -45,6 +45,14 @@ function M.start(file, opts)
     table.insert(cmd, opts.log_level)
   end
   if opts.show_stats then table.insert(cmd, "--show-stats") end
+  if opts.theme then
+    table.insert(cmd, "--theme")
+    table.insert(cmd, opts.theme)
+  end
+  if opts.scroll_lines then
+    table.insert(cmd, "--scroll-lines")
+    table.insert(cmd, tostring(opts.scroll_lines))
+  end
 
   table.insert(cmd, file)
   log.info("start: cmd=%s", table.concat(cmd, " "))

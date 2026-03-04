@@ -10,6 +10,7 @@ find_path(MSGPACK_INCLUDE_DIR NAMES msgpack.hpp REQUIRED)
 
 set(SERVER_LIB_SOURCES
   src/args.cpp
+  src/config.cpp
   src/document.cpp
   src/pixmap.cpp
   src/base64.cpp
@@ -36,6 +37,7 @@ target_link_libraries(server-lib
   PUBLIC PkgConfig::NCURSESW
   PUBLIC spdlog::spdlog
   PRIVATE CLI11::CLI11
+  PRIVATE tomlplusplus::tomlplusplus
 )
 
 # --- Executable ---
@@ -53,7 +55,6 @@ target_include_directories(mupager
 
 target_link_libraries(mupager
   PRIVATE server-lib
-  PRIVATE tomlplusplus::tomlplusplus
 )
 
 # --- Tests ---
