@@ -2,6 +2,7 @@
 
 #include "color_scheme.h"
 
+#include <map>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -16,7 +17,9 @@ struct Config {
   std::optional<std::string> log_level;
   std::optional<std::string> log_file;
   std::optional<bool> show_stats;
-  std::optional<int> max_page_cache; ///< Max page cache size in MB.
+  std::optional<int> max_page_cache;                            ///< Max page cache size in MB.
+  std::optional<bool> watch;                                    ///< Auto-reload document on file changes.
+  std::optional<std::map<std::string, std::string>> converters; ///< Pattern -> command converter map.
 
   std::optional<std::string> terminal_fg; ///< Override for detected terminal foreground.
   std::optional<std::string> terminal_bg; ///< Override for detected terminal background.

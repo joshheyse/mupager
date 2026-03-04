@@ -48,6 +48,10 @@ recolor-dark = "#c0caf5"
 recolor-light = "#1a1b26"
 recolor-accent = "#7aa2f7"
 
+[converters]
+"*.md" = "pandoc %i -o %o"
+"*.markdown" = "pandoc %i -o %o"
+
 # [keys]
 # Remap normal-mode key bindings. Values are a string or array of strings.
 # Key specs: single chars ("j"), special names ("Tab", "Esc", "Up", "Down",

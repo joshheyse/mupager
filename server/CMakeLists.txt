@@ -25,6 +25,7 @@ set(SERVER_LIB_SOURCES
   src/terminal_loop.cpp
   src/neovim_loop.cpp
   src/app.cpp
+  src/converter.cpp
 )
 
 add_library(server-lib STATIC ${SERVER_LIB_SOURCES})
@@ -70,6 +71,7 @@ set(SERVER_TEST_SOURCES
   src/kitty.test.cpp
   src/color.test.cpp
   src/key_bindings.test.cpp
+  src/converter.test.cpp
 )
 
 add_executable(ServerTests ${SERVER_TEST_SOURCES})

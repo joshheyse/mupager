@@ -4,6 +4,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <vector>
 
 #include <CLI/CLI.hpp>
 
@@ -58,6 +59,10 @@ Args::Args(int argc, char* argv[])
   std::string config_str;
   cli.add_option("--config,-c", config_str, "Config file path (overrides XDG default)");
   auto* show_stats_opt = cli.add_flag("--show-stats", show_stats, "Show cache stats in the statusline");
+  auto* watch_opt = cli.add_flag("--watch", watch, "Auto-reload document on file changes");
+  auto* converter_opt = cli.add_option("--converter", converter, "Converter command for this file (%i=input, %o=output, %d=tmpdir)");
+  std::vector<std::string> converter_patterns;
+  cli.add_option("--converter-pattern", converter_patterns, "Converter pattern (glob=command, e.g. '*.md=pandoc %i -o %o')");
   try {
     cli.parse(argc, argv);
   }
@@ -103,6 +108,20 @@ Args::Args(int argc, char* argv[])
   if (max_page_cache_opt->count()) {
     cli_explicit_ |= CLI_MAX_PAGE_CACHE;
   }
+  if (watch_opt->count()) {
+    cli_explicit_ |= CLI_WATCH;
+  }
+  if (converter_opt->count()) {
+    cli_explicit_ |= CLI_CONVERTER;
+  }
+
+  // Parse converter patterns (glob=command) into converters map.
+  for (const auto& p : converter_patterns) {
+    auto eq = p.find('=');
+    if (eq != std::string::npos) {
+      converters[p.substr(0, eq)] = p.substr(eq + 1);
+    }
+  }
 }
 
 void Args::apply_config(const Config& cfg) {
@@ -129,6 +148,16 @@ void Args::apply_config(const Config& cfg) {
   }
   if (!(cli_explicit_ & CLI_MAX_PAGE_CACHE) && cfg.max_page_cache) {
     max_page_cache = static_cast<size_t>(*cfg.max_page_cache) * 1024 * 1024;
+  }
+  if (!(cli_explicit_ & CLI_WATCH) && cfg.watch) {
+    watch = *cfg.watch;
+  }
+
+  // Merge config converters (CLI --converter-pattern values take precedence).
+  if (cfg.converters) {
+    for (const auto& [pattern, cmd] : *cfg.converters) {
+      converters.emplace(pattern, cmd); // emplace won't overwrite CLI patterns
+    }
   }
   if (cfg.has_colors) {
     colors = cfg.colors;

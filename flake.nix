@@ -50,6 +50,9 @@
             # Terminal graphics testing
             kitty
 
+            # Document conversion
+            pandoc
+
             # Libraries
             mupdf
             msgpack-cxx

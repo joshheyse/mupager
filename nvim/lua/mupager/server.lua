@@ -45,6 +45,17 @@ function M.start(file, opts)
     table.insert(cmd, opts.log_level)
   end
   if opts.show_stats then table.insert(cmd, "--show-stats") end
+  if opts.watch then table.insert(cmd, "--watch") end
+  if opts.converter then
+    table.insert(cmd, "--converter")
+    table.insert(cmd, opts.converter)
+  end
+  if opts.converters then
+    for pattern, convert_cmd in pairs(opts.converters) do
+      table.insert(cmd, "--converter-pattern")
+      table.insert(cmd, pattern .. "=" .. convert_cmd)
+    end
+  end
   if opts.theme then
     table.insert(cmd, "--theme")
     table.insert(cmd, opts.theme)

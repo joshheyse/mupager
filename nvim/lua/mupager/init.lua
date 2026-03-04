@@ -9,37 +9,17 @@ local focus_timer = nil
 local float_timer = nil
 local opaque_ns = nil -- highlight namespace for float window bg override
 
--- Default extensions for all MuPDF-supported formats
+-- Default extensions: only binary/archive document formats that aren't text-editable.
+-- Text-editable formats (HTML, SVG, images) require explicit config.patterns opt-in.
 local default_patterns = {
-  -- Documents
   "*.pdf",
   "*.epub",
   "*.xps",
   "*.oxps",
-  -- Comics
   "*.cbz",
   "*.cbr",
-  -- Ebooks
   "*.fb2",
   "*.mobi",
-  -- Vector/web
-  "*.svg",
-  "*.html",
-  "*.xhtml",
-  "*.htm",
-  -- Images
-  "*.png",
-  "*.jpg",
-  "*.jpeg",
-  "*.bmp",
-  "*.tiff",
-  "*.tif",
-  "*.gif",
-  "*.pnm",
-  "*.pam",
-  "*.pbm",
-  "*.pgm",
-  "*.ppm",
 }
 
 local function stop_timers()
@@ -237,6 +217,9 @@ function M.open(file)
     show_stats = config.show_stats,
     theme = config.theme,
     scroll_lines = config.scroll_lines,
+    watch = config.watch,
+    converter = config.converter,
+    converters = config.converters,
   })
 
   -- Set up keybindings

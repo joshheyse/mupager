@@ -1,11 +1,13 @@
 #include "app.h"
 
 #include "base64.h"
+#include "converter.h"
 #include "sgr.h"
 #include "stopwatch.h"
 #include "terminal_input.h"
 
 #include <spdlog/spdlog.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -68,12 +70,22 @@ App::App(std::unique_ptr<Frontend> frontend, const Args& args, std::optional<Col
     , scroll_lines_(args.scroll_lines)
     , max_page_cache_(args.max_page_cache)
     , render_scale_setting_(args.render_scale)
-    , file_path_(args.file) {
+    , file_path_(args.file)
+    , source_path_(args.source_file)
+    , converter_cmd_(args.source_file.empty() ? "" : args.converter) {
   if (auto vm = parse_view_mode(args.view_mode)) {
     view_mode_ = *vm;
   }
   if (auto th = parse_theme(args.theme)) {
     theme_ = *th;
+  }
+  if (args.watch) {
+    watch_ = true;
+    const std::string& watched = source_path_.empty() ? file_path_ : source_path_;
+    struct stat st;
+    if (stat(watched.c_str(), &st) == 0) {
+      watched_mtime_ = st.st_mtime;
+    }
   }
   spdlog::info("opened document: {} pages, mode: {}, theme: {}", doc_.page_count(), args.view_mode, args.theme);
 }
@@ -767,6 +779,28 @@ void App::idle_tick() {
     if (last_action_.expired()) {
       last_action_.clear();
       update_statusline();
+    }
+  }
+
+  if (watch_) {
+    const std::string& watched = source_path_.empty() ? file_path_ : source_path_;
+    struct stat st;
+    if (stat(watched.c_str(), &st) == 0 && st.st_mtime != watched_mtime_) {
+      watched_mtime_ = st.st_mtime;
+      if (!source_path_.empty()) {
+        try {
+          reconvert(source_path_, file_path_, converter_cmd_);
+        }
+        catch (const std::runtime_error& e) {
+          spdlog::error("watch: reconversion failed: {}", e.what());
+          last_action_.set("Reconversion failed");
+          return;
+        }
+      }
+      spdlog::info("watch: file changed, reloading");
+      command_input_ = "reload";
+      execute_command();
+      command_input_.clear();
     }
   }
 }

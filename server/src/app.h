@@ -12,6 +12,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <ctime>
 #include <format>
 #include <memory>
 #include <optional>
@@ -346,7 +347,11 @@ private:
   std::string sidebar_filter_;
   std::vector<int> sidebar_filtered_;
 
-  std::string file_path_; ///< Document file path for reload.
+  std::string file_path_;         ///< Document file path for reload.
+  std::string source_path_;       ///< Original source path before conversion. Empty if not converted.
+  std::string converter_cmd_;     ///< Resolved converter command for reconversion. Empty if not converted.
+  bool watch_ = false;            ///< Auto-reload on file changes.
+  std::time_t watched_mtime_ = 0; ///< Last known mtime of watched file.
 
   std::vector<JumpPoint> jump_history_;
   int jump_index_ = -1; ///< Current position in jump history (-1 = at head).

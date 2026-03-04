@@ -227,11 +227,26 @@ Config load_config(const std::optional<std::string>& path_override) {
   if (auto v = tbl["max-page-cache"].value<int64_t>()) {
     cfg.max_page_cache = static_cast<int>(*v);
   }
+  if (auto v = tbl["watch"].value<bool>()) {
+    cfg.watch = *v;
+  }
   if (auto v = tbl["terminal-fg"].value<std::string>()) {
     cfg.terminal_fg = *v;
   }
   if (auto v = tbl["terminal-bg"].value<std::string>()) {
     cfg.terminal_bg = *v;
+  }
+
+  if (auto* tbl_converters = tbl["converters"].as_table()) {
+    std::map<std::string, std::string> map;
+    for (auto&& [key, val] : *tbl_converters) {
+      if (auto s = val.value<std::string>()) {
+        map[std::string(key.str())] = *s;
+      }
+    }
+    if (!map.empty()) {
+      cfg.converters = std::move(map);
+    }
   }
 
   parse_colors_table(tbl, cfg);
@@ -251,6 +266,8 @@ Config load_config(const std::optional<std::string>& path_override) {
       "terminal-bg",
       "colors",
       "keys",
+      "watch",
+      "converters",
   };
   for (auto&& [key, val] : tbl) {
     std::string k{key.str()};

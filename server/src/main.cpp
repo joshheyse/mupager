@@ -2,6 +2,7 @@
 #include "args.h"
 #include "color.h"
 #include "config.h"
+#include "converter.h"
 #include "neovim_frontend.h"
 #include "neovim_loop.h"
 #include "osc_query.h"
@@ -11,10 +12,13 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <filesystem>
 #include <memory>
 #include <string>
+#include <unordered_set>
 
 int main(int argc, char* argv[]) {
   std::optional<Args> args;
@@ -67,6 +71,53 @@ int main(int argc, char* argv[]) {
   spdlog::flush_every(std::chrono::seconds(1));
   spdlog::info("mupager starting: {} (mode: {})", args->file, args->mode);
 
+  // Run file conversion if a converter matches.
+  struct TempFileGuard {
+    std::string path;
+    ~TempFileGuard() {
+      if (!path.empty()) {
+        std::filesystem::remove(path);
+      }
+    }
+  };
+  TempFileGuard temp_guard;
+
+  auto match = find_converter(args->file, args->converters, args->converter);
+  if (match) {
+    try {
+      auto result = convert(args->file, *match);
+      if (result.is_temp) {
+        temp_guard.path = result.path;
+      }
+      args->source_file = args->file;
+      args->file = result.path;
+      args->converter = result.command;
+      spdlog::info("converted: {} -> {} via '{}'", args->source_file, args->file, result.command);
+    }
+    catch (const std::exception& e) {
+      spdlog::error("conversion failed: {}", e.what());
+      std::fprintf(stderr, "conversion error: %s\n", e.what());
+      return 1;
+    }
+  }
+  else {
+    // Check if the file format is natively supported by MuPDF.
+    static const std::unordered_set<std::string> NATIVE_EXTS = {
+        ".pdf", ".epub", ".xps",  ".oxps", ".cbz",  ".cbr", ".fb2", ".mobi", ".svg", ".html", ".xhtml", ".htm",
+        ".png", ".jpg",  ".jpeg", ".bmp",  ".tiff", ".tif", ".gif", ".pnm",  ".pam", ".pbm",  ".pgm",   ".ppm",
+    };
+    auto ext = std::filesystem::path(args->file).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (!ext.empty() && NATIVE_EXTS.find(ext) == NATIVE_EXTS.end()) {
+      std::fprintf(stderr, "unsupported file format '%s'\n", ext.c_str());
+      std::fprintf(stderr, "hint: configure a converter in config.toml or use --converter:\n");
+      std::fprintf(stderr, "  [converters]\n");
+      std::fprintf(stderr, "  \"*%s\" = \"<command> %%i -o %%o\"\n", ext.c_str());
+      std::fprintf(stderr, "  mupager --converter '<command> %%i -o %%o' %s\n", args->file.c_str());
+      return 1;
+    }
+  }
+
   if (detected_fg) {
     spdlog::info("detected terminal fg: #{:02x}{:02x}{:02x}", detected_fg->r, detected_fg->g, detected_fg->b);
   }
@@ -92,6 +143,7 @@ int main(int argc, char* argv[]) {
   }
   catch (const std::exception& e) {
     spdlog::error("{}", e.what());
+    std::fprintf(stderr, "error: %s\n", e.what());
     return 1;
   }
 
