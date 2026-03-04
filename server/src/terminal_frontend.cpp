@@ -23,6 +23,8 @@ TerminalFrontend::TerminalFrontend() {
   raw();
   noecho();
   keypad(stdscr, TRUE);
+  mousemask(ALL_MOUSE_EVENTS, nullptr);
+  mouseinterval(0);
   curs_set(0);
   refresh();
 
@@ -68,6 +70,39 @@ std::optional<InputEvent> TerminalFrontend::poll_input(int timeout_ms) {
     if (wch == KEY_RESIZE) {
       query_winsize();
       return InputEvent{input::RESIZE, 0, EventType::PRESS};
+    }
+    if (wch == KEY_MOUSE) {
+      MEVENT mevent{};
+      if (getmouse(&mevent) == OK) {
+        unsigned mods = 0;
+        if (mevent.bstate & BUTTON_CTRL) {
+          mods |= input::MOD_CTRL;
+        }
+        if (mevent.bstate & BUTTON_SHIFT) {
+          mods |= input::MOD_SHIFT;
+        }
+        uint32_t id = 0;
+        EventType etype = EventType::PRESS;
+        if (mevent.bstate & BUTTON4_PRESSED) {
+          id = input::MOUSE_SCROLL_UP;
+        }
+#ifdef BUTTON5_PRESSED
+        else if (mevent.bstate & BUTTON5_PRESSED) {
+          id = input::MOUSE_SCROLL_DN;
+        }
+#endif
+        else if (mevent.bstate & BUTTON1_PRESSED) {
+          id = input::MOUSE_PRESS;
+        }
+        else if (mevent.bstate & BUTTON1_RELEASED) {
+          id = input::MOUSE_RELEASE;
+          etype = EventType::RELEASE;
+        }
+        if (id != 0) {
+          return InputEvent{id, mods, etype, mevent.x, mevent.y};
+        }
+      }
+      return std::nullopt;
     }
     if (wch == KEY_BACKSPACE) {
       return InputEvent{input::BACKSPACE, 0, EventType::PRESS};

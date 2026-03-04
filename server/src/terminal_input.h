@@ -1,5 +1,6 @@
 #pragma once
 
+#include "geometry.h"
 #include "input_event.h"
 #include "rpc_command.h"
 
@@ -27,8 +28,9 @@ public:
   /// @param event The input event to translate.
   /// @param mode Current input mode of the application.
   /// @param terminal_rows Number of terminal rows (for page-size calculations).
+  /// @param cell Cell dimensions in pixels (for mouse pixel conversion).
   /// @return The translated command, or nullopt if the event was consumed without producing a command.
-  std::optional<RpcCommand> translate(const InputEvent& event, InputMode mode, int terminal_rows);
+  std::optional<RpcCommand> translate(const InputEvent& event, InputMode mode, int terminal_rows, CellSize cell = {});
 
 private:
   bool pending_g_ = false;

@@ -122,7 +122,26 @@ const std::vector<HelpBinding>& get_help_bindings() {
   return BINDINGS;
 }
 
-std::optional<RpcCommand> TerminalInputHandler::translate(const InputEvent& event, InputMode mode, int terminal_rows) {
+std::optional<RpcCommand> TerminalInputHandler::translate(const InputEvent& event, InputMode mode, int terminal_rows, CellSize cell) {
+  // Handle mouse events before mode dispatch
+  if (event.id == input::MOUSE_SCROLL_UP || event.id == input::MOUSE_SCROLL_DN) {
+    int sign = (event.id == input::MOUSE_SCROLL_UP) ? -1 : 1;
+    if (event.modifiers & input::MOD_CTRL) {
+      return (sign < 0) ? RpcCommand{cmd::ZoomIn{}} : RpcCommand{cmd::ZoomOut{}};
+    }
+    int step = 3;
+    if (event.modifiers & input::MOD_SHIFT) {
+      return cmd::MouseScroll{sign * cell.width * step, 0};
+    }
+    return cmd::MouseScroll{0, sign * cell.height * step};
+  }
+  if (event.id == input::MOUSE_PRESS) {
+    return cmd::ClickAt{event.mouse_col, event.mouse_row};
+  }
+  if (event.id == input::MOUSE_RELEASE) {
+    return std::nullopt;
+  }
+
   bool is_press = event.type == EventType::PRESS || event.type == EventType::UNKNOWN;
   if (!is_press) {
     return std::nullopt;

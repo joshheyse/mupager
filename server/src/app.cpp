@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <unistd.h>
 
 App::App(std::unique_ptr<Frontend> frontend, const Args& args)
     : frontend_(std::move(frontend))
@@ -1117,6 +1118,50 @@ void App::handle_command(const RpcCommand& cmd) {
         else if constexpr (std::is_same_v<T, cmd::Show>) {
           update_viewport();
         }
+        else if constexpr (std::is_same_v<T, cmd::MouseScroll>) {
+          scroll(arg.dx, arg.dy);
+        }
+        else if constexpr (std::is_same_v<T, cmd::ClickAt>) {
+          auto client = frontend_->client_info();
+          if (!client.is_valid() || layout_.empty() || client.cell.width == 0 || client.cell.height == 0) {
+            return;
+          }
+
+          int sidebar_cols = sidebar_effective_width();
+          int sidebar_px = 0;
+          if (sidebar_cols > 0 && client.cell.width > 0) {
+            sidebar_px = sidebar_cols * client.cell.width;
+          }
+
+          // Screen cell → viewport pixel → global pixel
+          int vp_x = arg.col * client.cell.width;
+          int vp_y = arg.row * client.cell.height;
+          int global_x = vp_x - sidebar_px + scroll_.x;
+          int global_y = vp_y + scroll_.y;
+
+          // Find which page this point is on
+          int p = page_at_y(global_y);
+          if (p < 0 || p >= static_cast<int>(layout_.size())) {
+            return;
+          }
+
+          // Convert to page point coordinates
+          float page_zoom = layout_[p].zoom * user_zoom_;
+          if (page_zoom <= 0.0f) {
+            return;
+          }
+          float pt_x = static_cast<float>(global_x - layout_[p].rect.x) / page_zoom;
+          float pt_y = static_cast<float>(global_y - layout_[p].rect.y) / page_zoom;
+
+          // Hit-test against page links
+          auto page_links = doc_.load_links(p);
+          for (auto& pl : page_links) {
+            if (pt_x >= pl.x && pt_x <= pl.x + pl.w && pt_y >= pl.y && pt_y <= pl.y + pl.h) {
+              follow_link(pl);
+              return;
+            }
+          }
+        }
       },
       cmd
   );
@@ -1774,11 +1819,28 @@ void App::follow_link(const PageLink& link) {
     update_viewport();
   }
   else {
-    // External link — show URL in overlay and copy to clipboard via OSC 52
-    frontend_->show_overlay({link.uri});
+    // External link — copy to clipboard via OSC 52 (works over SSH)
     std::string osc52 = "\x1b]52;c;" + base64::encode(link.uri) + "\x07";
     frontend_->write_raw(osc52.data(), osc52.size());
-    input_mode_ = InputMode::HELP; // Dismiss on next key
+
+    // Try to open in default browser (only works locally)
+    bool in_ssh = std::getenv("SSH_CLIENT") != nullptr || std::getenv("SSH_TTY") != nullptr;
+    if (!in_ssh) {
+      pid_t pid = fork();
+      if (pid == 0) {
+#ifdef __APPLE__
+        execlp("open", "open", link.uri.c_str(), nullptr);
+#else
+        execlp("xdg-open", "xdg-open", link.uri.c_str(), nullptr);
+#endif
+        _exit(127);
+      }
+      last_action_.set("Opened: {}", link.uri);
+    }
+    else {
+      last_action_.set("Copied: {}", link.uri);
+    }
+    update_statusline();
   }
 }
 

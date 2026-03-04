@@ -133,6 +133,16 @@ struct DismissOverlay {};
 struct Hide {};
 struct Show {};
 
+struct MouseScroll {
+  int dx = 0; ///< Horizontal pixel delta.
+  int dy = 0; ///< Vertical pixel delta.
+};
+
+struct ClickAt {
+  int col; ///< Screen column (0-based cell).
+  int row; ///< Screen row (0-based cell).
+};
+
 } // namespace cmd
 
 /// @brief Variant type encompassing all RPC commands.
@@ -197,4 +207,6 @@ using RpcCommand = std::variant<
     cmd::ShowHelp,
     cmd::DismissOverlay,
     cmd::Hide,
-    cmd::Show>;
+    cmd::Show,
+    cmd::MouseScroll,
+    cmd::ClickAt>;
