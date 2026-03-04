@@ -6,13 +6,19 @@ local mupager_bufnr = nil
 local mupager_winid = nil
 local saved_hl_ = {} -- original highlight groups to restore on close
 local focus_timer = nil
+local float_timer = nil
 local opaque_ns = nil -- highlight namespace for float window bg override
 
-local function stop_focus_timer()
+local function stop_timers()
   if focus_timer then
     focus_timer:stop()
     focus_timer:close()
     focus_timer = nil
+  end
+  if float_timer then
+    float_timer:stop()
+    float_timer:close()
+    float_timer = nil
   end
 end
 
@@ -293,9 +299,11 @@ function M.open(file)
     )
   end
 
+  local poll_interval = config.poll_interval or 100
+
   if tmux_pane then
     focus_timer = vim.uv.new_timer()
-    focus_timer:start(100, 100, vim.schedule_wrap(check_window_active))
+    focus_timer:start(poll_interval, poll_interval, vim.schedule_wrap(check_window_active))
   end
 
   vim.api.nvim_create_autocmd("FocusLost", {
@@ -319,24 +327,14 @@ function M.open(file)
   })
 
   -- Catch floating windows and force opaque backgrounds.
-  -- SafeState fires after all plugin configuration is done, avoiding timing races.
-  local float_check_pending = false
-
-  vim.api.nvim_create_autocmd({ "WinNew", "WinEnter", "WinLeave", "CmdlineEnter" }, {
-    group = augroup,
-    callback = function() float_check_pending = true end,
-  })
-
-  vim.api.nvim_create_autocmd("SafeState", {
-    group = augroup,
-    callback = function()
-      if not float_check_pending then return end
-      float_check_pending = false
-      for _, win in ipairs(vim.api.nvim_list_wins()) do
-        ensure_opaque_float(win, float_bg)
-      end
-    end,
-  })
+  -- A periodic timer is the most reliable approach — autocmd-based checks
+  -- miss windows created with noautocmd (notifications, noice cmdline).
+  float_timer = vim.uv.new_timer()
+  float_timer:start(50, poll_interval, vim.schedule_wrap(function()
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      ensure_opaque_float(win, float_bg)
+    end
+  end))
 
   -- Re-apply highlight overrides after colorscheme changes
   vim.api.nvim_create_autocmd("ColorScheme", {
@@ -366,7 +364,7 @@ end
 --- Close the mupager session.
 function M.close()
   log.info "close: stopping server"
-  stop_focus_timer()
+  stop_timers()
   local server = require "mupager.server"
   server.stop()
 
