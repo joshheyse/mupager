@@ -298,7 +298,7 @@ void NeovimFrontend::show_pages(const std::vector<PageSlice>& slices) {
       cmd.src_y = s.src.y;
       cmd.src_w = s.src.width;
       cmd.src_h = s.src.height;
-      cmd.z_index = -1;
+      cmd.z_index = -1073741825;
       if (s.dst.width > 0) {
         cmd.columns = s.dst.width;
       }
@@ -326,7 +326,7 @@ void NeovimFrontend::show_pages(const std::vector<PageSlice>& slices) {
       cmd.src_y = s.src.y;
       cmd.src_w = s.src.width;
       cmd.src_h = s.src.height;
-      cmd.z_index = -1;
+      cmd.z_index = -1073741825;
       if (s.dst.width > 0) {
         cmd.columns = s.dst.width;
       }

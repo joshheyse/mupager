@@ -44,6 +44,8 @@ function M._telescope_picker(outline)
   pickers
     .new({}, {
       prompt_title = "Table of Contents",
+      sorting_strategy = "ascending",
+      layout_config = { prompt_position = "top" },
       finder = finders.new_table {
         results = items,
         entry_maker = function(item)
