@@ -13,6 +13,7 @@
 App::App(std::unique_ptr<Frontend> frontend, const Args& args)
     : frontend_(std::move(frontend))
     , doc_(args.file)
+    , show_stats_(args.show_stats)
     , oversample_setting_(args.oversample)
     , file_path_(args.file) {
   if (args.view_mode == "page") {
@@ -372,13 +373,15 @@ void App::update_statusline() {
   }
   right += std::format(" \xe2\x94\x82 {} \xe2\x94\x82 {}/{}", theme_str, page, total);
 
-  auto [cached_pages, cached_bytes] = cache_stats();
-  if (!cached_pages.empty()) {
-    if (cached_bytes >= 1024 * 1024) {
-      right += std::format(" \xe2\x94\x82 [{}] {:.1f}M", cached_pages, static_cast<double>(cached_bytes) / (1024.0 * 1024.0));
-    }
-    else {
-      right += std::format(" \xe2\x94\x82 [{}] {:.0f}K", cached_pages, static_cast<double>(cached_bytes) / 1024.0);
+  if (show_stats_) {
+    auto [cached_pages, cached_bytes] = cache_stats();
+    if (!cached_pages.empty()) {
+      if (cached_bytes >= 1024 * 1024) {
+        right += std::format(" \xe2\x94\x82 [{}] {:.1f}M", cached_pages, static_cast<double>(cached_bytes) / (1024.0 * 1024.0));
+      }
+      else {
+        right += std::format(" \xe2\x94\x82 [{}] {:.0f}K", cached_pages, static_cast<double>(cached_bytes) / 1024.0);
+      }
     }
   }
 
@@ -1883,7 +1886,7 @@ ViewState App::view_state() const {
     return "";
   }();
 
-  return {
+  ViewState vs{
       current_page() + 1,
       doc_.page_count(),
       static_cast<int>(user_zoom_ * 100.0f + 0.5f),
@@ -1893,5 +1896,15 @@ ViewState App::view_state() const {
       search_current_ >= 0 ? search_current_ + 1 : 0,
       static_cast<int>(search_results_.size()),
       input_mode_ == InputMode::LINK_HINTS,
+      {},
+      0,
   };
+
+  if (show_stats_) {
+    auto [pages, bytes] = cache_stats();
+    vs.cache_pages = std::move(pages);
+    vs.cache_bytes = bytes;
+  }
+
+  return vs;
 }

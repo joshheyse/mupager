@@ -189,6 +189,7 @@ function M.open(file)
   vim.wo[mupager_winid].foldcolumn = "0"
   vim.wo[mupager_winid].statuscolumn = ""
   vim.wo[mupager_winid].fillchars = "eob: "
+  vim.wo[mupager_winid].statusline = "%{%v:lua.require('mupager').statusline()%}"
 
   -- Start the server
   local server = require "mupager.server"
@@ -197,6 +198,7 @@ function M.open(file)
     view_mode = config.view_mode,
     oversample = config.oversample,
     log_level = config.log_level,
+    show_stats = config.show_stats,
   })
 
   -- Set up keybindings

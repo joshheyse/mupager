@@ -26,6 +26,7 @@ Args::Args(int argc, char* argv[])
   std::string oversample_str = "auto";
   cli.add_option("--oversample", oversample_str, "Oversample strategy (auto, never, 1, 2, 4)")->check(CLI::IsMember({"auto", "never", "1", "2", "4"}));
   cli.add_option("--mode", mode, "Frontend mode (terminal, neovim)")->check(CLI::IsMember({"terminal", "neovim"}));
+  cli.add_flag("--show-stats", show_stats, "Show cache stats in the statusline");
   cli.parse(argc, argv);
 
   if (!log_opt->count()) {

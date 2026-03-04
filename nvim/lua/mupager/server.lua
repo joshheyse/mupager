@@ -44,6 +44,9 @@ function M.start(file, opts)
     table.insert(cmd, "--log-level")
     table.insert(cmd, opts.log_level)
   end
+  if opts.show_stats then
+    table.insert(cmd, "--show-stats")
+  end
 
   table.insert(cmd, file)
   log.info("start: cmd=%s", table.concat(cmd, " "))

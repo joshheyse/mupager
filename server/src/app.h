@@ -122,6 +122,8 @@ struct ViewState {
   int search_current; ///< 1-based index of current match (0 = none).
   int search_total;   ///< Total number of search matches.
   bool link_hints_active;
+  std::string cache_pages; ///< Cached page ranges (e.g. "1-3,5,8-10"), empty when debug is off.
+  size_t cache_bytes = 0;  ///< Total cached memory in bytes, 0 when debug is off.
 };
 
 /// @brief Main application controller — pure command processor.
@@ -213,6 +215,7 @@ private:
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
   bool running_ = true;
+  bool show_stats_ = false;
   PixelPoint scroll_;
   ViewMode view_mode_ = ViewMode::CONTINUOUS;
   Theme theme_ = Theme::DARK;

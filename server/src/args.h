@@ -18,6 +18,7 @@ struct Args {
   std::string view_mode;
   std::string mode = "terminal"; ///< Frontend mode: "terminal" or "neovim".
   Oversample oversample = Oversample::AUTO;
+  bool show_stats = false; ///< Show cache stats in the statusline.
 
   Args(int argc, char* argv[]);
 };

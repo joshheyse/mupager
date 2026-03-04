@@ -12,7 +12,7 @@
 static void send_state(RpcTransport& transport, const ViewState& state) {
   msgpack::sbuffer buf;
   msgpack::packer<msgpack::sbuffer> pk(buf);
-  pk.pack_map(9);
+  pk.pack_map(11);
   pk.pack("current_page");
   pk.pack(state.current_page);
   pk.pack("total_pages");
@@ -31,6 +31,10 @@ static void send_state(RpcTransport& transport, const ViewState& state) {
   pk.pack(state.search_total);
   pk.pack("link_hints_active");
   pk.pack(state.link_hints_active);
+  pk.pack("cache_pages");
+  pk.pack(state.cache_pages);
+  pk.pack("cache_bytes");
+  pk.pack(state.cache_bytes);
   transport.notify_nvim_lua("state_changed", buf);
 }
 
