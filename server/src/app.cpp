@@ -888,7 +888,15 @@ void App::handle_command(const RpcCommand& cmd) {
           command_input_.clear();
         }
         else if constexpr (std::is_same_v<T, cmd::ToggleTheme>) {
-          theme_ = (theme_ == Theme::DARK) ? Theme::LIGHT : Theme::DARK;
+          if (theme_ == Theme::DARK) {
+            theme_ = Theme::LIGHT;
+          }
+          else if (theme_ == Theme::LIGHT) {
+            theme_ = Theme::TERMINAL;
+          }
+          else {
+            theme_ = Theme::DARK;
+          }
           frontend_->clear();
           render();
         }
@@ -1531,21 +1539,7 @@ void App::show_outline_popup() {
     return text.substr(0, pos);
   };
 
-  // Build border title: "DocTitle - Table of Contents"
-  std::string border_title;
-  if (!outline_.empty()) {
-    border_title = outline_[0].title + " - Table of Contents";
-  }
-  else {
-    // Extract filename stem from path
-    auto pos = file_path_.find_last_of('/');
-    auto name = (pos != std::string::npos) ? file_path_.substr(pos + 1) : file_path_;
-    auto dot = name.find_last_of('.');
-    if (dot != std::string::npos) {
-      name = name.substr(0, dot);
-    }
-    border_title = name + " - Table of Contents";
-  }
+  std::string border_title = "Table of Contents";
 
   std::vector<std::string> lines;
 
