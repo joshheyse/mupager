@@ -15,7 +15,7 @@ App::App(std::unique_ptr<Frontend> frontend, const Args& args)
     : frontend_(std::move(frontend))
     , doc_(args.file)
     , show_stats_(args.show_stats)
-    , oversample_setting_(args.oversample)
+    , render_scale_setting_(args.render_scale)
     , file_path_(args.file) {
   if (args.view_mode == "page") {
     view_mode_ = ViewMode::PAGE_WIDTH;
@@ -115,37 +115,43 @@ int App::page_at_y(int y) const {
   return lo;
 }
 
-int App::effective_oversample() const {
-  Oversample setting = oversample_setting_;
+float App::effective_render_scale() const {
+  RenderScale setting = render_scale_setting_;
 
-  if (setting == Oversample::AUTO) {
-    setting = frontend_->supports_image_viewporting() ? Oversample::X1 : Oversample::NEVER;
+  if (setting == RenderScale::AUTO) {
+    setting = frontend_->supports_image_viewporting() ? RenderScale::X1 : RenderScale::NEVER;
   }
 
-  if (setting == Oversample::NEVER) {
-    return 0;
+  if (setting == RenderScale::NEVER) {
+    return 0.0f;
   }
 
-  int floor_os = 1;
-  if (setting == Oversample::X2) {
-    floor_os = 2;
+  float floor_scale = 1.0f;
+  if (setting == RenderScale::X025) {
+    floor_scale = 0.25f;
   }
-  else if (setting == Oversample::X4) {
-    floor_os = 4;
+  else if (setting == RenderScale::X05) {
+    floor_scale = 0.5f;
+  }
+  else if (setting == RenderScale::X2) {
+    floor_scale = 2.0f;
+  }
+  else if (setting == RenderScale::X4) {
+    floor_scale = 4.0f;
   }
 
-  int dynamic_os = 1;
+  float dynamic_scale = 0.0f;
   if (user_zoom_ > 1.0f) {
-    dynamic_os = 2;
+    dynamic_scale = 2.0f;
   }
   if (user_zoom_ > 2.0f) {
-    dynamic_os = 4;
+    dynamic_scale = 4.0f;
   }
   if (user_zoom_ > 4.0f) {
-    dynamic_os = 8;
+    dynamic_scale = 8.0f;
   }
 
-  return std::max(floor_os, dynamic_os);
+  return std::max(floor_scale, dynamic_scale);
 }
 
 void App::handle_zoom_change(float old_zoom) {
@@ -188,16 +194,16 @@ void App::ensure_pages_uploaded(int first, int last) {
     return;
   }
 
-  int os = effective_oversample();
+  float rs = effective_render_scale();
 
   for (int i = first; i <= last; ++i) {
     float base_zoom = layout_[i].zoom;
 
-    float render_zoom = (os == 0) ? base_zoom * user_zoom_ : base_zoom * os;
+    float render_zoom = (rs == 0.0f) ? base_zoom * user_zoom_ : base_zoom * rs;
 
     auto it = page_cache_.find(i);
     if (it != page_cache_.end()) {
-      if (os == 0) {
+      if (rs == 0.0f) {
         // NEVER mode: re-render only if zoom changed
         if (it->second.render_zoom == render_zoom) {
           continue;
@@ -206,11 +212,11 @@ void App::ensure_pages_uploaded(int first, int last) {
         page_cache_.erase(it);
       }
       else {
-        // Oversample mode: keep if cached oversample is sufficient
-        if (it->second.oversample >= os) {
+        // Scaled mode: keep if cached scale is sufficient
+        if (it->second.render_scale >= rs) {
           continue;
         }
-        // Need higher oversample — re-render
+        // Need higher scale — re-render
         frontend_->free_image(it->second.image_id);
         page_cache_.erase(it);
       }
@@ -219,7 +225,7 @@ void App::ensure_pages_uploaded(int first, int last) {
     frontend_->statusline(std::format("Rendering page {}...", i + 1), "");
 
     Pixmap pixmap = [&] {
-      Stopwatch sw(std::format("mupdf render page {} zoom={} os={}", i, render_zoom, os));
+      Stopwatch sw(std::format("mupdf render page {} zoom={} scale={}", i, render_zoom, rs));
       return doc_.render_page(i, render_zoom);
     }();
 
@@ -229,12 +235,18 @@ void App::ensure_pages_uploaded(int first, int last) {
 
     highlight_page_matches(pixmap, i, render_zoom);
 
-    int cols = (pixmap.width() + client.cell.width - 1) / client.cell.width;
-    int rows = (pixmap.height() + client.cell.height - 1) / client.cell.height;
+    // Grid dimensions based on display size (not rendered pixel size)
+    // so images display at correct width in tmux unicode placeholder mode.
+    float display_zoom = base_zoom * user_zoom_;
+    auto [pw, ph] = doc_.page_size(i);
+    int display_w = static_cast<int>(pw * display_zoom);
+    int display_h = static_cast<int>(ph * display_zoom);
+    int cols = (display_w + client.cell.width - 1) / client.cell.width;
+    int rows = (display_h + client.cell.height - 1) / client.cell.height;
 
     uint32_t image_id = frontend_->upload_image(pixmap, cols, rows);
     size_t mem = static_cast<size_t>(pixmap.width()) * pixmap.height() * pixmap.components();
-    page_cache_[i] = {image_id, {pixmap.width(), pixmap.height()}, {cols, rows}, os, render_zoom, mem};
+    page_cache_[i] = {image_id, {pixmap.width(), pixmap.height()}, {cols, rows}, rs, render_zoom, mem};
   }
 }
 
@@ -451,11 +463,11 @@ void App::update_viewport() {
 
     // Scale factor: zoomed-content pixels -> image pixels
     float img_scale;
-    if (cached.oversample == 0) {
+    if (cached.render_scale == 0.0f) {
       img_scale = 1.0f; // NEVER mode: image IS the zoomed content
     }
     else {
-      img_scale = static_cast<float>(cached.oversample) / user_zoom_;
+      img_scale = cached.render_scale / user_zoom_;
     }
 
     // Where the actual rendered content starts in viewport coordinates.
@@ -844,8 +856,8 @@ void App::handle_command(const RpcCommand& cmd) {
           execute_command();
           command_input_.clear();
         }
-        else if constexpr (std::is_same_v<T, cmd::SetOversample>) {
-          command_input_ = "set oversample " + arg.strategy;
+        else if constexpr (std::is_same_v<T, cmd::SetRenderScale>) {
+          command_input_ = "set render-scale " + arg.strategy;
           execute_command();
           command_input_.clear();
         }
@@ -1301,24 +1313,30 @@ void App::execute_command() {
       scroll_.x = 0;
       render();
     }
-    else if (key == "oversample") {
+    else if (key == "render-scale") {
       if (value == "auto") {
-        oversample_setting_ = Oversample::AUTO;
+        render_scale_setting_ = RenderScale::AUTO;
       }
       else if (value == "never") {
-        oversample_setting_ = Oversample::NEVER;
+        render_scale_setting_ = RenderScale::NEVER;
+      }
+      else if (value == "0.25") {
+        render_scale_setting_ = RenderScale::X025;
+      }
+      else if (value == "0.5") {
+        render_scale_setting_ = RenderScale::X05;
       }
       else if (value == "1") {
-        oversample_setting_ = Oversample::X1;
+        render_scale_setting_ = RenderScale::X1;
       }
       else if (value == "2") {
-        oversample_setting_ = Oversample::X2;
+        render_scale_setting_ = RenderScale::X2;
       }
       else if (value == "4") {
-        oversample_setting_ = Oversample::X4;
+        render_scale_setting_ = RenderScale::X4;
       }
       else {
-        last_action_.set("Unknown oversample: {}", value);
+        last_action_.set("Unknown render-scale: {}", value);
         return;
       }
       frontend_->clear();

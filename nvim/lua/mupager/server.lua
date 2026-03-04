@@ -25,7 +25,7 @@ end
 
 --- Start the mupager server process.
 --- @param file string Path to the document file.
---- @param opts table|nil Optional arguments (view_mode, oversample, log_level).
+--- @param opts table|nil Optional arguments (view_mode, render_scale, log_level).
 function M.start(file, opts)
   opts = opts or {}
   if job_id then return end
@@ -36,17 +36,15 @@ function M.start(file, opts)
     table.insert(cmd, "--view-mode")
     table.insert(cmd, opts.view_mode)
   end
-  if opts.oversample then
-    table.insert(cmd, "--oversample")
-    table.insert(cmd, tostring(opts.oversample))
+  if opts.render_scale then
+    table.insert(cmd, "--render-scale")
+    table.insert(cmd, tostring(opts.render_scale))
   end
   if opts.log_level then
     table.insert(cmd, "--log-level")
     table.insert(cmd, opts.log_level)
   end
-  if opts.show_stats then
-    table.insert(cmd, "--show-stats")
-  end
+  if opts.show_stats then table.insert(cmd, "--show-stats") end
 
   table.insert(cmd, file)
   log.info("start: cmd=%s", table.concat(cmd, " "))

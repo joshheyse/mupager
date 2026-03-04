@@ -26,7 +26,7 @@ struct CachedPage {
   uint32_t image_id;
   PixelSize pixel_size; ///< Rendered pixel dimensions.
   CellSize cell_grid;   ///< Grid dimensions in cells.
-  int oversample;       ///< Oversample factor this was rendered at (0 = exact zoom, no viewporting).
+  float render_scale;   ///< Render scale this was rendered at (0 = exact zoom, no viewporting).
   float render_zoom;    ///< Actual zoom passed to MuPDF (for cache invalidation in NEVER mode).
   size_t memory_bytes;  ///< Uncompressed pixmap size (w * h * components).
 };
@@ -182,7 +182,7 @@ private:
   void update_statusline();
   void show_help();
   void execute_command();
-  int effective_oversample() const;
+  float effective_render_scale() const;
   void handle_zoom_change(float old_zoom);
   void show_outline_popup();
   void outline_apply_filter();
@@ -221,7 +221,7 @@ private:
   Theme theme_ = Theme::DARK;
   InputMode input_mode_ = InputMode::NORMAL;
   float user_zoom_ = 1.0f;        ///< User zoom multiplier (1.0 = fit-to-viewport).
-  Oversample oversample_setting_; ///< From CLI --oversample.
+  RenderScale render_scale_setting_; ///< From CLI --render-scale.
   std::string search_term_;
   std::string command_input_;
   int search_page_matches_ = 0;

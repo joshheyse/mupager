@@ -23,27 +23,39 @@ Args::Args(int argc, char* argv[])
   cli.add_option("--log-file", log_file, "Log file path");
   cli.add_option("--view-mode", view_mode, "View mode (continuous, page, page-height, side-by-side)")
       ->check(CLI::IsMember({"continuous", "page", "page-height", "side-by-side"}));
-  std::string oversample_str = "auto";
-  cli.add_option("--oversample", oversample_str, "Oversample strategy (auto, never, 1, 2, 4)")->check(CLI::IsMember({"auto", "never", "1", "2", "4"}));
+  std::string scale_str = "auto";
+  cli.add_option("--render-scale", scale_str, "Render scale (auto, never, 0.25, 0.5, 1, 2, 4)")
+      ->check(CLI::IsMember({"auto", "never", "0.25", "0.5", "1", "2", "4"}));
   cli.add_option("--mode", mode, "Frontend mode (terminal, neovim)")->check(CLI::IsMember({"terminal", "neovim"}));
   cli.add_flag("--show-stats", show_stats, "Show cache stats in the statusline");
-  cli.parse(argc, argv);
+  try {
+    cli.parse(argc, argv);
+  }
+  catch (const CLI::CallForHelp&) {
+    throw std::runtime_error(cli.help());
+  }
 
   if (!log_opt->count()) {
     const char* env = std::getenv("SPDLOG_LEVEL");
     log_level = env ? env : "info";
   }
 
-  if (oversample_str == "never") {
-    oversample = Oversample::NEVER;
+  if (scale_str == "never") {
+    render_scale = RenderScale::NEVER;
   }
-  else if (oversample_str == "1") {
-    oversample = Oversample::X1;
+  else if (scale_str == "0.25") {
+    render_scale = RenderScale::X025;
   }
-  else if (oversample_str == "2") {
-    oversample = Oversample::X2;
+  else if (scale_str == "0.5") {
+    render_scale = RenderScale::X05;
   }
-  else if (oversample_str == "4") {
-    oversample = Oversample::X4;
+  else if (scale_str == "1") {
+    render_scale = RenderScale::X1;
+  }
+  else if (scale_str == "2") {
+    render_scale = RenderScale::X2;
+  }
+  else if (scale_str == "4") {
+    render_scale = RenderScale::X4;
   }
 }

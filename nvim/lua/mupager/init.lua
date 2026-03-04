@@ -196,7 +196,7 @@ function M.open(file)
   server.start(file, {
     bin = config.bin,
     view_mode = config.view_mode,
-    oversample = config.oversample,
+    render_scale = config.render_scale,
     log_level = config.log_level,
     show_stats = config.show_stats,
   })
@@ -332,11 +332,15 @@ function M.open(file)
   -- A periodic timer is the most reliable approach — autocmd-based checks
   -- miss windows created with noautocmd (notifications, noice cmdline).
   float_timer = vim.uv.new_timer()
-  float_timer:start(50, poll_interval, vim.schedule_wrap(function()
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
-      ensure_opaque_float(win, float_bg)
-    end
-  end))
+  float_timer:start(
+    50,
+    poll_interval,
+    vim.schedule_wrap(function()
+      for _, win in ipairs(vim.api.nvim_list_wins()) do
+        ensure_opaque_float(win, float_bg)
+      end
+    end)
+  )
 
   -- Re-apply highlight overrides after colorscheme changes
   vim.api.nvim_create_autocmd("ColorScheme", {

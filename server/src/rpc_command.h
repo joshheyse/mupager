@@ -57,7 +57,7 @@ struct SetTheme {
   std::string theme;
 };
 
-struct SetOversample {
+struct SetRenderScale {
   std::string strategy;
 };
 
@@ -167,7 +167,7 @@ using RpcCommand = std::variant<
     cmd::SetViewMode,
     cmd::ToggleTheme,
     cmd::SetTheme,
-    cmd::SetOversample,
+    cmd::SetRenderScale,
     cmd::Reload,
     cmd::Search,
     cmd::SearchNext,

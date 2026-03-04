@@ -348,11 +348,11 @@ std::optional<RpcCommand> RpcTransport::parse_command(const std::string& method,
         }
       }
     }
-    if (cmd_name == "set_oversample" && params.via.array.size >= 2 && arr[1].type == msgpack::type::MAP) {
+    if (cmd_name == "set_render_scale" && params.via.array.size >= 2 && arr[1].type == msgpack::type::MAP) {
       auto map = arr[1].via.map;
       for (uint32_t i = 0; i < map.size; ++i) {
         if (map.ptr[i].key.type == msgpack::type::STR && map.ptr[i].key.as<std::string>() == "strategy") {
-          return cmd::SetOversample{map.ptr[i].val.as<std::string>()};
+          return cmd::SetRenderScale{map.ptr[i].val.as<std::string>()};
         }
       }
     }
