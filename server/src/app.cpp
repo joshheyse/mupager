@@ -1532,7 +1532,7 @@ void App::show_outline_popup() {
   };
 
   std::vector<std::string> lines;
-  lines.push_back("Table of Contents");
+  lines.push_back(pad_line("Table of Contents", 17));
 
   auto filter_line = std::format("> {}", outline_filter_);
   lines.push_back(pad_line(filter_line, static_cast<int>(filter_line.size())));

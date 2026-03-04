@@ -353,8 +353,7 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
 
   // Box layout: │ SP content SP │ → content_w + 6 total
   int box_w = max_width + 6;
-  // lines[0] = title on top border, lines[1..] = body rows, plus bottom border
-  int box_h = static_cast<int>(lines.size()) + 1; // +1 for bottom border row
+  int box_h = static_cast<int>(lines.size()) + 2; // +2 for top/bottom border rows
   int start_col = std::max(1, (static_cast<int>(ws_col_) - box_w) / 2 + 1);
   int start_row = std::max(1, (static_cast<int>(ws_row_) - box_h) / 2 + 1);
   int max_start = std::max(1, static_cast<int>(ws_row_) - box_h - 1);
@@ -374,27 +373,19 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
   std::string out;
   out.reserve(box_h * (box_w + 128));
 
-  // Top border: ╭─ Title ─────╮
+  // Top border: ╭──────────────╮
   sgr::move_to(out, start_row, start_col);
   out += border_sgr;
   out += corner_tl;
-  out += horiz;
-  out += " ";
-  out += content_sgr;
-  int title_w = display_width(lines[0]);
-  out += lines[0];
-  out += " ";
-  out += border_sgr;
-  int remaining = box_w - 4 - title_w - 1; // TL + H + SP before + SP after + title + TR
-  for (int i = 0; i < remaining; ++i) {
+  for (int i = 0; i < box_w - 2; ++i) {
     out += horiz;
   }
   out += corner_tr;
   out += sgr::RESET;
 
-  // Body lines (lines[1..])
-  for (size_t i = 1; i < lines.size(); ++i) {
-    int row = start_row + static_cast<int>(i);
+  // Body lines
+  for (size_t i = 0; i < lines.size(); ++i) {
+    int row = start_row + 1 + static_cast<int>(i);
     sgr::move_to(out, row, start_col);
     out += sgr::RESET;
     out += border_sgr;
@@ -412,7 +403,7 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
     out += sgr::RESET;
   }
 
-  // Bottom border: ╰──────────╯
+  // Bottom border: ╰──────────────╯
   int bottom_row = start_row + box_h - 1;
   sgr::move_to(out, bottom_row, start_col);
   out += border_sgr;
