@@ -11,9 +11,12 @@
 #include <cstring>
 #include <string>
 
-App::App(std::unique_ptr<Frontend> frontend, const Args& args)
+App::App(std::unique_ptr<Frontend> frontend, const Args& args, std::optional<Color> detected_fg, std::optional<Color> detected_bg)
     : frontend_(std::move(frontend))
     , doc_(args.file)
+    , colors_(args.colors)
+    , detected_terminal_fg_(detected_fg)
+    , detected_terminal_bg_(detected_bg)
     , show_stats_(args.show_stats)
     , scroll_lines_(args.scroll_lines)
     , render_scale_setting_(args.render_scale)
@@ -29,6 +32,12 @@ App::App(std::unique_ptr<Frontend> frontend, const Args& args)
   }
   if (args.theme == "light") {
     theme_ = Theme::LIGHT;
+  }
+  else if (args.theme == "auto") {
+    theme_ = Theme::AUTO;
+  }
+  else if (args.theme == "terminal") {
+    theme_ = Theme::TERMINAL;
   }
   spdlog::info("opened document: {} pages, mode: {}, theme: {}", doc_.page_count(), args.view_mode, args.theme);
 }
@@ -233,8 +242,13 @@ void App::ensure_pages_uploaded(int first, int last) {
       return doc_.render_page(i, render_zoom);
     }();
 
-    if (theme_ == Theme::DARK) {
+    Theme eff = effective_theme();
+    if (eff == Theme::DARK) {
       pixmap.invert();
+    }
+    else if (eff == Theme::TERMINAL) {
+      auto [fg, bg] = resolve_recolor_colors();
+      pixmap.recolor(fg.r, fg.g, fg.b, bg.r, bg.g, bg.b);
     }
 
     highlight_page_matches(pixmap, i, render_zoom);
@@ -380,7 +394,20 @@ void App::update_statusline() {
     }
     return "";
   }();
-  std::string theme_str = (theme_ == Theme::DARK) ? "DARK" : "LIGHT";
+  auto theme_name = [&]() -> const char* {
+    switch (theme_) {
+      case Theme::LIGHT:
+        return "LIGHT";
+      case Theme::DARK:
+        return "DARK";
+      case Theme::AUTO:
+        return (effective_theme() == Theme::DARK) ? "AUTO/DARK" : "AUTO/LIGHT";
+      case Theme::TERMINAL:
+        return "TERMINAL";
+    }
+    return "";
+  }();
+  std::string theme_str = theme_name;
   int zoom_pct = static_cast<int>(user_zoom_ * 100.0f + 0.5f);
   int page = current_page() + 1;
   int total = doc_.page_count();
@@ -1290,6 +1317,16 @@ void App::execute_command() {
         frontend_->clear();
         render();
       }
+      else if (value == "auto") {
+        theme_ = Theme::AUTO;
+        frontend_->clear();
+        render();
+      }
+      else if (value == "terminal") {
+        theme_ = Theme::TERMINAL;
+        frontend_->clear();
+        render();
+      }
       else {
         last_action_.set("Unknown theme: {}", value);
       }
@@ -1695,12 +1732,46 @@ void App::highlight_page_matches(Pixmap& pixmap, int page_num, float render_zoom
     int ph = static_cast<int>(hit.h * render_zoom);
 
     if (i == search_current_) {
-      pixmap.highlight_rect(px, py, pw, ph, 255, 165, 0, 120); // Orange for focused match
+      pixmap.highlight_rect(px, py, pw, ph, colors_.search_active.r, colors_.search_active.g, colors_.search_active.b, colors_.search_active_alpha);
     }
     else {
-      pixmap.highlight_rect(px, py, pw, ph, 255, 255, 0, 80); // Yellow for background matches
+      pixmap.highlight_rect(px, py, pw, ph, colors_.search_highlight.r, colors_.search_highlight.g, colors_.search_highlight.b, colors_.search_highlight_alpha);
     }
   }
+}
+
+Theme App::effective_theme() const {
+  if (theme_ != Theme::AUTO) {
+    return theme_;
+  }
+  // AUTO: resolve based on detected bg luminance
+  if (detected_terminal_bg_) {
+    return detected_terminal_bg_->luminance() < 0.5f ? Theme::DARK : Theme::LIGHT;
+  }
+  // No detection → default to DARK
+  return Theme::DARK;
+}
+
+std::pair<Color, Color> App::resolve_recolor_colors() const {
+  // fg = recolor_dark (replaces black/text)
+  Color fg = colors_.recolor_dark;
+  if (fg.is_default && detected_terminal_fg_) {
+    fg = *detected_terminal_fg_;
+  }
+  else if (fg.is_default) {
+    fg = Color::rgb(192, 192, 192); // Fallback light gray
+  }
+
+  // bg = recolor_light (replaces white/background)
+  Color bg = colors_.recolor_light;
+  if (bg.is_default && detected_terminal_bg_) {
+    bg = *detected_terminal_bg_;
+  }
+  else if (bg.is_default) {
+    bg = Color::rgb(30, 30, 30); // Fallback dark
+  }
+
+  return {fg, bg};
 }
 
 void App::push_jump_history() {
@@ -1975,7 +2046,19 @@ ViewState App::view_state() const {
       doc_.page_count(),
       static_cast<int>(user_zoom_ * 100.0f + 0.5f),
       mode_str,
-      (theme_ == Theme::DARK) ? "dark" : "light",
+      [&]() -> const char* {
+        switch (theme_) {
+          case Theme::LIGHT:
+            return "light";
+          case Theme::DARK:
+            return "dark";
+          case Theme::AUTO:
+            return "auto";
+          case Theme::TERMINAL:
+            return "terminal";
+        }
+        return "dark";
+      }(),
       search_term_,
       search_current_ >= 0 ? search_current_ + 1 : 0,
       static_cast<int>(search_results_.size()),

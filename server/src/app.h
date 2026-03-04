@@ -1,6 +1,8 @@
 #pragma once
 
 #include "args.h"
+#include "color.h"
+#include "color_scheme.h"
 #include "document.h"
 #include "frontend.h"
 #include "geometry.h"
@@ -42,7 +44,9 @@ enum class ViewMode {
 /// @brief Color theme.
 enum class Theme {
   LIGHT,
-  DARK
+  DARK,
+  AUTO,
+  TERMINAL
 };
 
 /// @brief Input mode for command/search bar.
@@ -135,7 +139,9 @@ public:
   /// @brief Construct the application.
   /// @param frontend The display frontend to use.
   /// @param args Parsed command line arguments.
-  App(std::unique_ptr<Frontend> frontend, const Args& args);
+  /// @param detected_fg Detected terminal foreground color (from OSC query).
+  /// @param detected_bg Detected terminal background color (from OSC query).
+  App(std::unique_ptr<Frontend> frontend, const Args& args, std::optional<Color> detected_fg = std::nullopt, std::optional<Color> detected_bg = std::nullopt);
 
   /// @brief Perform first render (extracted from old run() preamble).
   void initialize();
@@ -209,11 +215,20 @@ private:
   void follow_link(const PageLink& link);
   void exit_link_hints();
 
+  /// @brief Resolve AUTO theme based on detected terminal bg luminance.
+  Theme effective_theme() const;
+
+  /// @brief Resolve recolor colors from config/detected values.
+  std::pair<Color, Color> resolve_recolor_colors() const;
+
   /// @brief Returns a formatted string of cached page numbers and total memory in bytes.
   std::pair<std::string, size_t> cache_stats() const;
 
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
+  ColorScheme colors_;
+  std::optional<Color> detected_terminal_fg_;
+  std::optional<Color> detected_terminal_bg_;
   bool running_ = true;
   bool show_stats_ = false;
   int scroll_lines_ = 3; ///< Lines per scroll step (from config/CLI).

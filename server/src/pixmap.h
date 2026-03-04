@@ -48,6 +48,12 @@ public:
   /// @param alpha Blend factor (0 = transparent, 255 = opaque).
   void highlight_rect(int rx, int ry, int rw, int rh, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha);
 
+  /// @brief Recolor the pixmap using Zathura-style interpolation.
+  ///
+  /// Maps black pixels to (fg_r, fg_g, fg_b) and white pixels to (bg_r, bg_g, bg_b),
+  /// with intermediate values interpolated by grayscale luminance.
+  void recolor(uint8_t fg_r, uint8_t fg_g, uint8_t fg_b, uint8_t bg_r, uint8_t bg_g, uint8_t bg_b);
+
   /// @brief Encode pixmap as PNG data.
   std::vector<unsigned char> png_data() const;
 

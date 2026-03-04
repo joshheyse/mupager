@@ -372,7 +372,9 @@ void NeovimFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints) 
       int term_row = tmux_pane_top_ + hint.row + offset_row_;
       int term_col = tmux_pane_left_ + hint.col + offset_col_;
       std::format_to(std::back_inserter(raw), "\x1b[{};{}H", term_row + 1, term_col + 1);
-      raw += "\x1b[1;30;43m";
+      raw += "\x1b[1m";
+      raw += colors_.link_hint_fg.sgr_fg();
+      raw += colors_.link_hint_bg.sgr_bg();
       raw += hint.label;
       raw += "\x1b[0m";
     }
@@ -385,7 +387,9 @@ void NeovimFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints) 
       int row = hint.row + offset_row_;
       int col = hint.col + offset_col_;
       std::format_to(std::back_inserter(out), "\x1b[{};{}H", row + 1, col + 1);
-      out += "\x1b[1;30;43m";
+      out += "\x1b[1m";
+      out += colors_.link_hint_fg.sgr_fg();
+      out += colors_.link_hint_bg.sgr_bg();
       out += hint.label;
       out += "\x1b[0m";
     }
@@ -402,6 +406,10 @@ void NeovimFrontend::write_raw(const char* data, size_t len) {
 
 bool NeovimFrontend::supports_image_viewporting() const {
   return !in_tmux_;
+}
+
+void NeovimFrontend::set_color_scheme(const ColorScheme& scheme) {
+  colors_ = scheme;
 }
 
 std::optional<RpcCommand> NeovimFrontend::pop_command() {

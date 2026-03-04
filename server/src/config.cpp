@@ -4,6 +4,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <unordered_set>
 
 #include <toml++/toml.hpp>
 
@@ -11,6 +12,137 @@ static std::filesystem::path config_path() {
   const char* xdg = std::getenv("XDG_CONFIG_HOME");
   std::filesystem::path dir = xdg ? std::filesystem::path(xdg) : std::filesystem::path(std::getenv("HOME")) / ".config";
   return dir / "mupager" / "config.toml";
+}
+
+/// @brief Parse a color string from config, logging warnings on invalid values.
+static std::optional<Color> parse_color_key(const std::string& key, const std::string& value) {
+  auto c = Color::parse(value);
+  if (!c) {
+    spdlog::warn("config: invalid color value for '{}': '{}'", key, value);
+  }
+  return c;
+}
+
+/// @brief Parse the [colors] table into a ColorScheme.
+static void parse_colors_table(const toml::table& tbl, Config& cfg) {
+  auto* colors_tbl = tbl["colors"].as_table();
+  if (!colors_tbl) {
+    return;
+  }
+
+  static const std::unordered_set<std::string> KNOWN_COLOR_KEYS = {
+      "statusline-fg",
+      "statusline-bg",
+      "overlay-fg",
+      "overlay-bg",
+      "sidebar-fg",
+      "sidebar-bg",
+      "sidebar-active-fg",
+      "sidebar-active-bg",
+      "sidebar-border",
+      "link-hint-fg",
+      "link-hint-bg",
+      "search-highlight",
+      "search-highlight-alpha",
+      "search-active",
+      "search-active-alpha",
+      "recolor-dark",
+      "recolor-light",
+  };
+
+  for (auto&& [key, val] : *colors_tbl) {
+    std::string k{key.str()};
+    if (KNOWN_COLOR_KEYS.find(k) == KNOWN_COLOR_KEYS.end()) {
+      spdlog::warn("config: unknown [colors] key '{}'", k);
+      continue;
+    }
+
+    // Handle alpha keys (integer values)
+    if (k == "search-highlight-alpha") {
+      if (auto v = val.value<int64_t>()) {
+        cfg.colors.search_highlight_alpha = static_cast<uint8_t>(std::clamp<int64_t>(*v, 0, 255));
+        cfg.has_colors = true;
+      }
+      else {
+        spdlog::warn("config: [colors] '{}' must be an integer", k);
+      }
+      continue;
+    }
+    if (k == "search-active-alpha") {
+      if (auto v = val.value<int64_t>()) {
+        cfg.colors.search_active_alpha = static_cast<uint8_t>(std::clamp<int64_t>(*v, 0, 255));
+        cfg.has_colors = true;
+      }
+      else {
+        spdlog::warn("config: [colors] '{}' must be an integer", k);
+      }
+      continue;
+    }
+
+    // All other keys are color strings
+    auto sv = val.value<std::string>();
+    if (!sv) {
+      spdlog::warn("config: [colors] '{}' must be a string", k);
+      continue;
+    }
+
+    auto color = parse_color_key(k, *sv);
+    if (!color) {
+      continue;
+    }
+
+    cfg.has_colors = true;
+
+    if (k == "statusline-fg") {
+      cfg.colors.statusline_fg = *color;
+      cfg.colors.statusline_reverse = false;
+    }
+    else if (k == "statusline-bg") {
+      cfg.colors.statusline_bg = *color;
+      cfg.colors.statusline_reverse = false;
+    }
+    else if (k == "overlay-fg") {
+      cfg.colors.overlay_fg = *color;
+      cfg.colors.overlay_reverse = false;
+    }
+    else if (k == "overlay-bg") {
+      cfg.colors.overlay_bg = *color;
+      cfg.colors.overlay_reverse = false;
+    }
+    else if (k == "sidebar-fg") {
+      cfg.colors.sidebar_fg = *color;
+    }
+    else if (k == "sidebar-bg") {
+      cfg.colors.sidebar_bg = *color;
+    }
+    else if (k == "sidebar-active-fg") {
+      cfg.colors.sidebar_active_fg = *color;
+    }
+    else if (k == "sidebar-active-bg") {
+      cfg.colors.sidebar_active_bg = *color;
+    }
+    else if (k == "sidebar-border") {
+      cfg.colors.sidebar_border = *color;
+    }
+    else if (k == "link-hint-fg") {
+      cfg.colors.link_hint_fg = *color;
+    }
+    else if (k == "link-hint-bg") {
+      cfg.colors.link_hint_bg = *color;
+    }
+    else if (k == "search-highlight") {
+      cfg.colors.search_highlight = *color;
+    }
+    else if (k == "search-active") {
+      cfg.colors.search_active = *color;
+    }
+    else if (k == "recolor-dark") {
+      cfg.colors.recolor_dark = *color;
+    }
+    else if (k == "recolor-light") {
+      cfg.colors.recolor_light = *color;
+    }
+  }
 }
 
 Config load_config() {
@@ -46,11 +178,31 @@ Config load_config() {
   if (auto v = tbl["show-stats"].value<bool>()) {
     cfg.show_stats = *v;
   }
+  if (auto v = tbl["terminal-fg"].value<std::string>()) {
+    cfg.terminal_fg = *v;
+  }
+  if (auto v = tbl["terminal-bg"].value<std::string>()) {
+    cfg.terminal_bg = *v;
+  }
 
-  // Warn about unknown keys for forward compatibility
+  parse_colors_table(tbl, cfg);
+
+  // Warn about unknown top-level keys
+  static const std::unordered_set<std::string> KNOWN_KEYS = {
+      "view-mode",
+      "theme",
+      "render-scale",
+      "scroll-lines",
+      "log-level",
+      "log-file",
+      "show-stats",
+      "terminal-fg",
+      "terminal-bg",
+      "colors",
+  };
   for (auto&& [key, val] : tbl) {
     std::string k{key.str()};
-    if (k != "view-mode" && k != "theme" && k != "render-scale" && k != "scroll-lines" && k != "log-level" && k != "log-file" && k != "show-stats") {
+    if (KNOWN_KEYS.find(k) == KNOWN_KEYS.end()) {
       spdlog::warn("config: unknown key '{}'", k);
     }
   }

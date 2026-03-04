@@ -88,6 +88,27 @@ void Pixmap::highlight_rect(int rx, int ry, int rw, int rh, uint8_t r, uint8_t g
   }
 }
 
+void Pixmap::recolor(uint8_t fg_r, uint8_t fg_g, uint8_t fg_b, uint8_t bg_r, uint8_t bg_g, uint8_t bg_b) {
+  int h = height();
+  int s = stride();
+  int comp = components();
+  int row_bytes = width() * comp;
+  unsigned char* data = samples();
+
+  for (int y = 0; y < h; ++y) {
+    unsigned char* row = data + y * s;
+    for (int x = 0; x < row_bytes; x += comp) {
+      // Grayscale luminance: average of RGB channels
+      int lum = (row[x] + row[x + 1] + row[x + 2]) / 3;
+      int inv_lum = 255 - lum;
+      // Interpolate: fg * (255-lum)/255 + bg * lum/255
+      row[x] = static_cast<unsigned char>((fg_r * inv_lum + bg_r * lum) / 255);
+      row[x + 1] = static_cast<unsigned char>((fg_g * inv_lum + bg_g * lum) / 255);
+      row[x + 2] = static_cast<unsigned char>((fg_b * inv_lum + bg_b * lum) / 255);
+    }
+  }
+}
+
 std::vector<unsigned char> Pixmap::png_data() const {
   fz_context* ctx = pix_.get_deleter().ctx;
   fz_buffer* buf = fz_new_buffer_from_pixmap_as_png(ctx, pix_.get(), fz_default_color_params);

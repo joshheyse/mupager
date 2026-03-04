@@ -1,5 +1,8 @@
 #pragma once
 
+#include "color_scheme.h"
+
+#include <optional>
 #include <string>
 
 struct Config;
@@ -23,8 +26,11 @@ struct Args {
   std::string mode = "terminal"; ///< Frontend mode: "terminal" or "neovim".
   std::string theme = "dark";    ///< Initial theme.
   RenderScale render_scale = RenderScale::AUTO;
-  int scroll_lines = 3;    ///< Lines per scroll step.
-  bool show_stats = false; ///< Show cache stats in the statusline.
+  int scroll_lines = 3;                   ///< Lines per scroll step.
+  bool show_stats = false;                ///< Show cache stats in the statusline.
+  ColorScheme colors;                     ///< Color scheme from config.
+  std::optional<std::string> terminal_fg; ///< Override for detected terminal foreground.
+  std::optional<std::string> terminal_bg; ///< Override for detected terminal background.
 
   Args(int argc, char* argv[]);
 

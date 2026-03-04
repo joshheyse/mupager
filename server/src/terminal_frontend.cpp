@@ -319,15 +319,19 @@ void TerminalFrontend::statusline(const std::string& left, const std::string& ri
   int pad = std::max(0, width - content_len);
 
   std::string out;
-  out.reserve(width + 32);
+  out.reserve(width + 64);
   // Move cursor to last row, column 1
   std::format_to(std::back_inserter(out), "\x1b[{};1H", ws_row_);
-  // Enable reverse video
-  out += "\x1b[7m";
+  if (colors_.statusline_reverse) {
+    out += "\x1b[7m";
+  }
+  else {
+    out += colors_.statusline_fg.sgr_fg();
+    out += colors_.statusline_bg.sgr_bg();
+  }
   out += padded_left;
   out.append(pad, ' ');
   out += padded_right;
-  // Reset attributes
   out += "\x1b[0m";
 
   std::fwrite(out.data(), 1, out.size(), stdout);
@@ -361,13 +365,20 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
   int max_start = std::max(1, static_cast<int>(ws_row_) - box_h - 1);
   start_row = std::min(start_row, max_start);
 
+  std::string sgr_on;
+  if (colors_.overlay_reverse) {
+    sgr_on = "\x1b[7m";
+  }
+  else {
+    sgr_on = colors_.overlay_fg.sgr_fg() + colors_.overlay_bg.sgr_bg();
+  }
+
   std::string out;
-  // Each row: ~16 bytes cursor escape + ~8 bytes SGR + box_w content + ~4 bytes reset
-  out.reserve(box_h * (box_w + 32));
+  out.reserve(box_h * (box_w + 64));
 
   // Top blank line
   std::format_to(std::back_inserter(out), "\x1b[{};{}H", start_row, start_col);
-  out += "\x1b[7m";
+  out += sgr_on;
   out.append(box_w, ' ');
   out += "\x1b[0m";
 
@@ -375,7 +386,7 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
   for (size_t i = 0; i < lines.size(); ++i) {
     int row = start_row + 1 + static_cast<int>(i);
     std::format_to(std::back_inserter(out), "\x1b[{};{}H", row, start_col);
-    out += "\x1b[7m";
+    out += sgr_on;
     int line_w = display_width(lines[i]);
     int right_pad = box_w - 2 - line_w;
     std::format_to(std::back_inserter(out), "  {}{:>{}}", lines[i], "", std::max(0, right_pad));
@@ -385,7 +396,7 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
   // Bottom blank line
   int bottom_row = start_row + box_h - 1;
   std::format_to(std::back_inserter(out), "\x1b[{};{}H", bottom_row, start_col);
-  out += "\x1b[7m";
+  out += sgr_on;
   out.append(box_w, ' ');
   out += "\x1b[0m";
 
@@ -419,11 +430,22 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
 
       if (is_highlight) {
         if (focused) {
-          out += "\x1b[1;7m"; // Bold + reverse
+          if (colors_.sidebar_active_fg.is_default && colors_.sidebar_active_bg.is_default) {
+            out += "\x1b[1;7m"; // Bold + reverse (default)
+          }
+          else {
+            out += "\x1b[1m";
+            out += colors_.sidebar_active_fg.sgr_fg();
+            out += colors_.sidebar_active_bg.sgr_bg();
+          }
         }
         else {
           out += "\x1b[1m"; // Bold only
         }
+      }
+      else if (!colors_.sidebar_fg.is_default || !colors_.sidebar_bg.is_default) {
+        out += colors_.sidebar_fg.sgr_fg();
+        out += colors_.sidebar_bg.sgr_bg();
       }
 
       if (dw <= content_w) {
@@ -469,15 +491,28 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
         }
       }
 
-      if (is_highlight) {
+      if (is_highlight || !colors_.sidebar_fg.is_default || !colors_.sidebar_bg.is_default) {
         out += "\x1b[0m";
       }
     }
     else {
+      if (!colors_.sidebar_bg.is_default) {
+        out += colors_.sidebar_bg.sgr_bg();
+      }
       out.append(content_w, ' ');
+      if (!colors_.sidebar_bg.is_default) {
+        out += "\x1b[0m";
+      }
     }
 
-    out += "\xe2\x94\x82"; // │ separator
+    // Sidebar border separator
+    if (!colors_.sidebar_border.is_default) {
+      out += colors_.sidebar_border.sgr_fg();
+    }
+    out += "\xe2\x94\x82"; // │
+    if (!colors_.sidebar_border.is_default) {
+      out += "\x1b[0m";
+    }
   }
 
   std::fwrite(out.data(), 1, out.size(), stdout);
@@ -502,8 +537,9 @@ void TerminalFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints
   for (const auto& hint : hints) {
     // Position cursor (1-based)
     std::format_to(std::back_inserter(out), "\x1b[{};{}H", hint.row + 1, hint.col + 1);
-    // Yellow background, black bold text
-    out += "\x1b[1;30;43m";
+    out += "\x1b[1m";
+    out += colors_.link_hint_fg.sgr_fg();
+    out += colors_.link_hint_bg.sgr_bg();
     out += hint.label;
     out += "\x1b[0m";
   }
@@ -519,4 +555,8 @@ void TerminalFrontend::write_raw(const char* data, size_t len) {
 
 bool TerminalFrontend::supports_image_viewporting() const {
   return !in_tmux_;
+}
+
+void TerminalFrontend::set_color_scheme(const ColorScheme& scheme) {
+  colors_ = scheme;
 }

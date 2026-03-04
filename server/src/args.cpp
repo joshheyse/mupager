@@ -51,7 +51,7 @@ Args::Args(int argc, char* argv[])
   auto* render_scale_opt = cli.add_option("--render-scale", scale_str, "Render scale (auto, never, 0.25, 0.5, 1, 2, 4)")
                                ->check(CLI::IsMember({"auto", "never", "0.25", "0.5", "1", "2", "4"}));
   cli.add_option("--mode", mode, "Frontend mode (terminal, neovim)")->check(CLI::IsMember({"terminal", "neovim"}));
-  auto* theme_opt = cli.add_option("--theme", theme, "Theme (dark, light)")->check(CLI::IsMember({"dark", "light"}));
+  auto* theme_opt = cli.add_option("--theme", theme, "Theme (dark, light, auto, terminal)")->check(CLI::IsMember({"dark", "light", "auto", "terminal"}));
   auto* scroll_lines_opt = cli.add_option("--scroll-lines", scroll_lines, "Lines per scroll step");
   auto* show_stats_opt = cli.add_flag("--show-stats", show_stats, "Show cache stats in the statusline");
   try {
@@ -114,5 +114,14 @@ void Args::apply_config(const Config& cfg) {
   }
   if (!(cli_explicit_ & CLI_SHOW_STATS) && cfg.show_stats) {
     show_stats = *cfg.show_stats;
+  }
+  if (cfg.has_colors) {
+    colors = cfg.colors;
+  }
+  if (cfg.terminal_fg) {
+    terminal_fg = cfg.terminal_fg;
+  }
+  if (cfg.terminal_bg) {
+    terminal_bg = cfg.terminal_bg;
   }
 }

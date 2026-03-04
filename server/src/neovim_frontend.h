@@ -30,6 +30,7 @@ public:
   void show_link_hints(const std::vector<LinkHintDisplay>& hints) override;
   void write_raw(const char* data, size_t len) override;
   bool supports_image_viewporting() const override;
+  void set_color_scheme(const ColorScheme& scheme) override;
   std::optional<RpcCommand> pop_command() override;
 
   /// @brief Get the RPC transport for sending notifications.
@@ -72,6 +73,7 @@ private:
   int tty_cols_ = 0;   ///< Terminal columns from ioctl.
   int tty_rows_ = 0;   ///< Terminal rows from ioctl.
 
+  ColorScheme colors_;
   bool in_tmux_ = false;
   std::string tmux_pane_id_; ///< TMUX_PANE identifier (e.g. "%0") for targeting queries.
   int tmux_pane_top_ = 0;    ///< Pane row offset in terminal coordinates (0-based).

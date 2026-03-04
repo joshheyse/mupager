@@ -27,10 +27,12 @@ public:
   void show_link_hints(const std::vector<LinkHintDisplay>& hints) override;
   void write_raw(const char* data, size_t len) override;
   bool supports_image_viewporting() const override;
+  void set_color_scheme(const ColorScheme& scheme) override;
 
 private:
   void query_winsize();
 
+  ColorScheme colors_;
   bool in_tmux_ = false;
   uint32_t next_image_id_ = 1;
   std::unordered_set<uint32_t> uploaded_ids_;

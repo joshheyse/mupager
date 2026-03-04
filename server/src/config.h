@@ -1,5 +1,7 @@
 #pragma once
 
+#include "color_scheme.h"
+
 #include <optional>
 #include <string>
 
@@ -12,6 +14,11 @@ struct Config {
   std::optional<std::string> log_level;
   std::optional<std::string> log_file;
   std::optional<bool> show_stats;
+
+  std::optional<std::string> terminal_fg; ///< Override for detected terminal foreground.
+  std::optional<std::string> terminal_bg; ///< Override for detected terminal background.
+  ColorScheme colors;                     ///< Parsed [colors] section.
+  bool has_colors = false;                ///< True if any [colors] keys were set.
 };
 
 /// @brief Load config from $XDG_CONFIG_HOME/mupager/config.toml.

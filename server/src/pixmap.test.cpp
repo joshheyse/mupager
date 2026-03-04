@@ -128,3 +128,71 @@ TEST_CASE("highlight_rect with zero alpha is no-op") {
   CHECK(pix.samples()[1] == orig_g);
   CHECK(pix.samples()[2] == orig_b);
 }
+
+TEST_CASE("recolor with fg=white bg=black approximates invert") {
+  Document doc(FIXTURE_PDF);
+  Pixmap pix1 = doc.render_page(0, 1.0f);
+  Pixmap pix2 = doc.render_page(0, 1.0f);
+
+  pix1.invert();
+  pix2.recolor(255, 255, 255, 0, 0, 0);
+
+  // Recolor uses (R+G+B)/3 luminance, invert uses per-channel 255-v.
+  // For grayscale content they should be very close.
+  // For the first pixel, check they're within a small tolerance.
+  int diff_r = std::abs(static_cast<int>(pix1.samples()[0]) - static_cast<int>(pix2.samples()[0]));
+  int diff_g = std::abs(static_cast<int>(pix1.samples()[1]) - static_cast<int>(pix2.samples()[1]));
+  int diff_b = std::abs(static_cast<int>(pix1.samples()[2]) - static_cast<int>(pix2.samples()[2]));
+  // For pure white (255,255,255) both should give (0,0,0) — exact match
+  // For colored pixels, tolerance of ~2 per channel
+  CHECK(diff_r <= 2);
+  CHECK(diff_g <= 2);
+  CHECK(diff_b <= 2);
+}
+
+TEST_CASE("recolor with fg=black bg=white is identity for white pixels") {
+  Document doc(FIXTURE_PDF);
+  Pixmap pix = doc.render_page(0, 1.0f);
+
+  // Record original white-ish pixel (background of the test PDF is white)
+  unsigned char orig_r = pix.samples()[0];
+  unsigned char orig_g = pix.samples()[1];
+  unsigned char orig_b = pix.samples()[2];
+
+  pix.recolor(0, 0, 0, 255, 255, 255);
+
+  // For a pure white pixel (255,255,255): lum=255, result = fg*0/255 + bg*255/255 = bg = (255,255,255)
+  // Should be very close to original
+  int diff_r = std::abs(static_cast<int>(pix.samples()[0]) - static_cast<int>(orig_r));
+  int diff_g = std::abs(static_cast<int>(pix.samples()[1]) - static_cast<int>(orig_g));
+  int diff_b = std::abs(static_cast<int>(pix.samples()[2]) - static_cast<int>(orig_b));
+  CHECK(diff_r <= 1);
+  CHECK(diff_g <= 1);
+  CHECK(diff_b <= 1);
+}
+
+TEST_CASE("recolor maps to expected range") {
+  Document doc(FIXTURE_PDF);
+  Pixmap pix = doc.render_page(0, 1.0f);
+
+  // Recolor with specific fg/bg
+  pix.recolor(0xc0, 0xca, 0xf5, 0x1a, 0x1b, 0x26);
+
+  // All output pixels should be within the range [min(fg,bg), max(fg,bg)] for each channel
+  int w = pix.width();
+  int h = pix.height();
+  int comp = pix.components();
+  int s = pix.stride();
+  const unsigned char* data = pix.samples();
+  for (int y = 0; y < std::min(h, 5); ++y) {
+    const unsigned char* row = data + y * s;
+    for (int x = 0; x < std::min(w, 10) * comp; x += comp) {
+      CHECK(row[x] >= 0x1a);
+      CHECK(row[x] <= 0xc0);
+      CHECK(row[x + 1] >= 0x1b);
+      CHECK(row[x + 1] <= 0xca);
+      CHECK(row[x + 2] >= 0x26);
+      CHECK(row[x + 2] <= 0xf5);
+    }
+  }
+}
