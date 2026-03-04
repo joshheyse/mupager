@@ -25,13 +25,36 @@ TEST_CASE("Color::parse default") {
   CHECK(c->is_default);
 }
 
+TEST_CASE("Color::parse integer as 256-color index") {
+  auto c = Color::parse("234");
+  REQUIRE(c.has_value());
+  CHECK(c->is_indexed);
+  CHECK(c->index == 234);
+  CHECK_FALSE(c->is_default);
+}
+
+TEST_CASE("Color::parse integer zero") {
+  auto c = Color::parse("0");
+  REQUIRE(c.has_value());
+  CHECK(c->is_indexed);
+  CHECK(c->index == 0);
+}
+
+TEST_CASE("Color::parse integer 255") {
+  auto c = Color::parse("255");
+  REQUIRE(c.has_value());
+  CHECK(c->is_indexed);
+  CHECK(c->index == 255);
+}
+
 TEST_CASE("Color::parse invalid strings") {
   CHECK_FALSE(Color::parse("").has_value());
   CHECK_FALSE(Color::parse("#12345").has_value());
   CHECK_FALSE(Color::parse("#1234567").has_value());
   CHECK_FALSE(Color::parse("red").has_value());
   CHECK_FALSE(Color::parse("#GGHHII").has_value());
-  CHECK_FALSE(Color::parse("1a2b3c").has_value());
+  CHECK_FALSE(Color::parse("256").has_value());
+  CHECK_FALSE(Color::parse("999").has_value());
 }
 
 TEST_CASE("Color::sgr_fg concrete") {
@@ -72,9 +95,29 @@ TEST_CASE("Color::luminance green is brightest") {
   CHECK(g > b);
 }
 
+TEST_CASE("Color::indexed factory") {
+  auto c = Color::indexed(111);
+  CHECK(c.is_indexed);
+  CHECK(c.index == 111);
+  CHECK_FALSE(c.is_default);
+}
+
+TEST_CASE("Color::sgr_fg indexed") {
+  auto c = Color::indexed(234);
+  CHECK(c.sgr_fg() == "\x1b[38;5;234m");
+}
+
+TEST_CASE("Color::sgr_bg indexed") {
+  auto c = Color::indexed(180);
+  CHECK(c.sgr_bg() == "\x1b[48;5;180m");
+}
+
 TEST_CASE("Color equality") {
   CHECK(Color::rgb(1, 2, 3) == Color::rgb(1, 2, 3));
   CHECK(Color::rgb(1, 2, 3) != Color::rgb(1, 2, 4));
   CHECK(Color::terminal_default() == Color::terminal_default());
   CHECK(Color::terminal_default() != Color::rgb(0, 0, 0));
+  CHECK(Color::indexed(111) == Color::indexed(111));
+  CHECK(Color::indexed(111) != Color::indexed(112));
+  CHECK(Color::indexed(0) != Color::rgb(0, 0, 0));
 }

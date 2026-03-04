@@ -35,6 +35,7 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
       "statusline-bg",
       "overlay-fg",
       "overlay-bg",
+      "overlay-border",
       "sidebar-fg",
       "sidebar-bg",
       "sidebar-active-fg",
@@ -79,14 +80,24 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
       continue;
     }
 
-    // All other keys are color strings
-    auto sv = val.value<std::string>();
-    if (!sv) {
-      spdlog::warn("config: [colors] '{}' must be a string", k);
+    // Color keys: accept string ("#RRGGBB", "default", "234") or integer (234) values
+    std::optional<Color> color;
+    if (auto sv = val.value<std::string>()) {
+      color = parse_color_key(k, *sv);
+    }
+    else if (auto iv = val.value<int64_t>()) {
+      if (*iv >= 0 && *iv <= 255) {
+        color = Color::indexed(static_cast<uint8_t>(*iv));
+      }
+      else {
+        spdlog::warn("config: [colors] '{}' integer must be 0-255, got {}", k, *iv);
+      }
+    }
+    else {
+      spdlog::warn("config: [colors] '{}' must be a string or integer", k);
       continue;
     }
 
-    auto color = parse_color_key(k, *sv);
     if (!color) {
       continue;
     }
@@ -95,19 +106,18 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
 
     if (k == "statusline-fg") {
       cfg.colors.statusline_fg = *color;
-      cfg.colors.statusline_reverse = false;
     }
     else if (k == "statusline-bg") {
       cfg.colors.statusline_bg = *color;
-      cfg.colors.statusline_reverse = false;
     }
     else if (k == "overlay-fg") {
       cfg.colors.overlay_fg = *color;
-      cfg.colors.overlay_reverse = false;
     }
     else if (k == "overlay-bg") {
       cfg.colors.overlay_bg = *color;
-      cfg.colors.overlay_reverse = false;
+    }
+    else if (k == "overlay-border") {
+      cfg.colors.overlay_border = *color;
     }
     else if (k == "sidebar-fg") {
       cfg.colors.sidebar_fg = *color;

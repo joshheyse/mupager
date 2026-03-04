@@ -5,11 +5,15 @@
 #include <format>
 
 Color Color::rgb(uint8_t r, uint8_t g, uint8_t b) {
-  return {r, g, b, false};
+  return {r, g, b, 0, false, false};
+}
+
+Color Color::indexed(uint8_t n) {
+  return {0, 0, 0, n, false, true};
 }
 
 Color Color::terminal_default() {
-  return {0, 0, 0, true};
+  return {0, 0, 0, 0, true, false};
 }
 
 std::optional<Color> Color::parse(const std::string& s) {
@@ -44,6 +48,17 @@ std::optional<Color> Color::parse(const std::string& s) {
       return Color::rgb(*rv, *gv, *bv);
     }
   }
+  // Try bare integer as 256-color index
+  if (!s.empty() && s[0] >= '0' && s[0] <= '9') {
+    try {
+      unsigned long val = std::stoul(s);
+      if (val <= 255) {
+        return Color::indexed(static_cast<uint8_t>(val));
+      }
+    }
+    catch (...) {
+    }
+  }
   return std::nullopt;
 }
 
@@ -51,12 +66,18 @@ std::string Color::sgr_fg() const {
   if (is_default) {
     return sgr::DEFAULT_FG;
   }
+  if (is_indexed) {
+    return std::format("\x1b[38;5;{}m", index);
+  }
   return std::format("\x1b[38;2;{};{};{}m", r, g, b);
 }
 
 std::string Color::sgr_bg() const {
   if (is_default) {
     return sgr::DEFAULT_BG;
+  }
+  if (is_indexed) {
+    return std::format("\x1b[48;5;{}m", index);
   }
   return std::format("\x1b[48;2;{};{};{}m", r, g, b);
 }

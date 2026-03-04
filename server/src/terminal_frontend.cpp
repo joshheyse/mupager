@@ -321,13 +321,8 @@ void TerminalFrontend::statusline(const std::string& left, const std::string& ri
   std::string out;
   out.reserve(width + 64);
   sgr::move_to_row(out, ws_row_);
-  if (colors_.statusline_reverse) {
-    out += sgr::REVERSE;
-  }
-  else {
-    out += colors_.statusline_fg.sgr_fg();
-    out += colors_.statusline_bg.sgr_bg();
-  }
+  out += colors_.statusline_fg.sgr_fg();
+  out += colors_.statusline_bg.sgr_bg();
   out += padded_left;
   out.append(pad, ' ');
   out += padded_right;
@@ -356,47 +351,74 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
     max_width = std::max(max_width, display_width(line));
   }
 
-  int box_w = max_width + 4;                      // 2 chars padding each side
-  int box_h = static_cast<int>(lines.size()) + 2; // 1 row padding top/bottom
+  // Box layout: │ SP content SP │ → content_w + 6 total
+  int box_w = max_width + 6;
+  // lines[0] = title on top border, lines[1..] = body rows, plus bottom border
+  int box_h = static_cast<int>(lines.size()) + 1; // +1 for bottom border row
   int start_col = std::max(1, (static_cast<int>(ws_col_) - box_w) / 2 + 1);
   int start_row = std::max(1, (static_cast<int>(ws_row_) - box_h) / 2 + 1);
-  // Ensure at least 1 row gap above the status bar (last row)
   int max_start = std::max(1, static_cast<int>(ws_row_) - box_h - 1);
   start_row = std::min(start_row, max_start);
 
-  std::string sgr_on;
-  if (colors_.overlay_reverse) {
-    sgr_on = sgr::REVERSE;
-  }
-  else {
-    sgr_on = colors_.overlay_fg.sgr_fg() + colors_.overlay_bg.sgr_bg();
-  }
+  std::string border_sgr = colors_.overlay_border.sgr_fg() + colors_.overlay_bg.sgr_bg();
+  std::string content_sgr = colors_.overlay_fg.sgr_fg() + colors_.overlay_bg.sgr_bg();
+
+  // UTF-8 box-drawing characters
+  const char* corner_tl = "\xe2\x95\xad"; // ╭
+  const char* corner_tr = "\xe2\x95\xae"; // ╮
+  const char* corner_bl = "\xe2\x95\xb0"; // ╰
+  const char* corner_br = "\xe2\x95\xaf"; // ╯
+  const char* horiz = "\xe2\x94\x80";     // ─
+  const char* vert = "\xe2\x94\x82";      // │
 
   std::string out;
-  out.reserve(box_h * (box_w + 64));
+  out.reserve(box_h * (box_w + 128));
 
-  // Top blank line
+  // Top border: ╭─ Title ─────╮
   sgr::move_to(out, start_row, start_col);
-  out += sgr_on;
-  out.append(box_w, ' ');
+  out += border_sgr;
+  out += corner_tl;
+  out += horiz;
+  out += " ";
+  out += content_sgr;
+  int title_w = display_width(lines[0]);
+  out += lines[0];
+  out += " ";
+  out += border_sgr;
+  int remaining = box_w - 4 - title_w - 1; // TL + H + SP before + SP after + title + TR
+  for (int i = 0; i < remaining; ++i) {
+    out += horiz;
+  }
+  out += corner_tr;
   out += sgr::RESET;
 
-  // Content lines
-  for (size_t i = 0; i < lines.size(); ++i) {
-    int row = start_row + 1 + static_cast<int>(i);
+  // Body lines (lines[1..])
+  for (size_t i = 1; i < lines.size(); ++i) {
+    int row = start_row + static_cast<int>(i);
     sgr::move_to(out, row, start_col);
-    out += sgr_on;
+    out += border_sgr;
+    out += vert;
+    out += content_sgr;
     int line_w = display_width(lines[i]);
-    int right_pad = box_w - 2 - line_w;
-    std::format_to(std::back_inserter(out), "  {}{:>{}}", lines[i], "", std::max(0, right_pad));
+    int right_pad = box_w - 4 - line_w; // V + SP + content + SP + V
+    std::format_to(std::back_inserter(out), " {}{:>{}}", lines[i], "", std::max(0, right_pad));
+    out += " ";
+    // Re-apply border color after content (content may contain embedded ANSI resets)
+    out += border_sgr;
+    out += vert;
     out += sgr::RESET;
+    // Re-set content_sgr for next line to handle embedded resets
   }
 
-  // Bottom blank line
+  // Bottom border: ╰──────────╯
   int bottom_row = start_row + box_h - 1;
   sgr::move_to(out, bottom_row, start_col);
-  out += sgr_on;
-  out.append(box_w, ' ');
+  out += border_sgr;
+  out += corner_bl;
+  for (int i = 0; i < box_w - 2; ++i) {
+    out += horiz;
+  }
+  out += corner_br;
   out += sgr::RESET;
 
   std::fwrite(out.data(), 1, out.size(), stdout);

@@ -1490,8 +1490,8 @@ void App::show_outline_popup() {
   }
 
   // Pad a line to box_width (accounting for ANSI escapes not taking display space).
-  // The overlay adds 4 chars padding (2 each side), so content width = box_width - 4.
-  int content_w = box_width - 4;
+  // The overlay adds borders: │ SP content SP │ → 3 chars each side = 6 total.
+  int content_w = box_width - 6;
   auto pad_line = [content_w](const std::string& text, int visible_len) -> std::string {
     if (visible_len >= content_w) {
       return text;
@@ -1522,7 +1522,7 @@ void App::show_outline_popup() {
     auto visible_text = std::format("{}{:>{}}{}", title_part, "", gap, page_str);
 
     if (vi == outline_cursor_) {
-      auto line = std::format("{}{}{}{}{}{}",  sgr::RESET, sgr::BOLD, sgr::UNDERLINE, visible_text, sgr::RESET, sgr::REVERSE);
+      auto line = std::format("{}{}{}{}", sgr::RESET, sgr::BOLD, sgr::UNDERLINE, visible_text);
       lines.push_back(line);
     }
     else {
@@ -1710,8 +1710,11 @@ void App::highlight_page_matches(Pixmap& pixmap, int page_num, float render_zoom
       continue;
     }
 
-    PixelRect rect = {static_cast<int>(hit.x * render_zoom), static_cast<int>(hit.y * render_zoom),
-                       static_cast<int>(hit.w * render_zoom), static_cast<int>(hit.h * render_zoom)};
+    PixelRect rect
+        = {static_cast<int>(hit.x * render_zoom),
+           static_cast<int>(hit.y * render_zoom),
+           static_cast<int>(hit.w * render_zoom),
+           static_cast<int>(hit.h * render_zoom)};
 
     if (i == search_current_) {
       pixmap.highlight_rect(rect, colors_.search_active, colors_.search_active_alpha);
