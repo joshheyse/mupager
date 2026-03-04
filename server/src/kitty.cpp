@@ -2,6 +2,7 @@
 
 #include "base64.h"
 #include "pixmap.h"
+#include "sgr.h"
 
 #include <cctype>
 
@@ -13,7 +14,6 @@ static constexpr char ESC = '\x1b';
 static constexpr auto APC_START = "\x1b_G";
 static constexpr auto ST = "\x1b\\";
 static constexpr auto DCS_TMUX_START = "\x1bPtmux;";
-static constexpr auto SGR_RESET_FG = "\x1b[39m";
 static constexpr uint32_t PLACEHOLDER_CHAR = 0x10EEEE;
 
 // Kitty Unicode placeholder diacritics table (from Kitty source).
@@ -610,7 +610,7 @@ std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num
   uint8_t id_b0 = image_id & 0xFF;
   uint8_t id_b3 = (image_id >> 24) & 0xFF;
 
-  result += "\x1b[38:2:";
+  result += sgr::FG_COLOR_COLON_PREFIX;
   result += std::to_string(id_b2);
   result += ':';
   result += std::to_string(id_b1);
@@ -637,7 +637,7 @@ std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num
     }
   }
 
-  result += SGR_RESET_FG;
+  result += sgr::DEFAULT_FG;
   return result;
 }
 

@@ -1,6 +1,7 @@
 #include "neovim_frontend.h"
 
 #include "kitty.h"
+#include "sgr.h"
 
 #include <spdlog/spdlog.h>
 #include <sys/ioctl.h>
@@ -9,8 +10,6 @@
 #include <array>
 #include <cerrno>
 #include <cstring>
-#include <format>
-#include <iterator>
 
 /// @brief Run a tmux display-message command targeting a specific pane and return the trimmed output.
 /// @param pane_id The tmux pane target (e.g. "%0"). Empty string uses the active pane.
@@ -290,7 +289,7 @@ void NeovimFrontend::show_pages(const std::vector<PageSlice>& slices) {
       int term_row = tmux_pane_top_ + offset_row_ + s.dst.y;
       int term_col = tmux_pane_left_ + offset_col_ + s.dst.x;
 
-      std::format_to(std::back_inserter(raw), "\x1b[{};{}H", term_row + 1, term_col + 1);
+      sgr::move_to(raw, term_row + 1, term_col + 1);
 
       kitty::PlaceCommand cmd;
       cmd.image_id = s.image_id;
@@ -318,7 +317,7 @@ void NeovimFrontend::show_pages(const std::vector<PageSlice>& slices) {
       int dst_row = s.dst.y + offset_row_;
       int dst_col = s.dst.x + offset_col_;
 
-      std::format_to(std::back_inserter(out), "\x1b[{};{}H", dst_row + 1, dst_col + 1);
+      sgr::move_to(out, dst_row + 1, dst_col + 1);
 
       kitty::PlaceCommand cmd;
       cmd.image_id = s.image_id;
@@ -371,12 +370,12 @@ void NeovimFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints) 
     for (const auto& hint : hints) {
       int term_row = tmux_pane_top_ + hint.row + offset_row_;
       int term_col = tmux_pane_left_ + hint.col + offset_col_;
-      std::format_to(std::back_inserter(raw), "\x1b[{};{}H", term_row + 1, term_col + 1);
-      raw += "\x1b[1m";
+      sgr::move_to(raw, term_row + 1, term_col + 1);
+      raw += sgr::BOLD;
       raw += colors_.link_hint_fg.sgr_fg();
       raw += colors_.link_hint_bg.sgr_bg();
       raw += hint.label;
-      raw += "\x1b[0m";
+      raw += sgr::RESET;
     }
     std::string out = tmux_dcs_wrap(raw);
     tty_write(out);
@@ -386,12 +385,12 @@ void NeovimFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints) 
     for (const auto& hint : hints) {
       int row = hint.row + offset_row_;
       int col = hint.col + offset_col_;
-      std::format_to(std::back_inserter(out), "\x1b[{};{}H", row + 1, col + 1);
-      out += "\x1b[1m";
+      sgr::move_to(out, row + 1, col + 1);
+      out += sgr::BOLD;
       out += colors_.link_hint_fg.sgr_fg();
       out += colors_.link_hint_bg.sgr_bg();
       out += hint.label;
-      out += "\x1b[0m";
+      out += sgr::RESET;
     }
     tty_write(out);
   }

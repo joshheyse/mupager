@@ -2,6 +2,7 @@
 
 #include "input_event.h"
 #include "kitty.h"
+#include "sgr.h"
 #include "stopwatch.h"
 
 #include <ncurses.h>
@@ -13,7 +14,6 @@
 #include <cstdlib>
 #include <format>
 #include <iterator>
-#include <stdexcept>
 
 TerminalFrontend::TerminalFrontend() {
   in_tmux_ = std::getenv("TMUX") != nullptr;
@@ -239,7 +239,7 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
       // Emit one row at a time with explicit cursor positioning to avoid
       // \n\r in placeholders resetting the column to 1.
       for (int r = 0; r < s.dst.height; ++r) {
-        std::format_to(std::back_inserter(out), "\x1b[{};{}H", s.dst.y + 1 + r, s.dst.x + 1);
+        sgr::move_to(out, s.dst.y + 1 + r, s.dst.x + 1);
         out += kitty::placeholders(s.image_id, first_cell_row + r, 1, visible_cols, first_cell_col);
       }
     }
@@ -247,7 +247,7 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   else {
     out += kitty::delete_all_placements();
     for (const auto& s : slices) {
-      std::format_to(std::back_inserter(out), "\x1b[{};{}H", s.dst.y + 1, s.dst.x + 1);
+      sgr::move_to(out, s.dst.y + 1, s.dst.x + 1);
       kitty::PlaceCommand cmd;
       cmd.image_id = s.image_id;
       cmd.src_x = s.src.x;
@@ -320,10 +320,9 @@ void TerminalFrontend::statusline(const std::string& left, const std::string& ri
 
   std::string out;
   out.reserve(width + 64);
-  // Move cursor to last row, column 1
-  std::format_to(std::back_inserter(out), "\x1b[{};1H", ws_row_);
+  sgr::move_to_row(out, ws_row_);
   if (colors_.statusline_reverse) {
-    out += "\x1b[7m";
+    out += sgr::REVERSE;
   }
   else {
     out += colors_.statusline_fg.sgr_fg();
@@ -332,7 +331,7 @@ void TerminalFrontend::statusline(const std::string& left, const std::string& ri
   out += padded_left;
   out.append(pad, ' ');
   out += padded_right;
-  out += "\x1b[0m";
+  out += sgr::RESET;
 
   std::fwrite(out.data(), 1, out.size(), stdout);
   std::fflush(stdout);
@@ -367,7 +366,7 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
 
   std::string sgr_on;
   if (colors_.overlay_reverse) {
-    sgr_on = "\x1b[7m";
+    sgr_on = sgr::REVERSE;
   }
   else {
     sgr_on = colors_.overlay_fg.sgr_fg() + colors_.overlay_bg.sgr_bg();
@@ -377,28 +376,28 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
   out.reserve(box_h * (box_w + 64));
 
   // Top blank line
-  std::format_to(std::back_inserter(out), "\x1b[{};{}H", start_row, start_col);
+  sgr::move_to(out, start_row, start_col);
   out += sgr_on;
   out.append(box_w, ' ');
-  out += "\x1b[0m";
+  out += sgr::RESET;
 
   // Content lines
   for (size_t i = 0; i < lines.size(); ++i) {
     int row = start_row + 1 + static_cast<int>(i);
-    std::format_to(std::back_inserter(out), "\x1b[{};{}H", row, start_col);
+    sgr::move_to(out, row, start_col);
     out += sgr_on;
     int line_w = display_width(lines[i]);
     int right_pad = box_w - 2 - line_w;
     std::format_to(std::back_inserter(out), "  {}{:>{}}", lines[i], "", std::max(0, right_pad));
-    out += "\x1b[0m";
+    out += sgr::RESET;
   }
 
   // Bottom blank line
   int bottom_row = start_row + box_h - 1;
-  std::format_to(std::back_inserter(out), "\x1b[{};{}H", bottom_row, start_col);
+  sgr::move_to(out, bottom_row, start_col);
   out += sgr_on;
   out.append(box_w, ' ');
-  out += "\x1b[0m";
+  out += sgr::RESET;
 
   std::fwrite(out.data(), 1, out.size(), stdout);
   std::fflush(stdout);
@@ -422,7 +421,7 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
   out.reserve(visible_rows * (width_cols + 32));
 
   for (int row = 0; row < visible_rows; ++row) {
-    std::format_to(std::back_inserter(out), "\x1b[{};1H", row + 1);
+    sgr::move_to_row(out, row + 1);
 
     if (row < static_cast<int>(lines.size())) {
       int dw = display_width(lines[row]);
@@ -431,16 +430,16 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
       if (is_highlight) {
         if (focused) {
           if (colors_.sidebar_active_fg.is_default && colors_.sidebar_active_bg.is_default) {
-            out += "\x1b[1;7m"; // Bold + reverse (default)
+            out += sgr::BOLD_REVERSE;
           }
           else {
-            out += "\x1b[1m";
+            out += sgr::BOLD;
             out += colors_.sidebar_active_fg.sgr_fg();
             out += colors_.sidebar_active_bg.sgr_bg();
           }
         }
         else {
-          out += "\x1b[1m"; // Bold only
+          out += sgr::BOLD;
         }
       }
       else if (!colors_.sidebar_fg.is_default || !colors_.sidebar_bg.is_default) {
@@ -492,7 +491,7 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
       }
 
       if (is_highlight || !colors_.sidebar_fg.is_default || !colors_.sidebar_bg.is_default) {
-        out += "\x1b[0m";
+        out += sgr::RESET;
       }
     }
     else {
@@ -501,7 +500,7 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
       }
       out.append(content_w, ' ');
       if (!colors_.sidebar_bg.is_default) {
-        out += "\x1b[0m";
+        out += sgr::RESET;
       }
     }
 
@@ -511,7 +510,7 @@ void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int h
     }
     out += "\xe2\x94\x82"; // │
     if (!colors_.sidebar_border.is_default) {
-      out += "\x1b[0m";
+      out += sgr::RESET;
     }
   }
 
@@ -535,13 +534,12 @@ void TerminalFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints
   out.reserve(hints.size() * 32);
 
   for (const auto& hint : hints) {
-    // Position cursor (1-based)
-    std::format_to(std::back_inserter(out), "\x1b[{};{}H", hint.row + 1, hint.col + 1);
-    out += "\x1b[1m";
+    sgr::move_to(out, hint.row + 1, hint.col + 1);
+    out += sgr::BOLD;
     out += colors_.link_hint_fg.sgr_fg();
     out += colors_.link_hint_bg.sgr_bg();
     out += hint.label;
-    out += "\x1b[0m";
+    out += sgr::RESET;
   }
 
   std::fwrite(out.data(), 1, out.size(), stdout);

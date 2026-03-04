@@ -89,7 +89,7 @@ TEST_CASE("highlight_rect blends color onto pixmap") {
   unsigned char orig_b = pix.samples()[2];
 
   // Apply a yellow highlight with alpha=128
-  pix.highlight_rect(0, 0, 10, 10, 255, 255, 0, 128);
+  pix.highlight_rect({0, 0, 10, 10}, Color::rgb(255, 255, 0), 128);
 
   unsigned char new_r = pix.samples()[0];
   unsigned char new_g = pix.samples()[1];
@@ -109,8 +109,8 @@ TEST_CASE("highlight_rect clamps to pixmap bounds") {
   Pixmap pix = doc.render_page(0, 1.0f);
 
   // Should not crash with out-of-bounds rectangle
-  pix.highlight_rect(-10, -10, 20, 20, 255, 0, 0, 128);
-  pix.highlight_rect(pix.width() - 5, pix.height() - 5, 100, 100, 0, 255, 0, 128);
+  pix.highlight_rect({-10, -10, 20, 20}, Color::rgb(255, 0, 0), 128);
+  pix.highlight_rect({pix.width() - 5, pix.height() - 5, 100, 100}, Color::rgb(0, 255, 0), 128);
   CHECK(true); // If we get here without crashing, the test passes
 }
 
@@ -122,7 +122,7 @@ TEST_CASE("highlight_rect with zero alpha is no-op") {
   unsigned char orig_g = pix.samples()[1];
   unsigned char orig_b = pix.samples()[2];
 
-  pix.highlight_rect(0, 0, 10, 10, 255, 0, 0, 0);
+  pix.highlight_rect({0, 0, 10, 10}, Color::rgb(255, 0, 0), 0);
 
   CHECK(pix.samples()[0] == orig_r);
   CHECK(pix.samples()[1] == orig_g);
@@ -135,7 +135,7 @@ TEST_CASE("recolor with fg=white bg=black approximates invert") {
   Pixmap pix2 = doc.render_page(0, 1.0f);
 
   pix1.invert();
-  pix2.recolor(255, 255, 255, 0, 0, 0);
+  pix2.recolor(Color::rgb(255, 255, 255), Color::rgb(0, 0, 0));
 
   // Recolor uses (R+G+B)/3 luminance, invert uses per-channel 255-v.
   // For grayscale content they should be very close.
@@ -159,7 +159,7 @@ TEST_CASE("recolor with fg=black bg=white is identity for white pixels") {
   unsigned char orig_g = pix.samples()[1];
   unsigned char orig_b = pix.samples()[2];
 
-  pix.recolor(0, 0, 0, 255, 255, 255);
+  pix.recolor(Color::rgb(0, 0, 0), Color::rgb(255, 255, 255));
 
   // For a pure white pixel (255,255,255): lum=255, result = fg*0/255 + bg*255/255 = bg = (255,255,255)
   // Should be very close to original
@@ -176,7 +176,7 @@ TEST_CASE("recolor maps to expected range") {
   Pixmap pix = doc.render_page(0, 1.0f);
 
   // Recolor with specific fg/bg
-  pix.recolor(0xc0, 0xca, 0xf5, 0x1a, 0x1b, 0x26);
+  pix.recolor(Color::rgb(0xc0, 0xca, 0xf5), Color::rgb(0x1a, 0x1b, 0x26));
 
   // All output pixels should be within the range [min(fg,bg), max(fg,bg)] for each channel
   int w = pix.width();

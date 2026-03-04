@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <format>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -41,6 +42,41 @@ enum class ViewMode {
   SIDE_BY_SIDE ///< Two pages displayed side by side.
 };
 
+/// @brief Convert ViewMode to its config/RPC string representation.
+constexpr const char* to_string(ViewMode m) {
+  switch (m) {
+    case ViewMode::CONTINUOUS:
+      return "continuous";
+    case ViewMode::PAGE_WIDTH:
+      return "page-width";
+    case ViewMode::PAGE_HEIGHT:
+      return "page-height";
+    case ViewMode::SIDE_BY_SIDE:
+      return "side-by-side";
+  }
+  return "";
+}
+
+/// @brief Convert ViewMode to its display label.
+constexpr const char* to_label(ViewMode m) {
+  switch (m) {
+    case ViewMode::CONTINUOUS:
+      return "Continuous";
+    case ViewMode::PAGE_WIDTH:
+      return "Page-Width";
+    case ViewMode::PAGE_HEIGHT:
+      return "Page-Height";
+    case ViewMode::SIDE_BY_SIDE:
+      return "Side-by-Side";
+  }
+  return "";
+}
+
+/// @brief Parse a ViewMode from its string representation.
+/// Accepts "page" as alias for "page-width".
+/// @return The parsed ViewMode, or nullopt on invalid input.
+std::optional<ViewMode> parse_view_mode(const std::string& s);
+
 /// @brief Color theme.
 enum class Theme {
   LIGHT,
@@ -48,6 +84,28 @@ enum class Theme {
   AUTO,
   TERMINAL
 };
+
+/// @brief Convert Theme to its config/RPC string representation.
+constexpr const char* to_string(Theme t) {
+  switch (t) {
+    case Theme::LIGHT:
+      return "light";
+    case Theme::DARK:
+      return "dark";
+    case Theme::AUTO:
+      return "auto";
+    case Theme::TERMINAL:
+      return "terminal";
+  }
+  return "";
+}
+
+/// @brief Convert Theme to its display label (statusline).
+const char* to_label(Theme t, Theme effective);
+
+/// @brief Parse a Theme from its string representation.
+/// @return The parsed Theme, or nullopt on invalid input.
+std::optional<Theme> parse_theme(const std::string& s);
 
 /// @brief Input mode for command/search bar.
 enum class InputMode {

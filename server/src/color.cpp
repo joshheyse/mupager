@@ -1,5 +1,7 @@
 #include "color.h"
 
+#include "sgr.h"
+
 #include <format>
 
 Color Color::rgb(uint8_t r, uint8_t g, uint8_t b) {
@@ -47,14 +49,14 @@ std::optional<Color> Color::parse(const std::string& s) {
 
 std::string Color::sgr_fg() const {
   if (is_default) {
-    return "\x1b[39m";
+    return sgr::DEFAULT_FG;
   }
   return std::format("\x1b[38;2;{};{};{}m", r, g, b);
 }
 
 std::string Color::sgr_bg() const {
   if (is_default) {
-    return "\x1b[49m";
+    return sgr::DEFAULT_BG;
   }
   return std::format("\x1b[48;2;{};{};{}m", r, g, b);
 }

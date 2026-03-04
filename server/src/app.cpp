@@ -1,6 +1,7 @@
 #include "app.h"
 
 #include "base64.h"
+#include "sgr.h"
 #include "stopwatch.h"
 #include "terminal_input.h"
 
@@ -10,6 +11,52 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
+
+std::optional<ViewMode> parse_view_mode(const std::string& s) {
+  if (s == "continuous") {
+    return ViewMode::CONTINUOUS;
+  }
+  if (s == "page" || s == "page-width") {
+    return ViewMode::PAGE_WIDTH;
+  }
+  if (s == "page-height") {
+    return ViewMode::PAGE_HEIGHT;
+  }
+  if (s == "side-by-side") {
+    return ViewMode::SIDE_BY_SIDE;
+  }
+  return std::nullopt;
+}
+
+const char* to_label(Theme t, Theme effective) {
+  switch (t) {
+    case Theme::LIGHT:
+      return "LIGHT";
+    case Theme::DARK:
+      return "DARK";
+    case Theme::AUTO:
+      return (effective == Theme::DARK) ? "AUTO/DARK" : "AUTO/LIGHT";
+    case Theme::TERMINAL:
+      return "TERMINAL";
+  }
+  return "";
+}
+
+std::optional<Theme> parse_theme(const std::string& s) {
+  if (s == "dark") {
+    return Theme::DARK;
+  }
+  if (s == "light") {
+    return Theme::LIGHT;
+  }
+  if (s == "auto") {
+    return Theme::AUTO;
+  }
+  if (s == "terminal") {
+    return Theme::TERMINAL;
+  }
+  return std::nullopt;
+}
 
 App::App(std::unique_ptr<Frontend> frontend, const Args& args, std::optional<Color> detected_fg, std::optional<Color> detected_bg)
     : frontend_(std::move(frontend))
@@ -21,23 +68,11 @@ App::App(std::unique_ptr<Frontend> frontend, const Args& args, std::optional<Col
     , scroll_lines_(args.scroll_lines)
     , render_scale_setting_(args.render_scale)
     , file_path_(args.file) {
-  if (args.view_mode == "page") {
-    view_mode_ = ViewMode::PAGE_WIDTH;
+  if (auto vm = parse_view_mode(args.view_mode)) {
+    view_mode_ = *vm;
   }
-  else if (args.view_mode == "page-height") {
-    view_mode_ = ViewMode::PAGE_HEIGHT;
-  }
-  else if (args.view_mode == "side-by-side") {
-    view_mode_ = ViewMode::SIDE_BY_SIDE;
-  }
-  if (args.theme == "light") {
-    theme_ = Theme::LIGHT;
-  }
-  else if (args.theme == "auto") {
-    theme_ = Theme::AUTO;
-  }
-  else if (args.theme == "terminal") {
-    theme_ = Theme::TERMINAL;
+  if (auto th = parse_theme(args.theme)) {
+    theme_ = *th;
   }
   spdlog::info("opened document: {} pages, mode: {}, theme: {}", doc_.page_count(), args.view_mode, args.theme);
 }
@@ -248,7 +283,7 @@ void App::ensure_pages_uploaded(int first, int last) {
     }
     else if (eff == Theme::TERMINAL) {
       auto [fg, bg] = resolve_recolor_colors();
-      pixmap.recolor(fg.r, fg.g, fg.b, bg.r, bg.g, bg.b);
+      pixmap.recolor(fg, bg);
     }
 
     highlight_page_matches(pixmap, i, render_zoom);
@@ -381,33 +416,8 @@ void App::update_statusline() {
     left = last_action_.text();
   }
 
-  auto mode_str = [&]() -> const char* {
-    switch (view_mode_) {
-      case ViewMode::CONTINUOUS:
-        return "Continuous";
-      case ViewMode::PAGE_WIDTH:
-        return "Page-Width";
-      case ViewMode::PAGE_HEIGHT:
-        return "Page-Height";
-      case ViewMode::SIDE_BY_SIDE:
-        return "Side-by-Side";
-    }
-    return "";
-  }();
-  auto theme_name = [&]() -> const char* {
-    switch (theme_) {
-      case Theme::LIGHT:
-        return "LIGHT";
-      case Theme::DARK:
-        return "DARK";
-      case Theme::AUTO:
-        return (effective_theme() == Theme::DARK) ? "AUTO/DARK" : "AUTO/LIGHT";
-      case Theme::TERMINAL:
-        return "TERMINAL";
-    }
-    return "";
-  }();
-  std::string theme_str = theme_name;
+  const char* mode_str = to_label(view_mode_);
+  const char* theme_str = to_label(theme_, effective_theme());
   int zoom_pct = static_cast<int>(user_zoom_ * 100.0f + 0.5f);
   int page = current_page() + 1;
   int total = doc_.page_count();
@@ -1307,23 +1317,9 @@ void App::execute_command() {
     }
 
     if (key == "theme") {
-      if (value == "dark") {
-        theme_ = Theme::DARK;
-        frontend_->clear();
-        render();
-      }
-      else if (value == "light") {
-        theme_ = Theme::LIGHT;
-        frontend_->clear();
-        render();
-      }
-      else if (value == "auto") {
-        theme_ = Theme::AUTO;
-        frontend_->clear();
-        render();
-      }
-      else if (value == "terminal") {
-        theme_ = Theme::TERMINAL;
+      auto th = parse_theme(value);
+      if (th) {
+        theme_ = *th;
         frontend_->clear();
         render();
       }
@@ -1332,24 +1328,12 @@ void App::execute_command() {
       }
     }
     else if (key == "mode") {
-      ViewMode new_mode = view_mode_;
-      if (value == "continuous") {
-        new_mode = ViewMode::CONTINUOUS;
-      }
-      else if (value == "page-width") {
-        new_mode = ViewMode::PAGE_WIDTH;
-      }
-      else if (value == "page-height") {
-        new_mode = ViewMode::PAGE_HEIGHT;
-      }
-      else if (value == "side-by-side") {
-        new_mode = ViewMode::SIDE_BY_SIDE;
-      }
-      else {
+      auto vm = parse_view_mode(value);
+      if (!vm) {
         last_action_.set("Unknown mode: {}", value);
         return;
       }
-      view_mode_ = new_mode;
+      view_mode_ = *vm;
       user_zoom_ = 1.0f;
       scroll_.x = 0;
       render();
@@ -1538,7 +1522,7 @@ void App::show_outline_popup() {
     auto visible_text = std::format("{}{:>{}}{}", title_part, "", gap, page_str);
 
     if (vi == outline_cursor_) {
-      auto line = std::format("\x1b[0m\x1b[1;4m{}\x1b[0m\x1b[7m", visible_text);
+      auto line = std::format("{}{}{}{}{}{}",  sgr::RESET, sgr::BOLD, sgr::UNDERLINE, visible_text, sgr::RESET, sgr::REVERSE);
       lines.push_back(line);
     }
     else {
@@ -1726,16 +1710,14 @@ void App::highlight_page_matches(Pixmap& pixmap, int page_num, float render_zoom
       continue;
     }
 
-    int px = static_cast<int>(hit.x * render_zoom);
-    int py = static_cast<int>(hit.y * render_zoom);
-    int pw = static_cast<int>(hit.w * render_zoom);
-    int ph = static_cast<int>(hit.h * render_zoom);
+    PixelRect rect = {static_cast<int>(hit.x * render_zoom), static_cast<int>(hit.y * render_zoom),
+                       static_cast<int>(hit.w * render_zoom), static_cast<int>(hit.h * render_zoom)};
 
     if (i == search_current_) {
-      pixmap.highlight_rect(px, py, pw, ph, colors_.search_active.r, colors_.search_active.g, colors_.search_active.b, colors_.search_active_alpha);
+      pixmap.highlight_rect(rect, colors_.search_active, colors_.search_active_alpha);
     }
     else {
-      pixmap.highlight_rect(px, py, pw, ph, colors_.search_highlight.r, colors_.search_highlight.g, colors_.search_highlight.b, colors_.search_highlight_alpha);
+      pixmap.highlight_rect(rect, colors_.search_highlight, colors_.search_highlight_alpha);
     }
   }
 }
@@ -2027,38 +2009,12 @@ void App::update_sidebar() {
 }
 
 ViewState App::view_state() const {
-  auto mode_str = [&]() -> std::string {
-    switch (view_mode_) {
-      case ViewMode::CONTINUOUS:
-        return "continuous";
-      case ViewMode::PAGE_WIDTH:
-        return "page-width";
-      case ViewMode::PAGE_HEIGHT:
-        return "page-height";
-      case ViewMode::SIDE_BY_SIDE:
-        return "side-by-side";
-    }
-    return "";
-  }();
-
   ViewState vs{
       current_page() + 1,
       doc_.page_count(),
       static_cast<int>(user_zoom_ * 100.0f + 0.5f),
-      mode_str,
-      [&]() -> const char* {
-        switch (theme_) {
-          case Theme::LIGHT:
-            return "light";
-          case Theme::DARK:
-            return "dark";
-          case Theme::AUTO:
-            return "auto";
-          case Theme::TERMINAL:
-            return "terminal";
-        }
-        return "dark";
-      }(),
+      to_string(view_mode_),
+      to_string(theme_),
       search_term_,
       search_current_ >= 0 ? search_current_ + 1 : 0,
       static_cast<int>(search_results_.size()),

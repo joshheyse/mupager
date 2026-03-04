@@ -1,5 +1,8 @@
 #pragma once
 
+#include "color.h"
+#include "geometry.h"
+
 #include <mupdf/fitz.h>
 
 #include <cstdint>
@@ -43,16 +46,16 @@ public:
   void invert();
 
   /// @brief Alpha-blend a colored rectangle onto the pixmap.
-  /// @param rx,ry,rw,rh Rectangle in pixel coordinates (clamped to bounds).
-  /// @param r,g,b Color components (0-255).
+  /// @param rect Rectangle in pixel coordinates (clamped to bounds).
+  /// @param color Blend color.
   /// @param alpha Blend factor (0 = transparent, 255 = opaque).
-  void highlight_rect(int rx, int ry, int rw, int rh, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha);
+  void highlight_rect(PixelRect rect, Color color, uint8_t alpha);
 
   /// @brief Recolor the pixmap using Zathura-style interpolation.
   ///
-  /// Maps black pixels to (fg_r, fg_g, fg_b) and white pixels to (bg_r, bg_g, bg_b),
+  /// Maps black pixels to fg and white pixels to bg,
   /// with intermediate values interpolated by grayscale luminance.
-  void recolor(uint8_t fg_r, uint8_t fg_g, uint8_t fg_b, uint8_t bg_r, uint8_t bg_g, uint8_t bg_b);
+  void recolor(Color fg, Color bg);
 
   /// @brief Encode pixmap as PNG data.
   std::vector<unsigned char> png_data() const;

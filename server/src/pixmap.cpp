@@ -62,33 +62,33 @@ void Pixmap::invert() {
   }
 }
 
-void Pixmap::highlight_rect(int rx, int ry, int rw, int rh, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha) {
+void Pixmap::highlight_rect(PixelRect rect, Color color, uint8_t alpha) {
   int w = width();
   int h = height();
   int comp = components();
   int s = stride();
 
-  int x0 = std::max(0, rx);
-  int y0 = std::max(0, ry);
-  int x1 = std::min(w, rx + rw);
-  int y1 = std::min(h, ry + rh);
+  int x0 = std::max(0, rect.x);
+  int y0 = std::max(0, rect.y);
+  int x1 = std::min(w, rect.right());
+  int y1 = std::min(h, rect.bottom());
 
   unsigned char* data = samples();
-  uint8_t color[3] = {r, g, b};
+  uint8_t rgb[3] = {color.r, color.g, color.b};
   int inv_alpha = 255 - alpha;
 
   for (int y = y0; y < y1; ++y) {
     unsigned char* row = data + y * s + x0 * comp;
     for (int x = x0; x < x1; ++x) {
       for (int c = 0; c < std::min(comp, 3); ++c) {
-        row[c] = static_cast<unsigned char>((row[c] * inv_alpha + color[c] * alpha) / 255);
+        row[c] = static_cast<unsigned char>((row[c] * inv_alpha + rgb[c] * alpha) / 255);
       }
       row += comp;
     }
   }
 }
 
-void Pixmap::recolor(uint8_t fg_r, uint8_t fg_g, uint8_t fg_b, uint8_t bg_r, uint8_t bg_g, uint8_t bg_b) {
+void Pixmap::recolor(Color fg, Color bg) {
   int h = height();
   int s = stride();
   int comp = components();
@@ -98,13 +98,11 @@ void Pixmap::recolor(uint8_t fg_r, uint8_t fg_g, uint8_t fg_b, uint8_t bg_r, uin
   for (int y = 0; y < h; ++y) {
     unsigned char* row = data + y * s;
     for (int x = 0; x < row_bytes; x += comp) {
-      // Grayscale luminance: average of RGB channels
       int lum = (row[x] + row[x + 1] + row[x + 2]) / 3;
       int inv_lum = 255 - lum;
-      // Interpolate: fg * (255-lum)/255 + bg * lum/255
-      row[x] = static_cast<unsigned char>((fg_r * inv_lum + bg_r * lum) / 255);
-      row[x + 1] = static_cast<unsigned char>((fg_g * inv_lum + bg_g * lum) / 255);
-      row[x + 2] = static_cast<unsigned char>((fg_b * inv_lum + bg_b * lum) / 255);
+      row[x] = static_cast<unsigned char>((fg.r * inv_lum + bg.r * lum) / 255);
+      row[x + 1] = static_cast<unsigned char>((fg.g * inv_lum + bg.g * lum) / 255);
+      row[x + 2] = static_cast<unsigned char>((fg.b * inv_lum + bg.b * lum) / 255);
     }
   }
 }
