@@ -1,0 +1,17 @@
+# Tokyo Night Night color scheme for mupager
+# Usage: mupager --config fixtures/mupager.toml <file>
+
+[colors]
+statusline-fg = "#a9b1d6"
+statusline-bg = "#292e42"
+
+overlay-fg = "#a9b1d6"
+overlay-bg = "#1a1b26"
+overlay-border = "#7aa2f7"
+
+sidebar-active-fg = "#c0caf5"
+sidebar-active-bg = "#33467c"
+sidebar-border = "#3b4261"
+
+link-hint-fg = "#1a1b26"
+link-hint-bg = "#e0af68"

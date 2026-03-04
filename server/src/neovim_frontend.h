@@ -60,7 +60,7 @@ private:
   int tty_fd_ = -1;     ///< File descriptor for /dev/tty.
   std::deque<RpcCommand> command_queue_;
 
-  uint32_t next_image_id_ = 1;
+  uint32_t next_image_id_ = 1 << 24; ///< Offset from terminal frontend to avoid Kitty image ID collisions.
   std::unordered_set<uint32_t> uploaded_ids_;
 
   int win_cols_ = 0;   ///< Neovim window width in columns.

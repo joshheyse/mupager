@@ -53,6 +53,8 @@ Args::Args(int argc, char* argv[])
   cli.add_option("--mode", mode, "Frontend mode (terminal, neovim)")->check(CLI::IsMember({"terminal", "neovim"}));
   auto* theme_opt = cli.add_option("--theme", theme, "Theme (dark, light, auto, terminal)")->check(CLI::IsMember({"dark", "light", "auto", "terminal"}));
   auto* scroll_lines_opt = cli.add_option("--scroll-lines", scroll_lines, "Lines per scroll step");
+  std::string config_str;
+  cli.add_option("--config,-c", config_str, "Config file path (overrides XDG default)");
   auto* show_stats_opt = cli.add_flag("--show-stats", show_stats, "Show cache stats in the statusline");
   try {
     cli.parse(argc, argv);
@@ -67,6 +69,10 @@ Args::Args(int argc, char* argv[])
   }
 
   render_scale = parse_render_scale(scale_str);
+
+  if (!config_str.empty()) {
+    config_file = config_str;
+  }
 
   // Track which options were explicitly set on the CLI for apply_config().
   cli_explicit_ = 0;

@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
   }
 
   try {
-    auto cfg = load_config();
+    auto cfg = load_config(args->config_file);
     args->apply_config(cfg);
   }
   catch (const std::exception& e) {

@@ -31,13 +31,13 @@ std::optional<ViewMode> parse_view_mode(const std::string& s) {
 const char* to_label(Theme t, Theme effective) {
   switch (t) {
     case Theme::LIGHT:
-      return "LIGHT";
+      return "Light";
     case Theme::DARK:
-      return "DARK";
+      return "Dark";
     case Theme::AUTO:
-      return (effective == Theme::DARK) ? "AUTO/DARK" : "AUTO/LIGHT";
+      return (effective == Theme::DARK) ? "Auto/Dark" : "Auto/Light";
     case Theme::TERMINAL:
-      return "TERMINAL";
+      return "Terminal";
   }
   return "";
 }
@@ -1499,16 +1499,43 @@ void App::show_outline_popup() {
     return text + std::string(content_w - visible_len, ' ');
   };
 
-  std::vector<std::string> lines;
-  lines.push_back(pad_line("Table of Contents", 17));
+  // Truncate a string to fit within max_cols display columns.
+  auto truncate_to = [](const std::string& text, int max_cols) -> std::string {
+    int cols = 0;
+    size_t pos = 0;
+    while (pos < text.size() && cols < max_cols) {
+      auto c = static_cast<unsigned char>(text[pos]);
+      if (c == 0x1B && pos + 1 < text.size() && text[pos + 1] == '[') {
+        pos += 2;
+        while (pos < text.size() && static_cast<unsigned char>(text[pos]) < 0x40) {
+          ++pos;
+        }
+        if (pos < text.size()) {
+          ++pos;
+        }
+        continue;
+      }
+      size_t char_len = 1;
+      if (c >= 0xF0) {
+        char_len = 4;
+      }
+      else if (c >= 0xE0) {
+        char_len = 3;
+      }
+      else if (c >= 0x80) {
+        char_len = 2;
+      }
+      pos += char_len;
+      ++cols;
+    }
+    return text.substr(0, pos);
+  };
 
-  if (!outline_filter_.empty()) {
-    auto filter_line = std::format("> {}", outline_filter_);
-    lines.push_back(pad_line(filter_line, static_cast<int>(filter_line.size())));
-  }
-  else {
-    lines.push_back(pad_line("", 0));
-  }
+  std::vector<std::string> lines;
+  lines.push_back("Table of Contents");
+
+  auto filter_line = std::format("> {}", outline_filter_);
+  lines.push_back(pad_line(filter_line, static_cast<int>(filter_line.size())));
 
   int end = std::min(outline_scroll_ + max_visible, static_cast<int>(filtered_indices_.size()));
   for (int vi = outline_scroll_; vi < end; ++vi) {
@@ -1518,11 +1545,19 @@ void App::show_outline_popup() {
     auto title_part = std::format("{}{}", indent, entry.title);
     int title_len = static_cast<int>(title_part.size());
     int page_len = static_cast<int>(page_str.size());
+
+    // Truncate title if it would overflow content_w
+    int max_title = content_w - page_len - 1;
+    if (title_len > max_title && max_title > 0) {
+      title_part = truncate_to(title_part, max_title);
+      title_len = max_title;
+    }
+
     int gap = std::max(1, content_w - title_len - page_len);
     auto visible_text = std::format("{}{:>{}}{}", title_part, "", gap, page_str);
 
     if (vi == outline_cursor_) {
-      auto line = std::format("{}{}{}{}", sgr::RESET, sgr::BOLD, sgr::UNDERLINE, visible_text);
+      auto line = std::format("{}{}{}", sgr::BOLD, sgr::UNDERLINE, visible_text);
       lines.push_back(line);
     }
     else {

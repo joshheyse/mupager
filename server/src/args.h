@@ -29,6 +29,7 @@ struct Args {
   int scroll_lines = 3;                   ///< Lines per scroll step.
   bool show_stats = false;                ///< Show cache stats in the statusline.
   ColorScheme colors;                     ///< Color scheme from config.
+  std::optional<std::string> config_file; ///< Explicit config file path (overrides XDG default).
   std::optional<std::string> terminal_fg; ///< Override for detected terminal foreground.
   std::optional<std::string> terminal_bg; ///< Override for detected terminal background.
 

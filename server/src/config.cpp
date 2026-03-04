@@ -155,8 +155,8 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
   }
 }
 
-Config load_config() {
-  auto path = config_path();
+Config load_config(const std::optional<std::string>& path_override) {
+  auto path = path_override ? std::filesystem::path(*path_override) : config_path();
   if (!std::filesystem::exists(path)) {
     spdlog::debug("config: no file at {}", path.string());
     return {};

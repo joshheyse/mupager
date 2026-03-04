@@ -21,6 +21,6 @@ struct Config {
   bool has_colors = false;                ///< True if any [colors] keys were set.
 };
 
-/// @brief Load config from $XDG_CONFIG_HOME/mupager/config.toml.
+/// @brief Load config from the given path, or $XDG_CONFIG_HOME/mupager/config.toml if empty.
 /// Returns empty Config if file doesn't exist. Throws on parse error.
-Config load_config();
+Config load_config(const std::optional<std::string>& path_override = std::nullopt);

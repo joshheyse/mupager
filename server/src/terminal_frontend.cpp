@@ -396,18 +396,20 @@ void TerminalFrontend::show_overlay(const std::vector<std::string>& lines) {
   for (size_t i = 1; i < lines.size(); ++i) {
     int row = start_row + static_cast<int>(i);
     sgr::move_to(out, row, start_col);
+    out += sgr::RESET;
     out += border_sgr;
     out += vert;
     out += content_sgr;
     int line_w = display_width(lines[i]);
     int right_pad = box_w - 4 - line_w; // V + SP + content + SP + V
-    std::format_to(std::back_inserter(out), " {}{:>{}}", lines[i], "", std::max(0, right_pad));
+    std::format_to(std::back_inserter(out), " {}{}", lines[i], "");
+    // Re-apply content colors after line content (may contain embedded ANSI)
+    out += content_sgr;
+    out.append(std::max(0, right_pad), ' ');
     out += " ";
-    // Re-apply border color after content (content may contain embedded ANSI resets)
     out += border_sgr;
     out += vert;
     out += sgr::RESET;
-    // Re-set content_sgr for next line to handle embedded resets
   }
 
   // Bottom border: ╰──────────╯
