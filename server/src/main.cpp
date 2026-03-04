@@ -87,7 +87,7 @@ int main(int argc, char* argv[]) {
       frontend->set_color_scheme(args->colors);
       auto* term = frontend.get();
       App app(std::move(frontend), *args, detected_fg, detected_bg);
-      run_terminal(app, *term, args->scroll_lines);
+      run_terminal(app, *term, args->key_bindings, args->scroll_lines);
     }
   }
   catch (const std::exception& e) {

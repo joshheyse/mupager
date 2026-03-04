@@ -88,21 +88,46 @@ void Pixmap::highlight_rect(PixelRect rect, Color color, uint8_t alpha) {
   }
 }
 
-void Pixmap::recolor(Color fg, Color bg) {
+void Pixmap::recolor(Color fg, Color bg, Color accent) {
   int h = height();
   int s = stride();
   int comp = components();
   int row_bytes = width() * comp;
   unsigned char* data = samples();
+  bool has_accent = !accent.is_default;
 
   for (int y = 0; y < h; ++y) {
     unsigned char* row = data + y * s;
     for (int x = 0; x < row_bytes; x += comp) {
-      int lum = (row[x] + row[x + 1] + row[x + 2]) / 3;
+      int r = row[x];
+      int g = row[x + 1];
+      int b = row[x + 2];
+      int lum = (r + g + b) / 3;
       int inv_lum = 255 - lum;
-      row[x] = static_cast<unsigned char>((fg.r * inv_lum + bg.r * lum) / 255);
-      row[x + 1] = static_cast<unsigned char>((fg.g * inv_lum + bg.g * lum) / 255);
-      row[x + 2] = static_cast<unsigned char>((fg.b * inv_lum + bg.b * lum) / 255);
+
+      // Base recolored values from luminance interpolation
+      int out_r = (fg.r * inv_lum + bg.r * lum) / 255;
+      int out_g = (fg.g * inv_lum + bg.g * lum) / 255;
+      int out_b = (fg.b * inv_lum + bg.b * lum) / 255;
+
+      // Tint saturated pixels toward accent color
+      if (has_accent) {
+        int max_c = std::max({r, g, b});
+        int min_c = std::min({r, g, b});
+        int chroma = max_c - min_c;
+        // Saturation as fraction of max channel (0-255 scale)
+        int sat = (max_c > 0) ? (chroma * 255 / max_c) : 0;
+        // Blend toward accent proportional to saturation
+        if (sat > 30) {
+          out_r = (out_r * (255 - sat) + accent.r * sat) / 255;
+          out_g = (out_g * (255 - sat) + accent.g * sat) / 255;
+          out_b = (out_b * (255 - sat) + accent.b * sat) / 255;
+        }
+      }
+
+      row[x] = static_cast<unsigned char>(out_r);
+      row[x + 1] = static_cast<unsigned char>(out_g);
+      row[x + 2] = static_cast<unsigned char>(out_b);
     }
   }
 }

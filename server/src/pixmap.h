@@ -55,7 +55,8 @@ public:
   ///
   /// Maps black pixels to fg and white pixels to bg,
   /// with intermediate values interpolated by grayscale luminance.
-  void recolor(Color fg, Color bg);
+  /// Saturated pixels are tinted toward accent (if not default).
+  void recolor(Color fg, Color bg, Color accent = Color::terminal_default());
 
   /// @brief Encode pixmap as PNG data.
   std::vector<unsigned char> png_data() const;

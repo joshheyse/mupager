@@ -31,24 +31,9 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
   }
 
   static const std::unordered_set<std::string> KNOWN_COLOR_KEYS = {
-      "statusline-fg",
-      "statusline-bg",
-      "overlay-fg",
-      "overlay-bg",
-      "overlay-border",
-      "sidebar-fg",
-      "sidebar-bg",
-      "sidebar-active-fg",
-      "sidebar-active-bg",
-      "sidebar-border",
-      "link-hint-fg",
-      "link-hint-bg",
-      "search-highlight",
-      "search-highlight-alpha",
-      "search-active",
-      "search-active-alpha",
-      "recolor-dark",
-      "recolor-light",
+      "statusline-fg",     "statusline-bg",       "overlay-fg",     "overlay-bg",    "overlay-border", "sidebar-fg",       "sidebar-bg",
+      "sidebar-active-fg", "sidebar-active-bg",   "sidebar-border", "link-hint-fg",  "link-hint-bg",   "search-highlight", "search-highlight-alpha",
+      "search-active",     "search-active-alpha", "recolor-dark",   "recolor-light", "recolor-accent",
   };
 
   for (auto&& [key, val] : *colors_tbl) {
@@ -152,6 +137,43 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
     else if (k == "recolor-light") {
       cfg.colors.recolor_light = *color;
     }
+    else if (k == "recolor-accent") {
+      cfg.colors.recolor_accent = *color;
+    }
+  }
+}
+
+/// @brief Parse the [keys] table into the Config keys map.
+static void parse_keys_table(const toml::table& tbl, Config& cfg) {
+  auto* keys_tbl = tbl["keys"].as_table();
+  if (!keys_tbl) {
+    return;
+  }
+
+  for (auto&& [key, val] : *keys_tbl) {
+    std::string action_name{key.str()};
+    std::vector<std::string> specs;
+
+    if (auto sv = val.value<std::string>()) {
+      specs.push_back(*sv);
+    }
+    else if (auto* arr = val.as_array()) {
+      for (const auto& elem : *arr) {
+        if (auto s = elem.value<std::string>()) {
+          specs.push_back(*s);
+        }
+        else {
+          spdlog::warn("config: [keys] '{}' array elements must be strings", action_name);
+        }
+      }
+    }
+    else {
+      spdlog::warn("config: [keys] '{}' must be a string or array of strings", action_name);
+      continue;
+    }
+
+    cfg.keys[action_name] = std::move(specs);
+    cfg.has_keys = true;
   }
 }
 
@@ -188,6 +210,9 @@ Config load_config(const std::optional<std::string>& path_override) {
   if (auto v = tbl["show-stats"].value<bool>()) {
     cfg.show_stats = *v;
   }
+  if (auto v = tbl["max-page-cache"].value<int64_t>()) {
+    cfg.max_page_cache = static_cast<int>(*v);
+  }
   if (auto v = tbl["terminal-fg"].value<std::string>()) {
     cfg.terminal_fg = *v;
   }
@@ -196,6 +221,7 @@ Config load_config(const std::optional<std::string>& path_override) {
   }
 
   parse_colors_table(tbl, cfg);
+  parse_keys_table(tbl, cfg);
 
   // Warn about unknown top-level keys
   static const std::unordered_set<std::string> KNOWN_KEYS = {
@@ -206,9 +232,11 @@ Config load_config(const std::optional<std::string>& path_override) {
       "log-level",
       "log-file",
       "show-stats",
+      "max-page-cache",
       "terminal-fg",
       "terminal-bg",
       "colors",
+      "keys",
   };
   for (auto&& [key, val] : tbl) {
     std::string k{key.str()};

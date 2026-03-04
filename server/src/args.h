@@ -1,6 +1,7 @@
 #pragma once
 
 #include "color_scheme.h"
+#include "key_bindings.h"
 
 #include <optional>
 #include <string>
@@ -27,11 +28,13 @@ struct Args {
   std::string theme = "dark";    ///< Initial theme.
   RenderScale render_scale = RenderScale::AUTO;
   int scroll_lines = 3;                   ///< Lines per scroll step.
+  size_t max_page_cache = 64 * 1024 * 1024; ///< Max page cache size in bytes (default 64 MB).
   bool show_stats = false;                ///< Show cache stats in the statusline.
   ColorScheme colors;                     ///< Color scheme from config.
   std::optional<std::string> config_file; ///< Explicit config file path (overrides XDG default).
   std::optional<std::string> terminal_fg; ///< Override for detected terminal foreground.
   std::optional<std::string> terminal_bg; ///< Override for detected terminal background.
+  KeyBindings key_bindings;               ///< Configurable key bindings.
 
   Args(int argc, char* argv[]);
 
@@ -46,5 +49,6 @@ private:
   static constexpr unsigned CLI_LOG_LEVEL = 1 << 4;
   static constexpr unsigned CLI_LOG_FILE = 1 << 5;
   static constexpr unsigned CLI_SHOW_STATS = 1 << 6;
+  static constexpr unsigned CLI_MAX_PAGE_CACHE = 1 << 7;
   unsigned cli_explicit_ = 0; ///< Bitmask of CLI flags explicitly provided.
 };

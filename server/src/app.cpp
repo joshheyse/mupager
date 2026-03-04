@@ -9,7 +9,6 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <cstring>
 #include <string>
 
 std::optional<ViewMode> parse_view_mode(const std::string& s) {
@@ -62,10 +61,12 @@ App::App(std::unique_ptr<Frontend> frontend, const Args& args, std::optional<Col
     : frontend_(std::move(frontend))
     , doc_(args.file)
     , colors_(args.colors)
+    , bindings_(args.key_bindings)
     , detected_terminal_fg_(detected_fg)
     , detected_terminal_bg_(detected_bg)
     , show_stats_(args.show_stats)
     , scroll_lines_(args.scroll_lines)
+    , max_page_cache_(args.max_page_cache)
     , render_scale_setting_(args.render_scale)
     , file_path_(args.file) {
   if (auto vm = parse_view_mode(args.view_mode)) {
@@ -167,7 +168,7 @@ float App::effective_render_scale() const {
   RenderScale setting = render_scale_setting_;
 
   if (setting == RenderScale::AUTO) {
-    setting = frontend_->supports_image_viewporting() ? RenderScale::X1 : RenderScale::NEVER;
+    setting = frontend_->supports_image_viewporting() ? RenderScale::X05 : RenderScale::NEVER;
   }
 
   if (setting == RenderScale::NEVER) {
@@ -188,16 +189,7 @@ float App::effective_render_scale() const {
     floor_scale = 4.0f;
   }
 
-  float dynamic_scale = 0.0f;
-  if (user_zoom_ > 1.0f) {
-    dynamic_scale = 2.0f;
-  }
-  if (user_zoom_ > 2.0f) {
-    dynamic_scale = 4.0f;
-  }
-  if (user_zoom_ > 4.0f) {
-    dynamic_scale = 8.0f;
-  }
+  float dynamic_scale = std::pow(2.0f, std::floor(std::log2(user_zoom_ * 0.5f)));
 
   return std::max(floor_scale, dynamic_scale);
 }
@@ -283,7 +275,7 @@ void App::ensure_pages_uploaded(int first, int last) {
     }
     else if (eff == Theme::TERMINAL) {
       auto [fg, bg] = resolve_recolor_colors();
-      pixmap.recolor(fg, bg);
+      pixmap.recolor(fg, bg, colors_.recolor_accent);
     }
 
     highlight_page_matches(pixmap, i, render_zoom);
@@ -307,6 +299,7 @@ void App::evict_distant_pages(int first, int last) {
   int keep_lo = std::max(0, first - 2);
   int keep_hi = std::min(static_cast<int>(layout_.size()) - 1, last + 2);
 
+  // Distance-based eviction: remove pages far from viewport
   std::vector<int> to_evict;
   for (auto& [page, cached] : page_cache_) {
     if (page < keep_lo || page > keep_hi) {
@@ -317,6 +310,42 @@ void App::evict_distant_pages(int first, int last) {
     frontend_->free_image(page_cache_[page].image_id);
     page_cache_.erase(page);
     spdlog::debug("evicted page {}", page);
+  }
+
+  // Size-based eviction: if still over budget, evict most distant pages
+  if (max_page_cache_ == 0) {
+    return;
+  }
+  size_t total = 0;
+  for (const auto& [page, cached] : page_cache_) {
+    total += cached.memory_bytes;
+  }
+  if (total <= max_page_cache_) {
+    return;
+  }
+
+  int mid = (first + last) / 2;
+  std::vector<int> pages_by_distance;
+  pages_by_distance.reserve(page_cache_.size());
+  for (const auto& [page, cached] : page_cache_) {
+    pages_by_distance.push_back(page);
+  }
+  std::sort(pages_by_distance.begin(), pages_by_distance.end(), [mid](int a, int b) {
+    return std::abs(a - mid) > std::abs(b - mid);
+  });
+
+  for (int page : pages_by_distance) {
+    if (total <= max_page_cache_) {
+      break;
+    }
+    // Never evict visible pages
+    if (page >= first && page <= last) {
+      continue;
+    }
+    total -= page_cache_[page].memory_bytes;
+    frontend_->free_image(page_cache_[page].image_id);
+    page_cache_.erase(page);
+    spdlog::debug("evicted page {} (cache over budget)", page);
   }
 }
 
@@ -428,13 +457,20 @@ void App::update_statusline() {
   right += std::format(" \xe2\x94\x82 {} \xe2\x94\x82 {}/{}", theme_str, page, total);
 
   if (show_stats_) {
+    float rs = effective_render_scale();
+    if (rs == 0.0f) {
+      right += std::format(" \xe2\x94\x82 rs:exact");
+    }
+    else {
+      right += std::format(" \xe2\x94\x82 rs:{:.2g}x", rs);
+    }
     auto [cached_pages, cached_bytes] = cache_stats();
     if (!cached_pages.empty()) {
       if (cached_bytes >= 1024 * 1024) {
-        right += std::format(" \xe2\x94\x82 [{}] {:.1f}M", cached_pages, static_cast<double>(cached_bytes) / (1024.0 * 1024.0));
+        right += std::format(" [{}] {:.1f}M", cached_pages, static_cast<double>(cached_bytes) / (1024.0 * 1024.0));
       }
       else {
-        right += std::format(" \xe2\x94\x82 [{}] {:.0f}K", cached_pages, static_cast<double>(cached_bytes) / 1024.0);
+        right += std::format(" [{}] {:.0f}K", cached_pages, static_cast<double>(cached_bytes) / 1024.0);
       }
     }
   }
@@ -1403,16 +1439,16 @@ void App::execute_command() {
 }
 
 void App::show_help() {
-  const auto& bindings = get_help_bindings();
+  auto bindings = bindings_.help_bindings();
 
   int max_key_len = 0;
   for (const auto& hb : bindings) {
-    max_key_len = std::max(max_key_len, static_cast<int>(std::strlen(hb.key_label)));
+    max_key_len = std::max(max_key_len, static_cast<int>(hb.key_label.size()));
   }
 
-  auto format_line = [&](const char* key, const char* desc) {
+  auto format_line = [&](const std::string& key, const std::string& desc) {
     std::string line = key;
-    line += std::string(max_key_len - static_cast<int>(std::strlen(key)) + 3, ' ');
+    line += std::string(max_key_len - static_cast<int>(key.size()) + 3, ' ');
     line += desc;
     return line;
   };

@@ -21,7 +21,7 @@ build: ensure-init
 
 # Run with test PDF (pass extra args after --)
 run *ARGS: build
-    SPDLOG_LEVEL=debug ./build/server/mupager --config fixtures/mupager.toml --show-stats fixtures/test.pdf {{ARGS}}
+    ./build/server/mupager --config fixtures/mupager.toml fixtures/test.pdf {{ARGS}}
 
 # Remove and recreate the build directory
 clean:

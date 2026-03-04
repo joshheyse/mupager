@@ -1,17 +1,81 @@
-# Tokyo Night Night color scheme for mupager
+# Tokyo Night Night config for mupager
 # Usage: mupager --config fixtures/mupager.toml <file>
 
+theme = "terminal"
+view-mode = "continuous"
+render-scale = "0.5"
+scroll-lines = 3
+max-page-cache = 64
+log-level = "debug"
+show-stats = true
+# log-file = "$XDG_STATE_HOME/mupager/mupager.log"
+# terminal-fg = "#c0caf5"
+# terminal-bg = "#1a1b26"
+
 [colors]
+# Statusline
 statusline-fg = "#a9b1d6"
 statusline-bg = "#292e42"
 
+# Overlay (TOC, help)
 overlay-fg = "#a9b1d6"
 overlay-bg = "#1a1b26"
 overlay-border = "#7aa2f7"
 
+# Sidebar
+sidebar-fg = "#a9b1d6"
+sidebar-bg = "#1a1b26"
 sidebar-active-fg = "#c0caf5"
 sidebar-active-bg = "#33467c"
 sidebar-border = "#3b4261"
 
+# Link hints
 link-hint-fg = "#1a1b26"
 link-hint-bg = "#e0af68"
+
+# Search highlights
+search-highlight = "#e0af68"
+search-highlight-alpha = 80
+search-active = "#ff9e64"
+search-active-alpha = 120
+
+# Terminal theme: remap PDF black->fg, white->bg, tint links
+recolor-dark = "#c0caf5"
+recolor-light = "#1a1b26"
+recolor-accent = "#7aa2f7"
+
+# [keys]
+# Remap normal-mode key bindings. Values are a string or array of strings.
+# Key specs: single chars ("j"), special names ("Tab", "Esc", "Up", "Down",
+# "Left", "Right", "PageUp", "PageDown", "Home", "End", "Space", "Enter",
+# "Backspace"), ctrl combos ("Ctrl+F"), or double-key sequences ("gg").
+# When an action is specified here, it replaces ALL default keys for that action.
+# Actions not listed keep their defaults.
+#
+# scroll-down = ["j", "Down"]
+# scroll-up = ["k", "Up"]
+# half-page-down = "d"
+# half-page-up = "u"
+# page-down = "Ctrl+F"
+# page-up = "Ctrl+B"
+# scroll-left = ["h", "Left"]
+# scroll-right = ["l", "Right"]
+# zoom-in = ["+", "="]
+# zoom-out = "-"
+# zoom-reset = ["0", "w"]
+# toggle-view = "Tab"
+# toggle-theme = "t"
+# quit = "q"
+# first-page = "gg"
+# last-page = "G"
+# jump-back = "H"
+# jump-forward = "L"
+# link-hints = "f"
+# command-mode = ":"
+# search = "/"
+# next-match = "n"
+# prev-match = "N"
+# outline = "o"
+# sidebar = "e"
+# help = "?"
+# clear-search = "Esc"

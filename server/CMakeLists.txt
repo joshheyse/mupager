@@ -12,6 +12,7 @@ set(SERVER_LIB_SOURCES
   src/args.cpp
   src/color.cpp
   src/config.cpp
+  src/key_bindings.cpp
   src/document.cpp
   src/osc_query.cpp
   src/pixmap.cpp
@@ -68,6 +69,7 @@ set(SERVER_TEST_SOURCES
   src/base64.test.cpp
   src/kitty.test.cpp
   src/color.test.cpp
+  src/key_bindings.test.cpp
 )
 
 add_executable(ServerTests ${SERVER_TEST_SOURCES})

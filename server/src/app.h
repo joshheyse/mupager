@@ -6,6 +6,7 @@
 #include "document.h"
 #include "frontend.h"
 #include "geometry.h"
+#include "key_bindings.h"
 #include "outline.h"
 #include "rpc_command.h"
 
@@ -285,11 +286,13 @@ private:
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
   ColorScheme colors_;
+  KeyBindings bindings_;
   std::optional<Color> detected_terminal_fg_;
   std::optional<Color> detected_terminal_bg_;
   bool running_ = true;
   bool show_stats_ = false;
-  int scroll_lines_ = 3; ///< Lines per scroll step (from config/CLI).
+  int scroll_lines_ = 3;              ///< Lines per scroll step (from config/CLI).
+  size_t max_page_cache_ = 64 * 1024 * 1024; ///< Max page cache size in bytes.
   PixelPoint scroll_;
   ViewMode view_mode_ = ViewMode::CONTINUOUS;
   Theme theme_ = Theme::DARK;

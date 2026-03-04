@@ -2,31 +2,23 @@
 
 #include "geometry.h"
 #include "input_event.h"
+#include "key_bindings.h"
 #include "rpc_command.h"
 
 #include <optional>
-#include <vector>
 
 enum class InputMode;
 
-/// @brief Display-only help entry for the help overlay.
-struct HelpBinding {
-  const char* key_label;   ///< Key combination display string.
-  const char* description; ///< What the binding does.
-};
-
-/// @brief Get the help bindings table for the help overlay.
-const std::vector<HelpBinding>& get_help_bindings();
-
 /// @brief Translates terminal key events into RpcCommands.
 ///
-/// Owns vim-style prefix state (pending_g_, pending_count_) and converts
+/// Owns vim-style prefix state (pending_prefix_, pending_count_) and converts
 /// raw InputEvents into commands based on the current input mode.
 class TerminalInputHandler {
 public:
-  /// @brief Construct with the number of lines per scroll step.
-  explicit TerminalInputHandler(int scroll_lines = 3)
-      : scroll_lines_(scroll_lines) {}
+  /// @brief Construct with key bindings and scroll step.
+  explicit TerminalInputHandler(const KeyBindings& bindings, int scroll_lines = 3)
+      : bindings_(bindings)
+      , scroll_lines_(scroll_lines) {}
 
   /// @brief Translate a key event into a command.
   /// @param event The input event to translate.
@@ -36,8 +28,14 @@ public:
   /// @return The translated command, or nullopt if the event was consumed without producing a command.
   std::optional<RpcCommand> translate(const InputEvent& event, InputMode mode, int terminal_rows, CellSize cell = {});
 
+  /// @brief Access the key bindings.
+  const KeyBindings& bindings() const {
+    return bindings_;
+  }
+
 private:
+  KeyBindings bindings_;
   int scroll_lines_ = 3;
-  bool pending_g_ = false;
+  bool pending_prefix_ = false;
   int pending_count_ = 0;
 };

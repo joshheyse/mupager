@@ -4,6 +4,8 @@
 
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 /// @brief Persistent settings loaded from config.toml.
 struct Config {
@@ -14,11 +16,15 @@ struct Config {
   std::optional<std::string> log_level;
   std::optional<std::string> log_file;
   std::optional<bool> show_stats;
+  std::optional<int> max_page_cache; ///< Max page cache size in MB.
 
   std::optional<std::string> terminal_fg; ///< Override for detected terminal foreground.
   std::optional<std::string> terminal_bg; ///< Override for detected terminal background.
   ColorScheme colors;                     ///< Parsed [colors] section.
   bool has_colors = false;                ///< True if any [colors] keys were set.
+
+  std::unordered_map<std::string, std::vector<std::string>> keys; ///< Parsed [keys] section.
+  bool has_keys = false;                                          ///< True if any [keys] entries were set.
 };
 
 /// @brief Load config from the given path, or $XDG_CONFIG_HOME/mupager/config.toml if empty.
