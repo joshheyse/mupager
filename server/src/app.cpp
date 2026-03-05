@@ -1,8 +1,6 @@
 #include "app.hpp"
 
 #include "converter.hpp"
-#include "util/base64.hpp"
-#include "util/stopwatch.hpp"
 
 #include <spdlog/spdlog.h>
 #include <sys/stat.h>
@@ -69,8 +67,8 @@ App::App(std::unique_ptr<Frontend> frontend, const Args& args, std::optional<Col
     , detected_terminal_bg_(detected_bg)
     , show_stats_(args.show_stats)
     , scroll_lines_(args.scroll_lines)
-    , max_page_cache_(args.max_page_cache)
     , render_scale_setting_(args.render_scale)
+    , page_manager_(args.max_page_cache)
     , file_path_(args.file)
     , source_path_(args.source_file)
     , converter_cmd_(args.source_file.empty() ? "" : args.converter) {
@@ -244,162 +242,29 @@ void App::handle_zoom_change(float old_zoom) {
   update_viewport();
 }
 
-void App::ensure_pages_uploaded(int first, int last) {
+RenderParams App::make_render_params() const {
+  auto [fg, bg] = resolve_recolor_colors();
   auto client = frontend_->client_info();
-  if (!client.is_valid()) {
-    return;
-  }
-
-  float rs = effective_render_scale();
-
-  for (int i = first; i <= last; ++i) {
-    float base_zoom = layout_[i].zoom;
-
-    float render_zoom = (rs == 0.0f) ? base_zoom * user_zoom_ : base_zoom * rs;
-
-    auto it = page_cache_.find(i);
-    if (it != page_cache_.end()) {
-      if (rs == 0.0f) {
-        // NEVER mode: re-render only if zoom changed
-        if (it->second.render_zoom == render_zoom) {
-          continue;
-        }
-        frontend_->free_image(it->second.image_id);
-        page_cache_.erase(it);
-      }
-      else {
-        // Scaled mode: keep if cached scale is sufficient
-        if (it->second.render_scale >= rs) {
-          continue;
-        }
-        // Need higher scale — re-render
-        frontend_->free_image(it->second.image_id);
-        page_cache_.erase(it);
-      }
-    }
-
-    frontend_->statusline(std::format("Rendering page {}...", i + 1), "");
-
-    Pixmap pixmap = [&] {
-      Stopwatch sw(std::format("mupdf render page {} zoom={} scale={}", i, render_zoom, rs));
-      return doc_.render_page(i, render_zoom);
-    }();
-
-    Theme eff = effective_theme();
-    if (eff == Theme::Dark) {
-      pixmap.invert();
-    }
-    else if (eff == Theme::Terminal) {
-      auto [fg, bg] = resolve_recolor_colors();
-      pixmap.recolor(fg, bg, colors_.recolor_accent);
-    }
-
-    // Save post-theme, pre-highlight pixels for fast selection refresh
-    auto base = pixmap.pack_pixels();
-    int base_w = pixmap.width();
-    int base_h = pixmap.height();
-    int base_comp = pixmap.components();
-
-    highlight_page_matches(pixmap, i, render_zoom);
-    highlight_selection(pixmap, i, render_zoom);
-
-    // Grid dimensions based on display size (not rendered pixel size)
-    // so images display at correct width in tmux unicode placeholder mode.
-    float display_zoom = base_zoom * user_zoom_;
-    auto ps = doc_.page_size(i);
-    int display_w = static_cast<int>(ps.width * display_zoom);
-    int display_h = static_cast<int>(ps.height * display_zoom);
-    int cols = (display_w + client.cell.width - 1) / client.cell.width;
-    int rows = (display_h + client.cell.height - 1) / client.cell.height;
-
-    uint32_t image_id = frontend_->upload_image(pixmap, cols, rows);
-    size_t mem = static_cast<size_t>(pixmap.width()) * pixmap.height() * pixmap.components();
-    page_cache_[i] = {image_id, {pixmap.width(), pixmap.height()}, {cols, rows}, rs, render_zoom, mem, std::move(base), base_w, base_h, base_comp};
-  }
-}
-
-void App::evict_distant_pages(int first, int last) {
-  int keep_lo = std::max(0, first - 2);
-  int keep_hi = std::min(static_cast<int>(layout_.size()) - 1, last + 2);
-
-  // Distance-based eviction: remove pages far from viewport
-  std::vector<int> to_evict;
-  for (auto& [page, cached] : page_cache_) {
-    if (page < keep_lo || page > keep_hi) {
-      to_evict.push_back(page);
-    }
-  }
-  for (int page : to_evict) {
-    frontend_->free_image(page_cache_[page].image_id);
-    page_cache_.erase(page);
-    spdlog::debug("evicted page {}", page);
-  }
-
-  // Size-based eviction: if still over budget, evict most distant pages
-  if (max_page_cache_ == 0) {
-    return;
-  }
-  size_t total = 0;
-  for (const auto& [page, cached] : page_cache_) {
-    total += cached.memory_bytes;
-  }
-  if (total <= max_page_cache_) {
-    return;
-  }
-
-  int mid = (first + last) / 2;
-  std::vector<int> pages_by_distance;
-  pages_by_distance.reserve(page_cache_.size());
-  for (const auto& [page, cached] : page_cache_) {
-    pages_by_distance.push_back(page);
-  }
-  std::sort(pages_by_distance.begin(), pages_by_distance.end(), [mid](int a, int b) { return std::abs(a - mid) > std::abs(b - mid); });
-
-  for (int page : pages_by_distance) {
-    if (total <= max_page_cache_) {
-      break;
-    }
-    // Never evict visible pages
-    if (page >= first && page <= last) {
-      continue;
-    }
-    total -= page_cache_[page].memory_bytes;
-    frontend_->free_image(page_cache_[page].image_id);
-    page_cache_.erase(page);
-    spdlog::debug("evicted page {} (cache over budget)", page);
-  }
-}
-
-void App::pre_upload_adjacent() {
-  int num_pages = static_cast<int>(layout_.size());
-  // Try to pre-upload pages in priority order around the viewport
-  std::vector<int> candidates = {
-      viewport_first_page_ - 1,
-      viewport_last_page_ + 1,
-      viewport_first_page_ - 2,
-      viewport_last_page_ + 2,
+  return {
+      user_zoom_,
+      effective_render_scale(),
+      effective_theme(),
+      fg,
+      bg,
+      colors_.recolor_accent,
+      client.cell,
   };
+}
 
-  // Add search neighbor pages (lower priority than viewport-adjacent)
-  if (!search_results_.empty() && search_current_ >= 0) {
-    int n = static_cast<int>(search_results_.size());
-    int next_idx = (search_current_ + 1) % n;
-    int prev_idx = (search_current_ - 1 + n) % n;
-    candidates.push_back(search_results_[next_idx].page);
-    candidates.push_back(search_results_[prev_idx].page);
-  }
-
-  for (int page : candidates) {
-    if (page < 0 || page >= num_pages) {
-      continue;
-    }
-    if (page_cache_.count(page) > 0) {
-      continue;
-    }
-    // Upload one page per idle cycle
-    ensure_pages_uploaded(page, page);
-    return;
-  }
+HighlightParams App::make_highlight_params() const {
+  return {
+      &search_results_,
+      search_current_,
+      &colors_,
+      app_mode_,
+      selection_anchor_,
+      selection_extent_,
+  };
 }
 
 int App::document_height() const {
@@ -408,37 +273,6 @@ int App::document_height() const {
   }
   const auto& last = layout_.back();
   return last.rect.y + last.rect.height;
-}
-
-std::pair<std::string, size_t> App::cache_stats() const {
-  std::vector<int> pages;
-  pages.reserve(page_cache_.size());
-  size_t total = 0;
-  for (const auto& [page, cached] : page_cache_) {
-    pages.push_back(page + 1); // 1-based for display
-    total += cached.memory_bytes;
-  }
-  std::sort(pages.begin(), pages.end());
-
-  // Format as compact ranges: "1-3,5,8-10"
-  std::string result;
-  for (size_t i = 0; i < pages.size();) {
-    size_t j = i;
-    while (j + 1 < pages.size() && pages[j + 1] == pages[j] + 1) {
-      ++j;
-    }
-    if (!result.empty()) {
-      result += ',';
-    }
-    if (j == i) {
-      result += std::to_string(pages[i]);
-    }
-    else {
-      result += std::to_string(pages[i]) + '-' + std::to_string(pages[j]);
-    }
-    i = j + 1;
-  }
-  return {result, total};
 }
 
 void App::update_viewport() {
@@ -474,17 +308,17 @@ void App::update_viewport() {
   viewport_first_page_ = first;
   viewport_last_page_ = last;
 
-  evict_distant_pages(first, last);
-  ensure_pages_uploaded(first, last);
+  page_manager_.evict_distant(first, last, static_cast<int>(layout_.size()), *frontend_);
+  page_manager_.ensure_uploaded(first, last, doc_, *frontend_, layout_, make_render_params(), make_highlight_params());
 
   // Build PageSlice vector
   std::vector<PageSlice> slices;
   for (int i = first; i <= last; ++i) {
-    auto it = page_cache_.find(i);
-    if (it == page_cache_.end()) {
+    const auto* entry = page_manager_.get(i);
+    if (entry == nullptr) {
       continue;
     }
-    const auto& cached = it->second;
+    const auto& cached = *entry;
     const auto& lay = layout_[i];
 
     int page_top = lay.rect.y - scroll_.y;
@@ -496,11 +330,11 @@ void App::update_viewport() {
 
     // Scale factor: zoomed-content pixels -> image pixels
     float img_scale;
-    if (cached.render_scale == 0.0f) {
+    if (cached.render_scale() == 0.0f) {
       img_scale = 1.0f; // NEVER mode: image IS the zoomed content
     }
     else {
-      img_scale = cached.render_scale / user_zoom_;
+      img_scale = cached.render_scale() / user_zoom_;
     }
 
     // Where the actual rendered content starts in viewport coordinates.
@@ -556,7 +390,7 @@ void App::update_viewport() {
 
     // Source rect in image pixel coordinates, clamped to image bounds
     int clamped_scroll_x = std::clamp(scroll_.x, 0, std::max(0, zoomed_w - vw));
-    PixelRect image_bounds = {0, 0, cached.pixel_size.width, cached.pixel_size.height};
+    PixelRect image_bounds = {0, 0, cached.pixel_size().width, cached.pixel_size().height};
     PixelRect src = PixelRect::from_xywh(
                         static_cast<int>(clamped_scroll_x * img_scale),
                         static_cast<int>((visible.top() - content_top) * img_scale),
@@ -572,7 +406,7 @@ void App::update_viewport() {
     int dst_rows = (visible.bottom() + client.cell.height - 1) / client.cell.height - dst_row;
     CellRect dst = {dst_col, dst_row, dst_cols, dst_rows};
 
-    slices.push_back({cached.image_id, src, dst, cached.cell_grid, cached.pixel_size});
+    slices.push_back({cached.image_id(), src, dst, cached.cell_grid(), cached.pixel_size()});
   }
 
   spdlog::debug("update_viewport: pages [{},{}] slices={}", first, last, slices.size());
@@ -621,11 +455,7 @@ void App::scroll(int dx, int dy) {
 }
 
 void App::render() {
-  spdlog::debug("render: clearing {} cached pages", page_cache_.size());
-  for (auto& [page, cached] : page_cache_) {
-    frontend_->free_image(cached.image_id);
-  }
-  page_cache_.clear();
+  page_manager_.clear(*frontend_);
 
   build_layout();
 
@@ -691,7 +521,18 @@ void App::idle_tick() {
   else {
     auto idle = std::chrono::steady_clock::now() - last_activity_time_;
     if (idle >= std::chrono::milliseconds(300)) {
-      pre_upload_adjacent();
+      page_manager_.pre_upload_one(
+          viewport_first_page_,
+          viewport_last_page_,
+          static_cast<int>(layout_.size()),
+          doc_,
+          *frontend_,
+          layout_,
+          make_render_params(),
+          make_highlight_params(),
+          search_results_,
+          search_current_
+      );
     }
     if (last_action_.expired()) {
       last_action_.clear();
@@ -1076,10 +917,7 @@ void App::handle_command(const Command& cmd) {
 
 void App::do_reload() {
   try {
-    for (auto& [page, cached] : page_cache_) {
-      frontend_->free_image(cached.image_id);
-    }
-    page_cache_.clear();
+    page_manager_.clear(*frontend_);
 
     doc_.reload(file_path_);
 
@@ -1263,32 +1101,6 @@ void App::scroll_to_search_hit() {
   update_viewport();
 }
 
-void App::highlight_page_matches(Pixmap& pixmap, int page_num, float render_zoom) {
-  if (search_results_.empty()) {
-    return;
-  }
-
-  for (int i = 0; i < static_cast<int>(search_results_.size()); ++i) {
-    const auto& hit = search_results_[i];
-    if (hit.page != page_num) {
-      continue;
-    }
-
-    PixelRect rect
-        = {static_cast<int>(hit.rect.x * render_zoom),
-           static_cast<int>(hit.rect.y * render_zoom),
-           static_cast<int>(hit.rect.width * render_zoom),
-           static_cast<int>(hit.rect.height * render_zoom)};
-
-    if (i == search_current_) {
-      pixmap.highlight_rect(rect, colors_.search_active, colors_.search_active_alpha);
-    }
-    else {
-      pixmap.highlight_rect(rect, colors_.search_highlight, colors_.search_highlight_alpha);
-    }
-  }
-}
-
 Theme App::effective_theme() const {
   if (theme_ != Theme::Auto) {
     return theme_;
@@ -1453,9 +1265,8 @@ void App::follow_link(const PageLink& link) {
     update_viewport();
   }
   else {
-    // External link — copy to clipboard via OSC 52 (works over SSH)
-    std::string osc52 = "\x1b]52;c;" + base64::encode(link.uri) + "\x07";
-    frontend_->write_raw(osc52.data(), osc52.size());
+    // External link — copy to clipboard (works over SSH via OSC 52)
+    frontend_->copy_to_clipboard(link.uri);
 
     // Try to open in default browser (only works locally)
     bool in_ssh = std::getenv("SSH_CLIENT") != nullptr || std::getenv("SSH_TTY") != nullptr;
@@ -1688,85 +1499,11 @@ void App::selection_goto(cmd::SelectionTarget target) {
   update_viewport();
 }
 
-void App::invalidate_selection_pages() {
-  int lo = std::min(selection_anchor_.page, selection_extent_.page);
-  int hi = std::max(selection_anchor_.page, selection_extent_.page);
-  for (int p = lo; p <= hi; ++p) {
-    auto it = page_cache_.find(p);
-    if (it != page_cache_.end()) {
-      frontend_->free_image(it->second.image_id);
-      page_cache_.erase(it);
-    }
-  }
-}
-
 void App::refresh_selection_pages() {
-  // Determine which pages are affected by the selection
   int lo = std::min(selection_anchor_.page, selection_extent_.page);
   int hi = std::max(selection_anchor_.page, selection_extent_.page);
-  lo = std::max(lo, 0);
   hi = std::min(hi, static_cast<int>(layout_.size()) - 1);
-
-  auto client = frontend_->client_info();
-  if (!client.is_valid()) {
-    return;
-  }
-
-  for (int p = lo; p <= hi; ++p) {
-    auto it = page_cache_.find(p);
-    if (it == page_cache_.end() || it->second.base_pixels.empty()) {
-      continue;
-    }
-
-    auto& cached = it->second;
-
-    // Reconstruct pixmap from cached base pixels
-    Pixmap pixmap = Pixmap::from_pixels(doc_.ctx(), cached.base_w, cached.base_h, cached.base_comp, cached.base_pixels.data());
-
-    // Re-apply highlights on the fresh copy
-    highlight_page_matches(pixmap, p, cached.render_zoom);
-    highlight_selection(pixmap, p, cached.render_zoom);
-
-    // Re-upload
-    frontend_->free_image(cached.image_id);
-    cached.image_id = frontend_->upload_image(pixmap, cached.cell_grid.width, cached.cell_grid.height);
-  }
-}
-
-void App::highlight_selection(Pixmap& pixmap, int page_num, float render_zoom) {
-  if (app_mode_ != AppMode::Visual && app_mode_ != AppMode::VisualBlock) {
-    return;
-  }
-
-  std::vector<SearchHit> quads;
-  if (app_mode_ == AppMode::Visual) {
-    quads = doc_.selection_quads(page_num, selection_anchor_, selection_extent_);
-  }
-  else {
-    // VISUAL_BLOCK: compute rect from anchor/extent
-    float x0 = std::min(selection_anchor_.pos.x, selection_extent_.pos.x);
-    float y0 = std::min(selection_anchor_.pos.y, selection_extent_.pos.y);
-    float x1 = std::max(selection_anchor_.pos.x, selection_extent_.pos.x);
-    float y1 = std::max(selection_anchor_.pos.y, selection_extent_.pos.y);
-
-    // For block mode, only highlight on pages in range
-    int lo = std::min(selection_anchor_.page, selection_extent_.page);
-    int hi = std::max(selection_anchor_.page, selection_extent_.page);
-    if (page_num < lo || page_num > hi) {
-      return;
-    }
-
-    quads = doc_.rect_selection_quads(page_num, x0, y0, x1, y1);
-  }
-
-  for (const auto& hit : quads) {
-    PixelRect rect
-        = {static_cast<int>(hit.rect.x * render_zoom),
-           static_cast<int>(hit.rect.y * render_zoom),
-           static_cast<int>(hit.rect.width * render_zoom),
-           static_cast<int>(hit.rect.height * render_zoom)};
-    pixmap.highlight_rect(rect, colors_.selection_highlight, colors_.selection_highlight_alpha);
-  }
+  page_manager_.refresh_highlights(lo, hi, doc_, *frontend_, make_highlight_params());
 }
 
 void App::yank_selection() {
@@ -1777,12 +1514,14 @@ void App::yank_selection() {
   else if (app_mode_ == AppMode::VisualBlock) {
     int lo = std::min(selection_anchor_.page, selection_extent_.page);
     int hi = std::max(selection_anchor_.page, selection_extent_.page);
-    float x0 = std::min(selection_anchor_.pos.x, selection_extent_.pos.x);
-    float y0 = std::min(selection_anchor_.pos.y, selection_extent_.pos.y);
-    float x1 = std::max(selection_anchor_.pos.x, selection_extent_.pos.x);
-    float y1 = std::max(selection_anchor_.pos.y, selection_extent_.pos.y);
+    DocRect sel = DocRect::from_corners(
+        std::min(selection_anchor_.pos.x, selection_extent_.pos.x),
+        std::min(selection_anchor_.pos.y, selection_extent_.pos.y),
+        std::max(selection_anchor_.pos.x, selection_extent_.pos.x),
+        std::max(selection_anchor_.pos.y, selection_extent_.pos.y)
+    );
     for (int p = lo; p <= hi; ++p) {
-      auto page_text = doc_.copy_rect_text(p, x0, y0, x1, y1);
+      auto page_text = doc_.copy_rect_text(p, sel);
       if (!page_text.empty()) {
         if (!text.empty()) {
           text += '\n';
@@ -1809,9 +1548,7 @@ void App::copy_to_clipboard(const std::string& text) {
     return;
   }
 
-  // OSC 52 clipboard (works over SSH)
-  std::string osc52 = "\x1b]52;c;" + base64::encode(text) + "\x07";
-  frontend_->write_raw(osc52.data(), osc52.size());
+  frontend_->copy_to_clipboard(text);
 
   // System clipboard fallback
   pid_t pid = fork();
@@ -1858,7 +1595,7 @@ ViewState App::view_state() const {
   };
 
   if (show_stats_) {
-    auto [pages, bytes] = cache_stats();
+    auto [pages, bytes] = page_manager_.stats();
     vs.cache_pages = std::move(pages);
     vs.cache_bytes = bytes;
   }

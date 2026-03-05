@@ -7,6 +7,7 @@
 #include "document.hpp"
 #include "frontend.hpp"
 #include "geometry.hpp"
+#include "page_manager.hpp"
 #include "terminal/key_bindings.hpp"
 
 #include <chrono>
@@ -16,27 +17,12 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 /// @brief Layout information for a single page in the continuous scroll.
 struct PageLayout {
   PixelRect rect; ///< Page position and rendered size in global pixel coordinates.
   float zoom;     ///< Width-fit zoom for this page.
-};
-
-/// @brief Cached upload state for a rendered page.
-struct CachedPage {
-  uint32_t image_id;
-  PixelSize pixel_size;                   ///< Rendered pixel dimensions.
-  CellSize cell_grid;                     ///< Grid dimensions in cells.
-  float render_scale;                     ///< Render scale this was rendered at (0 = exact zoom, no viewporting).
-  float render_zoom;                      ///< Actual zoom passed to MuPDF (for cache invalidation in NEVER mode).
-  size_t memory_bytes;                    ///< Uncompressed pixmap size (w * h * components).
-  std::vector<unsigned char> base_pixels; ///< Post-theme, pre-highlight packed pixels (w*h*comp).
-  int base_w = 0;                         ///< Width of base_pixels.
-  int base_h = 0;                         ///< Height of base_pixels.
-  int base_comp = 0;                      ///< Components per pixel of base_pixels.
 };
 
 /// @brief View mode for page display.
@@ -260,9 +246,6 @@ private:
   void build_layout();
   int page_at_y(int y) const;
   void update_viewport();
-  void ensure_pages_uploaded(int first, int last);
-  void evict_distant_pages(int first, int last);
-  void pre_upload_adjacent();
   void scroll(int dx, int dy);
   void render();
   void jump_to_page(int page);
@@ -279,7 +262,6 @@ private:
   void clear_search();
   void search_navigate(int delta);
   void scroll_to_search_hit();
-  void highlight_page_matches(Pixmap& pixmap, int page_num, float render_zoom);
 
   void push_jump_history();
   void enter_link_hints();
@@ -294,9 +276,7 @@ private:
   void selection_goto(cmd::SelectionTarget target);
   void yank_selection();
   void cancel_selection();
-  void invalidate_selection_pages();
   void refresh_selection_pages();
-  void highlight_selection(Pixmap& pixmap, int page_num, float render_zoom);
   PagePoint screen_to_page_point(int col, int row) const;
   void copy_to_clipboard(const std::string& text);
 
@@ -306,8 +286,11 @@ private:
   /// @brief Resolve recolor colors from config/detected values.
   std::pair<Color, Color> resolve_recolor_colors() const;
 
-  /// @brief Returns a formatted string of cached page numbers and total memory in bytes.
-  std::pair<std::string, size_t> cache_stats() const;
+  /// @brief Build RenderParams from current App state.
+  RenderParams make_render_params() const;
+
+  /// @brief Build HighlightParams from current App state.
+  HighlightParams make_highlight_params() const;
 
   std::unique_ptr<Frontend> frontend_;
   Document doc_;
@@ -317,8 +300,7 @@ private:
   std::optional<Color> detected_terminal_bg_;
   bool running_ = true;
   bool show_stats_ = false;
-  int scroll_lines_ = 3;                     ///< Lines per scroll step (from config/CLI).
-  size_t max_page_cache_ = 64 * 1024 * 1024; ///< Max page cache size in bytes.
+  int scroll_lines_ = 3; ///< Lines per scroll step (from config/CLI).
   PixelPoint scroll_;
   ViewMode view_mode_ = ViewMode::Continuous;
   Theme theme_ = Theme::Dark;
@@ -332,7 +314,7 @@ private:
   int search_current_ = -1; ///< Index into search_results_ of the focused match (-1 = none).
 
   std::vector<PageLayout> layout_;
-  std::unordered_map<int, CachedPage> page_cache_;
+  PageManager page_manager_;
 
   int viewport_first_page_ = 0;
   int viewport_last_page_ = 0;

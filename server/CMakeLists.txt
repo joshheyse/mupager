@@ -16,6 +16,8 @@ set(SERVER_LIB_SOURCES
   src/document.cpp
   src/frontend.cpp
   src/app.cpp
+  src/page.cpp
+  src/page_manager.cpp
   src/converter.cpp
   src/graphics/kitty.cpp
   src/graphics/pixmap.cpp

@@ -121,21 +121,15 @@ public:
 
   /// @brief Copy text within a rectangular region on a page (block-mode selection).
   /// @param page_num Zero-based page index.
-  /// @param x0 Left edge in page points.
-  /// @param y0 Top edge in page points.
-  /// @param x1 Right edge in page points.
-  /// @param y1 Bottom edge in page points.
+  /// @param rect Selection rectangle in page points.
   /// @return Extracted text from the rectangle.
-  std::string copy_rect_text(int page_num, float x0, float y0, float x1, float y1) const;
+  std::string copy_rect_text(int page_num, DocRect rect) const;
 
   /// @brief Get highlight quads for a rectangular selection on a page.
   /// @param page_num Zero-based page index.
-  /// @param x0 Left edge in page points.
-  /// @param y0 Top edge in page points.
-  /// @param x1 Right edge in page points.
-  /// @param y1 Bottom edge in page points.
+  /// @param rect Selection rectangle in page points.
   /// @return Bounding boxes for highlighted characters.
-  std::vector<SearchHit> rect_selection_quads(int page_num, float x0, float y0, float x1, float y1) const;
+  std::vector<SearchHit> rect_selection_quads(int page_num, DocRect rect) const;
 
   /// @brief Find the next word boundary after a given point.
   /// @param from Starting point in page coordinates.

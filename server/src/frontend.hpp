@@ -88,10 +88,13 @@ public:
   /// @param hints Vector of positioned labels.
   virtual void show_link_hints(const std::vector<LinkHintDisplay>& hints) = 0;
 
-  /// @brief Write raw bytes to the terminal (e.g. for OSC 52 clipboard).
+  /// @brief Write raw bytes to the terminal.
   /// @param data Raw byte string to write.
   /// @param len Number of bytes to write.
   virtual void write_raw(const char* data, size_t len) = 0;
+
+  /// @brief Copy text to the system clipboard via OSC 52.
+  void copy_to_clipboard(const std::string& text);
 
   /// @brief Whether the frontend supports Kitty image viewporting (source-rect cropping on place).
   /// Tmux unicode placeholders cannot viewport, so this returns false in tmux mode.

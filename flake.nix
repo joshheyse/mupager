@@ -57,6 +57,7 @@
             # Libraries
             mupdf
             msgpack-cxx
+            boost
             ncurses
           ] ++ lib.optionals isLinux [
             # Linux-only tools

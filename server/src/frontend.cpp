@@ -1,6 +1,7 @@
 #include "frontend.hpp"
 
 #include "graphics/kitty.hpp"
+#include "util/base64.hpp"
 
 #include <cstdlib>
 
@@ -40,4 +41,12 @@ bool Frontend::supports_image_viewporting() const {
 
 void Frontend::set_color_scheme(const ColorScheme& scheme) {
   colors_ = scheme;
+}
+
+void Frontend::copy_to_clipboard(const std::string& text) {
+  if (text.empty()) {
+    return;
+  }
+  std::string osc52 = "\x1b]52;c;" + base64::encode(text) + "\x07";
+  write_raw(osc52.data(), osc52.size());
 }

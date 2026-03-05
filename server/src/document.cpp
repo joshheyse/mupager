@@ -359,20 +359,17 @@ std::vector<SearchHit> Document::selection_quads(int page_num, const PagePoint& 
   return results;
 }
 
-std::string Document::copy_rect_text(int page_num, float x0, float y0, float x1, float y1) const {
+std::string Document::copy_rect_text(int page_num, DocRect rect) const {
   fz_context* raw_ctx = ctx_.get();
 
   if (page_num < 0 || page_num >= page_count()) {
     return {};
   }
 
-  // Normalize rect
-  if (x0 > x1) {
-    std::swap(x0, x1);
-  }
-  if (y0 > y1) {
-    std::swap(y0, y1);
-  }
+  float x0 = rect.left();
+  float y0 = rect.top();
+  float x1 = rect.right();
+  float y1 = rect.bottom();
 
   fz_stext_page* stext = nullptr;
   fz_page* page = nullptr;
@@ -417,7 +414,7 @@ std::string Document::copy_rect_text(int page_num, float x0, float y0, float x1,
   return result;
 }
 
-std::vector<SearchHit> Document::rect_selection_quads(int page_num, float x0, float y0, float x1, float y1) const {
+std::vector<SearchHit> Document::rect_selection_quads(int page_num, DocRect rect) const {
   fz_context* raw_ctx = ctx_.get();
   std::vector<SearchHit> results;
 
@@ -425,13 +422,10 @@ std::vector<SearchHit> Document::rect_selection_quads(int page_num, float x0, fl
     return results;
   }
 
-  // Normalize rect
-  if (x0 > x1) {
-    std::swap(x0, x1);
-  }
-  if (y0 > y1) {
-    std::swap(y0, y1);
-  }
+  float x0 = rect.left();
+  float y0 = rect.top();
+  float x1 = rect.right();
+  float y1 = rect.bottom();
 
   fz_stext_page* stext = nullptr;
   fz_page* page = nullptr;
