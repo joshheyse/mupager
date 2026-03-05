@@ -1,6 +1,6 @@
 #pragma once
 
-#include "color_scheme.h"
+#include "color_scheme.hpp"
 
 #include <map>
 #include <optional>

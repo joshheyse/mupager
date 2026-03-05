@@ -1,6 +1,7 @@
-#include "terminal/key_bindings.h"
+#include "terminal/key_bindings.hpp"
 
 #include <doctest/doctest.h>
+#include <string_view>
 
 TEST_CASE("parse_key_spec single char") {
   auto ks = parse_key_spec("j");
@@ -109,18 +110,18 @@ TEST_CASE("KeyBindings::defaults lookup") {
   auto kb = KeyBindings::defaults();
 
   CHECK(kb.lookup('j') != nullptr);
-  CHECK(kb.lookup('j')->name == cmd::ScrollDown::Action);
-  CHECK(kb.lookup('k')->name == cmd::ScrollUp::Action);
-  CHECK(kb.lookup('q')->name == cmd::Quit::Action);
-  CHECK(kb.lookup('?')->name == cmd::ShowHelp::Action);
-  CHECK(kb.lookup(0x06)->name == cmd::PageDown::Action);       // Ctrl+F
-  CHECK(kb.lookup(0x02)->name == cmd::PageUp::Action);         // Ctrl+B
-  CHECK(kb.lookup(0x09)->name == cmd::ToggleViewMode::Action); // Tab
-  CHECK(kb.lookup(27)->name == cmd::ClearSearch::Action);      // Esc
+  CHECK(std::string_view(kb.lookup('j')->name) == cmd::ScrollDown::Action);
+  CHECK(std::string_view(kb.lookup('k')->name) == cmd::ScrollUp::Action);
+  CHECK(std::string_view(kb.lookup('q')->name) == cmd::Quit::Action);
+  CHECK(std::string_view(kb.lookup('?')->name) == cmd::ShowHelp::Action);
+  CHECK(std::string_view(kb.lookup(0x06)->name) == cmd::PageDown::Action);       // Ctrl+F
+  CHECK(std::string_view(kb.lookup(0x02)->name) == cmd::PageUp::Action);         // Ctrl+B
+  CHECK(std::string_view(kb.lookup(0x09)->name) == cmd::ToggleViewMode::Action); // Tab
+  CHECK(std::string_view(kb.lookup(27)->name) == cmd::ClearSearch::Action);      // Esc
 
   CHECK(kb.sequence_prefix_key() == 'g');
   CHECK(kb.sequence_double_info() != nullptr);
-  CHECK(kb.sequence_double_info()->name == cmd::GotoFirstPage::Action);
+  CHECK(std::string_view(kb.sequence_double_info()->name) == cmd::GotoFirstPage::Action);
 }
 
 TEST_CASE("KeyBindings custom override replaces defaults") {
@@ -135,7 +136,7 @@ TEST_CASE("KeyBindings custom override replaces defaults") {
   kb.bind(quit_info, *x_spec);
 
   CHECK(kb.lookup('x') != nullptr);
-  CHECK(kb.lookup('x')->name == cmd::Quit::Action);
+  CHECK(std::string_view(kb.lookup('x')->name) == cmd::Quit::Action);
   CHECK(kb.lookup('q') == nullptr);
 }
 

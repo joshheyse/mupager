@@ -1,4 +1,4 @@
-#include "neovim/rpc_transport.h"
+#include "neovim/rpc_transport.hpp"
 
 #include <poll.h>
 #include <spdlog/spdlog.h>

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "command.h"
-#include "geometry.h"
-#include "input_event.h"
-#include "key_bindings.h"
+#include "command.hpp"
+#include "geometry.hpp"
+#include "input_event.hpp"
+#include "key_bindings.hpp"
 
 #include <optional>
 

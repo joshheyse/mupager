@@ -1,8 +1,8 @@
-#include "graphics/kitty.h"
+#include "graphics/kitty.hpp"
 
-#include "graphics/pixmap.h"
-#include "graphics/sgr.h"
-#include "util/base64.h"
+#include "graphics/pixmap.hpp"
+#include "graphics/sgr.hpp"
+#include "util/base64.hpp"
 
 #include <cctype>
 

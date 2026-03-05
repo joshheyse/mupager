@@ -1,7 +1,7 @@
 #pragma once
 
-#include "terminal/frontend.h"
-#include "terminal/input.h"
+#include "terminal/frontend.hpp"
+#include "terminal/input.hpp"
 
 #include <string>
 #include <vector>

@@ -2,6 +2,7 @@ build/
 .cache
 .direnv/
 compile_commands.json
+CMakeUserPresets.json
 .null-*
 result
 roblox.yml

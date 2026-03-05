@@ -1,6 +1,6 @@
 #pragma once
 
-#include <frontend.h> // angle brackets to resolve base, not self
+#include <frontend.hpp> // angle brackets to resolve base, not self
 
 /// @brief ncurses + Kitty graphics terminal frontend.
 class TerminalFrontend : public Frontend {

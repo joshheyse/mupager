@@ -1,4 +1,4 @@
-#include "osc_query.h"
+#include "osc_query.hpp"
 
 #include <fcntl.h>
 #include <poll.h>

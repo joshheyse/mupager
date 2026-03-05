@@ -1,8 +1,8 @@
-#include "app.h"
+#include "app.hpp"
 
-#include "converter.h"
-#include "util/base64.h"
-#include "util/stopwatch.h"
+#include "converter.hpp"
+#include "util/base64.hpp"
+#include "util/stopwatch.hpp"
 
 #include <spdlog/spdlog.h>
 #include <sys/stat.h>

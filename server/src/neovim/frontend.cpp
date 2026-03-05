@@ -1,7 +1,7 @@
-#include "neovim/frontend.h"
+#include "neovim/frontend.hpp"
 
-#include "graphics/kitty.h"
-#include "graphics/sgr.h"
+#include "graphics/kitty.hpp"
+#include "graphics/sgr.hpp"
 
 #include <spdlog/spdlog.h>
 #include <sys/ioctl.h>

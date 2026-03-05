@@ -1,7 +1,7 @@
-#include "neovim/loop.h"
+#include "neovim/loop.hpp"
 
-#include "app.h"
-#include "neovim/frontend.h"
+#include "app.hpp"
+#include "neovim/frontend.hpp"
 
 #include <spdlog/spdlog.h>
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "color_scheme.h"
-#include "terminal/key_bindings.h"
+#include "color_scheme.hpp"
+#include "terminal/key_bindings.hpp"
 
 #include <map>
 #include <optional>

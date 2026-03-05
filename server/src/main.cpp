@@ -1,13 +1,13 @@
-#include "app.h"
-#include "args.h"
-#include "color.h"
-#include "config.h"
-#include "converter.h"
-#include "neovim/frontend.h"
-#include "neovim/loop.h"
-#include "terminal/frontend.h"
-#include "terminal/loop.h"
-#include "terminal/osc_query.h"
+#include "app.hpp"
+#include "args.hpp"
+#include "color.hpp"
+#include "config.hpp"
+#include "converter.hpp"
+#include "neovim/frontend.hpp"
+#include "neovim/loop.hpp"
+#include "terminal/frontend.hpp"
+#include "terminal/loop.hpp"
+#include "terminal/osc_query.hpp"
 
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>

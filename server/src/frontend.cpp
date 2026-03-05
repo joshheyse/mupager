@@ -1,6 +1,6 @@
-#include "frontend.h"
+#include "frontend.hpp"
 
-#include "graphics/kitty.h"
+#include "graphics/kitty.hpp"
 
 #include <cstdlib>
 

@@ -1,7 +1,7 @@
-#include "terminal/controller.h"
+#include "terminal/controller.hpp"
 
-#include "app.h"
-#include "graphics/sgr.h"
+#include "app.hpp"
+#include "graphics/sgr.hpp"
 
 #include <spdlog/spdlog.h>
 

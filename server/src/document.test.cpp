@@ -1,4 +1,4 @@
-#include "document.h"
+#include "document.hpp"
 
 #include <doctest/doctest.h>
 

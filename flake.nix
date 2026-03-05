@@ -39,6 +39,7 @@
             # C++ formatting / linting / LSP
             clang-tools
             wrapped-clangd
+            include-what-you-use
 
             # Lua formatting / linting
             stylua

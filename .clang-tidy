@@ -1,38 +1,42 @@
-Checks: "-*,readability-braces-around-statements,readability-identifier-naming"
+Checks: >
+  -*,
+  readability-braces-around-statements,
+  readability-identifier-naming,
+  bugprone-argument-comment,
+  bugprone-copy-constructor-init,
+  bugprone-dangling-handle,
+  bugprone-move-forwarding-reference,
+  bugprone-string-constructor,
+  bugprone-suspicious-include,
+  bugprone-use-after-move,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-using,
+  modernize-return-braced-init-list,
+  performance-for-range-copy,
+  performance-implicit-conversion-in-loop,
+  performance-move-const-arg,
+  performance-unnecessary-value-param,
+  misc-include-cleaner,
+
+HeaderFilterRegex: "server/"
+
 CheckOptions:
-  - key: readability-braces-around-statements.ShortStatementLines
-    value: "0"
-  - key: readability-identifier-naming.ClassCase
-    value: CamelCase
-  - key: readability-identifier-naming.ClassIgnoredRegexp
-    value: "^(const_)?iterator$"
-  - key: readability-identifier-naming.StructCase
-    value: CamelCase
-  - key: readability-identifier-naming.EnumCase
-    value: CamelCase
-  - key: readability-identifier-naming.EnumConstantCase
-    value: CamelCase
-  - key: readability-identifier-naming.FunctionCase
-    value: lower_case
-  - key: readability-identifier-naming.VariableCase
-    value: lower_case
-  - key: readability-identifier-naming.ParameterCase
-    value: lower_case
-  - key: readability-identifier-naming.MemberCase
-    value: lower_case
-  - key: readability-identifier-naming.PrivateMemberSuffix
-    value: "_"
-  - key: readability-identifier-naming.ProtectedMemberSuffix
-    value: "_"
-  - key: readability-identifier-naming.PublicMemberCase
-    value: lower_case
-  - key: readability-identifier-naming.GlobalConstantCase
-    value: CamelCase
-  - key: readability-identifier-naming.StaticVariableCase
-    value: lower_case
-  - key: readability-identifier-naming.StaticVariableSuffix
-    value: "_"
-  - key: readability-identifier-naming.StaticConstantCase
-    value: CamelCase
-  - key: readability-identifier-naming.MacroDefinitionCase
-    value: CamelCase
+  readability-braces-around-statements.ShortStatementLines: "0"
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.ClassIgnoredRegexp: "^(const_)?iterator$"
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.EnumConstantCase: CamelCase
+  readability-identifier-naming.FunctionCase: lower_case
+  readability-identifier-naming.VariableCase: lower_case
+  readability-identifier-naming.ParameterCase: lower_case
+  readability-identifier-naming.MemberCase: lower_case
+  readability-identifier-naming.PrivateMemberSuffix: "_"
+  readability-identifier-naming.ProtectedMemberSuffix: "_"
+  readability-identifier-naming.PublicMemberCase: lower_case
+  readability-identifier-naming.GlobalConstantCase: CamelCase
+  readability-identifier-naming.StaticVariableCase: lower_case
+  readability-identifier-naming.StaticVariableSuffix: "_"
+  readability-identifier-naming.StaticConstantCase: CamelCase
+  readability-identifier-naming.MacroDefinitionCase: CamelCase

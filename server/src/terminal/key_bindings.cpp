@@ -1,4 +1,4 @@
-#include "terminal/key_bindings.h"
+#include "terminal/key_bindings.hpp"
 
 #include <cctype>
 #include <unordered_map>

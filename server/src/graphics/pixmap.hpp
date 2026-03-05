@@ -1,7 +1,7 @@
 #pragma once
 
-#include "color.h"
-#include "geometry.h"
+#include "color.hpp"
+#include "geometry.hpp"
 
 #include <mupdf/fitz.h>
 

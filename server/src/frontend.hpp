@@ -1,10 +1,10 @@
 #pragma once
 
-#include "color_scheme.h"
-#include "command.h"
-#include "geometry.h"
-#include "graphics/pixmap.h"
-#include "input_event.h"
+#include "color_scheme.hpp"
+#include "command.hpp"
+#include "geometry.hpp"
+#include "graphics/pixmap.hpp"
+#include "input_event.hpp"
 
 #include <cstddef>
 #include <cstdint>

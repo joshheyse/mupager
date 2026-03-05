@@ -1,7 +1,7 @@
 #pragma once
 
-#include "command.h"
-#include "input_event.h"
+#include "command.hpp"
+#include "input_event.hpp"
 
 #include <cstdint>
 #include <optional>

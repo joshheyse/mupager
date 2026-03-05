@@ -1,9 +1,9 @@
-#include "terminal/frontend.h"
+#include "terminal/frontend.hpp"
 
-#include "graphics/kitty.h"
-#include "graphics/sgr.h"
-#include "input_event.h"
-#include "util/stopwatch.h"
+#include "graphics/kitty.hpp"
+#include "graphics/sgr.hpp"
+#include "input_event.hpp"
+#include "util/stopwatch.hpp"
 
 #include <ncurses.h>
 #include <spdlog/spdlog.h>

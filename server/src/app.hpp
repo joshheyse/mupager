@@ -1,13 +1,13 @@
 #pragma once
 
-#include "args.h"
-#include "color.h"
-#include "color_scheme.h"
-#include "command.h"
-#include "document.h"
-#include "frontend.h"
-#include "geometry.h"
-#include "terminal/key_bindings.h"
+#include "args.hpp"
+#include "color.hpp"
+#include "color_scheme.hpp"
+#include "command.hpp"
+#include "document.hpp"
+#include "frontend.hpp"
+#include "geometry.hpp"
+#include "terminal/key_bindings.hpp"
 
 #include <chrono>
 #include <cstdint>

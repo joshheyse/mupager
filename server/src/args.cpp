@@ -1,6 +1,6 @@
-#include "args.h"
+#include "args.hpp"
 
-#include "config.h"
+#include "config.hpp"
 
 #include <cstdlib>
 #include <filesystem>

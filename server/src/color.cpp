@@ -1,6 +1,6 @@
-#include "color.h"
+#include "color.hpp"
 
-#include "graphics/sgr.h"
+#include "graphics/sgr.hpp"
 
 #include <format>
 

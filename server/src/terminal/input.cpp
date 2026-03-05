@@ -1,6 +1,6 @@
-#include "terminal/input.h"
+#include "terminal/input.hpp"
 
-#include "app.h"
+#include "app.hpp"
 
 #include <algorithm>
 

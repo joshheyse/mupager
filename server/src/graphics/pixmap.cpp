@@ -1,4 +1,4 @@
-#include "graphics/pixmap.h"
+#include "graphics/pixmap.hpp"
 
 #include <algorithm>
 #include <cstring>

@@ -1,4 +1,4 @@
-#include "util/base64.h"
+#include "util/base64.hpp"
 
 #include <doctest/doctest.h>
 

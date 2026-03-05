@@ -46,6 +46,9 @@ target_link_libraries(server-lib
   PRIVATE tomlplusplus::tomlplusplus
 )
 
+target_set_warnings(server-lib)
+target_set_sanitizers(server-lib)
+
 # --- Executable ---
 
 add_executable(mupager src/main.cpp)
@@ -90,5 +93,8 @@ target_link_libraries(ServerTests
   PRIVATE server-lib
   PRIVATE doctest::doctest_with_main
 )
+
+target_set_warnings(ServerTests)
+target_set_sanitizers(ServerTests)
 
 doctest_discover_tests(ServerTests)

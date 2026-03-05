@@ -1,7 +1,7 @@
-#include "graphics/kitty.h"
+#include "graphics/kitty.hpp"
 
-#include "document.h"
-#include "graphics/pixmap.h"
+#include "document.hpp"
+#include "graphics/pixmap.hpp"
 
 #include <doctest/doctest.h>
 

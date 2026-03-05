@@ -1,8 +1,8 @@
-#include "terminal/loop.h"
+#include "terminal/loop.hpp"
 
-#include "app.h"
-#include "terminal/controller.h"
-#include "terminal/frontend.h"
+#include "app.hpp"
+#include "terminal/controller.hpp"
+#include "terminal/frontend.hpp"
 
 void run_terminal(App& app, TerminalFrontend& frontend, const KeyBindings& bindings, int scroll_lines) {
   TerminalController controller(app, frontend, bindings, scroll_lines);
