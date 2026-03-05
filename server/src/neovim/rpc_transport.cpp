@@ -1,9 +1,10 @@
 #include "neovim/rpc_transport.hpp"
 
-#include <memory>
 #include <poll.h>
 #include <spdlog/spdlog.h>
 #include <unistd.h>
+
+#include <memory>
 
 static constexpr size_t ReadBufSize = 65536;
 

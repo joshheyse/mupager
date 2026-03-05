@@ -2,10 +2,10 @@
 
 #include "neovim/rpc_transport.hpp"
 
-#include <frontend.hpp> // angle brackets to resolve base, not self
-
 #include <cstdio>
 #include <deque>
+
+#include <frontend.hpp> // angle brackets to resolve base, not self
 
 /// @brief Neovim backend frontend: renders images to /dev/tty, communicates with plugin via msgpack-RPC on stdin/stdout.
 class NeovimFrontend : public Frontend {

@@ -1,6 +1,7 @@
 #include "terminal/key_bindings.hpp"
 
 #include <doctest/doctest.h>
+
 #include <string_view>
 
 TEST_CASE("parse_key_spec single char") {
