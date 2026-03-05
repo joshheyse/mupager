@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <stdexcept>
 
 void PixmapDeleter::operator()(fz_pixmap* pix) const {
   fz_drop_pixmap(ctx, pix);
@@ -12,7 +13,13 @@ Pixmap::Pixmap(fz_context* ctx, fz_pixmap* pix)
 
 Pixmap Pixmap::from_pixels(fz_context* ctx, int w, int h, int comp, const unsigned char* data) {
   fz_colorspace* cs = (comp >= 3) ? fz_device_rgb(ctx) : fz_device_gray(ctx);
-  fz_pixmap* pix = fz_new_pixmap(ctx, cs, w, h, nullptr, 0);
+  fz_pixmap* pix = nullptr;
+  fz_try(ctx) {
+    pix = fz_new_pixmap(ctx, cs, w, h, nullptr, 0);
+  }
+  fz_catch(ctx) {
+    throw std::runtime_error("failed to create pixmap: " + std::string(fz_caught_message(ctx)));
+  }
   int stride = fz_pixmap_stride(ctx, pix);
   int row_bytes = w * comp;
   unsigned char* dst = fz_pixmap_samples(ctx, pix);
@@ -104,6 +111,9 @@ void Pixmap::recolor(Color fg, Color bg, Color accent) {
   int h = height();
   int s = stride();
   int comp = components();
+  if (comp < 3) {
+    return;
+  }
   int row_bytes = width() * comp;
   unsigned char* data = samples();
   bool has_accent = !accent.is_default;
@@ -146,7 +156,13 @@ void Pixmap::recolor(Color fg, Color bg, Color accent) {
 
 std::vector<unsigned char> Pixmap::png_data() const {
   fz_context* ctx = pix_.get_deleter().ctx;
-  fz_buffer* buf = fz_new_buffer_from_pixmap_as_png(ctx, pix_.get(), fz_default_color_params);
+  fz_buffer* buf = nullptr;
+  fz_try(ctx) {
+    buf = fz_new_buffer_from_pixmap_as_png(ctx, pix_.get(), fz_default_color_params);
+  }
+  fz_catch(ctx) {
+    throw std::runtime_error("failed to encode PNG: " + std::string(fz_caught_message(ctx)));
+  }
   unsigned char* data;
   size_t len = fz_buffer_storage(ctx, buf, &data);
   std::vector<unsigned char> result(data, data + len);

@@ -1,10 +1,46 @@
 #include "neovim/rpc_transport.hpp"
 
+#include <memory>
 #include <poll.h>
 #include <spdlog/spdlog.h>
 #include <unistd.h>
 
 static constexpr size_t ReadBufSize = 65536;
+
+/// @brief Parse a decoded msgpack array into an RpcMessage.
+static std::optional<RpcMessage> parse_rpc_message(const msgpack::object& obj) {
+  if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 3) {
+    spdlog::warn("rpc: malformed message (not an array or too short)");
+    return std::nullopt;
+  }
+
+  auto* arr = obj.via.array.ptr;
+  int type_val = arr[0].as<int>();
+
+  RpcMessage msg;
+  if (type_val == 0 && obj.via.array.size >= 4) {
+    msg.type = RpcMessageType::Request;
+    msg.msgid = arr[1].as<uint32_t>();
+    msg.method = arr[2].as<std::string>();
+    auto z = std::make_unique<msgpack::zone>();
+    msgpack::object params_copy(arr[3], *z);
+    msg.params = msgpack::object_handle(params_copy, std::move(z));
+  }
+  else if (type_val == 2 && obj.via.array.size >= 3) {
+    msg.type = RpcMessageType::Notification;
+    msg.method = arr[1].as<std::string>();
+    auto z = std::make_unique<msgpack::zone>();
+    msgpack::object params_copy(arr[2], *z);
+    msg.params = msgpack::object_handle(params_copy, std::move(z));
+  }
+  else {
+    spdlog::warn("rpc: unknown message type {}", type_val);
+    return std::nullopt;
+  }
+
+  spdlog::debug("rpc recv: type={} method={}", type_val, msg.method);
+  return msg;
+}
 
 RpcTransport::RpcTransport(int read_fd, int write_fd)
     : read_fd_(read_fd)
@@ -16,41 +52,7 @@ std::optional<RpcMessage> RpcTransport::poll(int timeout_ms) {
   // First check if we already have a complete message buffered
   msgpack::object_handle oh;
   if (unpacker_.next(oh)) {
-    auto& obj = oh.get();
-    if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 3) {
-      spdlog::warn("rpc: malformed message (not an array or too short)");
-      return std::nullopt;
-    }
-
-    auto* arr = obj.via.array.ptr;
-    int type_val = arr[0].as<int>();
-
-    RpcMessage msg;
-    if (type_val == 0 && obj.via.array.size >= 4) {
-      // Request: [0, msgid, method, params]
-      msg.type = RpcMessageType::Request;
-      msg.msgid = arr[1].as<uint32_t>();
-      msg.method = arr[2].as<std::string>();
-      // Clone the params into an owned handle
-      msgpack::zone* z = new msgpack::zone;
-      msgpack::object params_copy(arr[3], *z);
-      msg.params = msgpack::object_handle(params_copy, std::unique_ptr<msgpack::zone>(z));
-    }
-    else if (type_val == 2 && obj.via.array.size >= 3) {
-      // Notification: [2, method, params]
-      msg.type = RpcMessageType::Notification;
-      msg.method = arr[1].as<std::string>();
-      msgpack::zone* z = new msgpack::zone;
-      msgpack::object params_copy(arr[2], *z);
-      msg.params = msgpack::object_handle(params_copy, std::unique_ptr<msgpack::zone>(z));
-    }
-    else {
-      spdlog::warn("rpc: unknown message type {}", type_val);
-      return std::nullopt;
-    }
-
-    spdlog::debug("rpc recv: type={} method={}", type_val, msg.method);
-    return msg;
+    return parse_rpc_message(oh.get());
   }
 
   // No buffered message — poll the fd
@@ -60,7 +62,7 @@ std::optional<RpcMessage> RpcTransport::poll(int timeout_ms) {
 
   int ret = ::poll(&pfd, 1, timeout_ms);
   if (ret <= 0) {
-    return std::nullopt; // Timeout or error
+    return std::nullopt;
   }
 
   if ((pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
@@ -79,41 +81,10 @@ std::optional<RpcMessage> RpcTransport::poll(int timeout_ms) {
 
   // Try to parse again
   if (unpacker_.next(oh)) {
-    auto& obj = oh.get();
-    if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 3) {
-      spdlog::warn("rpc: malformed message after read");
-      return std::nullopt;
-    }
-
-    auto* arr = obj.via.array.ptr;
-    int type_val = arr[0].as<int>();
-
-    RpcMessage msg;
-    if (type_val == 0 && obj.via.array.size >= 4) {
-      msg.type = RpcMessageType::Request;
-      msg.msgid = arr[1].as<uint32_t>();
-      msg.method = arr[2].as<std::string>();
-      msgpack::zone* z = new msgpack::zone;
-      msgpack::object params_copy(arr[3], *z);
-      msg.params = msgpack::object_handle(params_copy, std::unique_ptr<msgpack::zone>(z));
-    }
-    else if (type_val == 2 && obj.via.array.size >= 3) {
-      msg.type = RpcMessageType::Notification;
-      msg.method = arr[1].as<std::string>();
-      msgpack::zone* z = new msgpack::zone;
-      msgpack::object params_copy(arr[2], *z);
-      msg.params = msgpack::object_handle(params_copy, std::unique_ptr<msgpack::zone>(z));
-    }
-    else {
-      spdlog::warn("rpc: unknown message type {}", type_val);
-      return std::nullopt;
-    }
-
-    spdlog::debug("rpc recv: type={} method={}", type_val, msg.method);
-    return msg;
+    return parse_rpc_message(oh.get());
   }
 
-  return std::nullopt; // Partial message, need more data
+  return std::nullopt;
 }
 
 void RpcTransport::write_bytes(const char* data, size_t len) {

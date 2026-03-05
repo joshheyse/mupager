@@ -13,7 +13,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
-#include <chrono>
+#include <csignal>
 #include <cstdio>
 #include <filesystem>
 #include <memory>
@@ -21,6 +21,8 @@
 #include <unordered_set>
 
 int main(int argc, char* argv[]) {
+  // Auto-reap child processes (clipboard helpers, browser openers) to prevent zombies.
+  std::signal(SIGCHLD, SIG_IGN);
   std::optional<Args> args;
   try {
     args.emplace(argc, argv);

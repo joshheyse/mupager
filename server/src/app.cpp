@@ -654,6 +654,9 @@ void App::render() {
 }
 
 void App::jump_to_page(int page) {
+  if (layout_.empty()) {
+    return;
+  }
   push_jump_history();
   int num_pages = static_cast<int>(layout_.size());
   page = std::clamp(page, 0, num_pages - 1);

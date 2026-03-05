@@ -10,7 +10,8 @@
 
 static std::string default_log_path() {
   const char* state = std::getenv("XDG_STATE_HOME");
-  std::filesystem::path dir = state ? std::filesystem::path(state) : std::filesystem::path(std::getenv("HOME")) / ".local" / "state";
+  const char* home = std::getenv("HOME");
+  std::filesystem::path dir = state ? std::filesystem::path(state) : std::filesystem::path(home ? home : "/tmp") / ".local" / "state";
   dir /= "mupager";
   std::filesystem::create_directories(dir);
   return (dir / "mupager.log").string();

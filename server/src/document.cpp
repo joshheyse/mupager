@@ -1,6 +1,7 @@
 #include "document.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 void ContextDeleter::operator()(fz_context* ctx) const {
@@ -77,6 +78,7 @@ Pixmap Document::render_page(int page_num, float zoom, int x_offset, int y_offse
   fz_context* raw_ctx = ctx_.get();
   fz_page* page = nullptr;
   fz_pixmap* pix = nullptr;
+  fz_device* dev = nullptr;
 
   fz_try(raw_ctx) {
     page = fz_load_page(raw_ctx, doc_.get(), page_num);
@@ -84,15 +86,16 @@ Pixmap Document::render_page(int page_num, float zoom, int x_offset, int y_offse
     fz_irect clip = {x_offset, y_offset, x_offset + viewport_w, y_offset + viewport_h};
     pix = fz_new_pixmap_with_bbox(raw_ctx, fz_device_rgb(raw_ctx), clip, nullptr, 0);
     fz_clear_pixmap_with_value(raw_ctx, pix, 255);
-    fz_device* dev = fz_new_draw_device_with_bbox(raw_ctx, fz_identity, pix, &clip);
+    dev = fz_new_draw_device_with_bbox(raw_ctx, fz_identity, pix, &clip);
     fz_run_page(raw_ctx, page, dev, ctm, nullptr);
     fz_close_device(raw_ctx, dev);
-    fz_drop_device(raw_ctx, dev);
   }
   fz_always(raw_ctx) {
+    fz_drop_device(raw_ctx, dev);
     fz_drop_page(raw_ctx, page);
   }
   fz_catch(raw_ctx) {
+    fz_drop_pixmap(raw_ctx, pix);
     std::string msg = fz_caught_message(raw_ctx);
     throw std::runtime_error("failed to render page: " + msg);
   }
@@ -104,7 +107,12 @@ static void flatten_outline(fz_context* ctx, fz_document* doc, fz_outline* node,
   while (node) {
     int page = node->page.page;
     if (page < 0 && node->uri) {
-      page = fz_resolve_link(ctx, doc, node->uri, nullptr, nullptr).page;
+      fz_try(ctx) {
+        page = fz_resolve_link(ctx, doc, node->uri, nullptr, nullptr).page;
+      }
+      fz_catch(ctx) {
+        page = -1;
+      }
     }
     if (page >= 0 && node->title) {
       out.push_back({node->title, page, level});
@@ -123,14 +131,13 @@ Outline Document::load_outline() const {
 
   fz_try(raw_ctx) {
     root = fz_load_outline(raw_ctx, doc_.get());
-    flatten_outline(raw_ctx, doc_.get(), root, 0, result);
-  }
-  fz_always(raw_ctx) {
-    fz_drop_outline(raw_ctx, root);
   }
   fz_catch(raw_ctx) {
-    // Documents without outlines — return empty.
+    return result;
   }
+
+  flatten_outline(raw_ctx, doc_.get(), root, 0, result);
+  fz_drop_outline(raw_ctx, root);
 
   return result;
 }
@@ -186,20 +193,29 @@ void Document::reload(const std::string& path) {
 std::vector<PageLink> Document::load_links(int page_num) const {
   fz_context* raw_ctx = ctx_.get();
   fz_page* page = nullptr;
+  fz_link* links = nullptr;
   std::vector<PageLink> results;
 
   fz_try(raw_ctx) {
     page = fz_load_page(raw_ctx, doc_.get(), page_num);
-    fz_link* links = fz_load_links(raw_ctx, page);
+    links = fz_load_links(raw_ctx, page);
+  }
+  fz_always(raw_ctx) {
+    fz_drop_page(raw_ctx, page);
+  }
+  fz_catch(raw_ctx) {
+    return results;
+  }
 
-    for (fz_link* link = links; link != nullptr; link = link->next) {
-      PageLink pl;
-      pl.page = page_num;
-      pl.rect = {link->rect.x0, link->rect.y0, link->rect.x1 - link->rect.x0, link->rect.y1 - link->rect.y0};
-      pl.uri = link->uri ? link->uri : "";
-      pl.dest_page = -1;
+  for (fz_link* link = links; link != nullptr; link = link->next) {
+    PageLink pl;
+    pl.page = page_num;
+    pl.rect = {link->rect.x0, link->rect.y0, link->rect.x1 - link->rect.x0, link->rect.y1 - link->rect.y0};
+    pl.uri = link->uri ? link->uri : "";
+    pl.dest_page = -1;
 
-      if (!pl.uri.empty() && pl.uri[0] == '#') {
+    if (!pl.uri.empty() && pl.uri[0] == '#') {
+      fz_try(raw_ctx) {
         float dx = 0;
         float dy = 0;
         fz_location loc = fz_resolve_link(raw_ctx, doc_.get(), pl.uri.c_str(), &dx, &dy);
@@ -208,19 +224,15 @@ std::vector<PageLink> Document::load_links(int page_num) const {
           pl.dest = {dx, dy};
         }
       }
-
-      results.push_back(std::move(pl));
+      fz_catch(raw_ctx) {
+        // Skip dest resolution for this link.
+      }
     }
 
-    fz_drop_link(raw_ctx, links);
-  }
-  fz_always(raw_ctx) {
-    fz_drop_page(raw_ctx, page);
-  }
-  fz_catch(raw_ctx) {
-    // Pages without links — return empty.
+    results.push_back(std::move(pl));
   }
 
+  fz_drop_link(raw_ctx, links);
   return results;
 }
 

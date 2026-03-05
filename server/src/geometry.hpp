@@ -181,7 +181,7 @@ struct ClientInfo {
 
   /// @brief Viewport pixel size (total minus one cell row for the status bar).
   PixelSize viewport_pixel() const {
-    return {pixel.width, pixel.height - cell.height};
+    return {pixel.width, std::max(0, pixel.height - cell.height)};
   }
 
   /// @brief True when all dimensions are non-zero.

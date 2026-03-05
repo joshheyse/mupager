@@ -622,10 +622,10 @@ std::string placeholders(uint32_t image_id, int first_row, int num_rows, int num
     int row = first_row + r;
     for (int col = first_col; col < first_col + num_cols; ++col) {
       append_utf8(result, PlaceholderChar);
-      if (static_cast<size_t>(row) < DiacriticsCount) {
+      if (row >= 0 && static_cast<size_t>(row) < DiacriticsCount) {
         append_utf8(result, Diacritics[row]);
       }
-      if (static_cast<size_t>(col) < DiacriticsCount) {
+      if (col >= 0 && static_cast<size_t>(col) < DiacriticsCount) {
         append_utf8(result, Diacritics[col]);
       }
       if (static_cast<size_t>(id_b3) < DiacriticsCount) {

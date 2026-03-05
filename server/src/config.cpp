@@ -10,7 +10,8 @@
 
 static std::filesystem::path config_path() {
   const char* xdg = std::getenv("XDG_CONFIG_HOME");
-  std::filesystem::path dir = xdg ? std::filesystem::path(xdg) : std::filesystem::path(std::getenv("HOME")) / ".config";
+  const char* home = std::getenv("HOME");
+  std::filesystem::path dir = xdg ? std::filesystem::path(xdg) : std::filesystem::path(home ? home : "/tmp") / ".config";
   return dir / "mupager" / "config.toml";
 }
 
