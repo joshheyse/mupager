@@ -1,7 +1,7 @@
 #include "terminal/controller.hpp"
 
 #include "app.hpp"
-#include "command.hpp"
+#include "action.hpp"
 #include "geometry.hpp"
 #include "graphics/sgr.hpp"
 #include "terminal/frontend.hpp"
@@ -27,20 +27,20 @@ static constexpr const char* Sep = " \xe2\x94\x82 ";
 static constexpr const char* Horiz = "\xe2\x94\x80";
 
 /// @brief Extract pixel scroll delta from any scroll-type command.
-static std::optional<std::pair<int, int>> scroll_delta(const Command& cmd, const CellSize& cell) {
-  if (auto* ms = std::get_if<cmd::MouseScroll>(&cmd)) {
+static std::optional<std::pair<int, int>> scroll_delta(const Action& act, const CellSize& cell) {
+  if (auto* ms = std::get_if<action::MouseScroll>(&act)) {
     return std::pair{ms->dx, ms->dy};
   }
-  if (auto* sd = std::get_if<cmd::ScrollDown>(&cmd)) {
+  if (auto* sd = std::get_if<action::ScrollDown>(&act)) {
     return std::pair{0, cell.height * std::max(1, sd->count)};
   }
-  if (auto* su = std::get_if<cmd::ScrollUp>(&cmd)) {
+  if (auto* su = std::get_if<action::ScrollUp>(&act)) {
     return std::pair{0, -cell.height * std::max(1, su->count)};
   }
-  if (auto* sl = std::get_if<cmd::ScrollLeft>(&cmd)) {
+  if (auto* sl = std::get_if<action::ScrollLeft>(&act)) {
     return std::pair{-cell.width * std::max(1, sl->count), 0};
   }
-  if (auto* sr = std::get_if<cmd::ScrollRight>(&cmd)) {
+  if (auto* sr = std::get_if<action::ScrollRight>(&act)) {
     return std::pair{cell.width * std::max(1, sr->count), 0};
   }
   return std::nullopt;
@@ -77,8 +77,8 @@ InputMode TerminalController::effective_input_mode() const {
   return app_.input_mode();
 }
 
-void TerminalController::forward_command(const Command& cmd) {
-  app_.handle_command(cmd);
+void TerminalController::forward_action(const Action& act) {
+  app_.handle_action(act);
   update_terminal_ui();
 }
 
@@ -174,20 +174,20 @@ void TerminalController::command_execute() {
   command_input_.clear();
   if (parsed) {
     // Handle SetSidebarWidth locally
-    if (auto* sw = std::get_if<cmd::SetSidebarWidth>(&*parsed)) {
+    if (auto* sw = std::get_if<action::SetSidebarWidth>(&*parsed)) {
       sidebar_width_cols_ = sw->cols;
       if (sidebar_visible_) {
         int cols = sidebar_effective_width();
         frontend_.set_canvas_inset(cols);
         frontend_.clear();
-        forward_command(cmd::Resize{});
+        forward_action(action::Resize{});
       }
       else {
         update_statusline();
       }
     }
     else {
-      forward_command(*parsed);
+      forward_action(*parsed);
     }
   }
   else {
@@ -231,7 +231,7 @@ void TerminalController::search_backspace() {
 
 void TerminalController::search_execute() {
   if (!search_input_.empty()) {
-    forward_command(cmd::Search{search_input_});
+    forward_action(action::Search{search_input_});
   }
   terminal_mode_ = TerminalMode::Normal;
   update_statusline();
@@ -275,7 +275,7 @@ void TerminalController::dismiss_overlay() {
   terminal_mode_ = TerminalMode::Normal;
   frontend_.clear_overlay();
   // Re-render document pages
-  forward_command(cmd::Show{});
+  forward_action(action::Show{});
 }
 
 // --- Outline popup ---
@@ -358,14 +358,14 @@ void TerminalController::outline_jump() {
   int page = outline[filtered_indices_[outline_cursor_]].page;
   terminal_mode_ = TerminalMode::Normal;
   frontend_.clear_overlay();
-  forward_command(cmd::GotoPage{page + 1}); // GotoPage is 1-based
+  forward_action(action::GotoPage{page + 1}); // GotoPage is 1-based
 }
 
 void TerminalController::close_outline() {
   terminal_mode_ = TerminalMode::Normal;
   frontend_.clear_overlay();
   // Re-render document pages
-  forward_command(cmd::Show{});
+  forward_action(action::Show{});
 }
 
 void TerminalController::show_outline_popup() {
@@ -519,7 +519,7 @@ void TerminalController::toggle_sidebar() {
     terminal_mode_ = TerminalMode::Normal;
     frontend_.set_canvas_inset(0);
     frontend_.clear();
-    forward_command(cmd::Resize{});
+    forward_action(action::Resize{});
   }
   else {
     const auto& outline = app_.outline();
@@ -544,7 +544,7 @@ void TerminalController::toggle_sidebar() {
     int cols = sidebar_effective_width();
     frontend_.set_canvas_inset(cols);
     frontend_.clear();
-    forward_command(cmd::Resize{});
+    forward_action(action::Resize{});
   }
 }
 
@@ -562,7 +562,7 @@ void TerminalController::sidebar_close() {
   sidebar_filter_.clear();
   frontend_.set_canvas_inset(0);
   frontend_.clear();
-  forward_command(cmd::Resize{});
+  forward_action(action::Resize{});
 }
 
 void TerminalController::sidebar_navigate(int delta) {
@@ -599,7 +599,7 @@ void TerminalController::sidebar_jump() {
   terminal_mode_ = TerminalMode::Normal;
   sidebar_filter_.clear();
   sidebar_apply_filter();
-  forward_command(cmd::GotoPage{page + 1}); // 1-based
+  forward_action(action::GotoPage{page + 1}); // 1-based
 }
 
 void TerminalController::update_sidebar_display() {
@@ -684,7 +684,7 @@ void TerminalController::update_sidebar_display() {
 
 // --- Command parsing ---
 
-std::pair<std::optional<Command>, std::string> TerminalController::parse_command_string(const std::string& raw) {
+std::pair<std::optional<Action>, std::string> TerminalController::parse_command_string(const std::string& raw) {
   std::string input = trim(raw);
   if (input.empty()) {
     return {std::nullopt, {}};
@@ -695,7 +695,7 @@ std::pair<std::optional<Command>, std::string> TerminalController::parse_command
     size_t pos = 0;
     int page = std::stoi(input, &pos);
     if (pos == input.size()) {
-      return {cmd::GotoPage{page}, {}};
+      return {action::GotoPage{page}, {}};
     }
   }
   catch (...) {
@@ -707,17 +707,17 @@ std::pair<std::optional<Command>, std::string> TerminalController::parse_command
 
   if (name == "goto" || name == "g") {
     try {
-      return {cmd::GotoPage{std::stoi(args)}, {}};
+      return {action::GotoPage{std::stoi(args)}, {}};
     }
     catch (...) {
       return {std::nullopt, "Invalid page number"};
     }
   }
   if (name == "q" || name == "quit") {
-    return {cmd::Quit{}, {}};
+    return {action::Quit{}, {}};
   }
   if (name == "reload") {
-    return {cmd::Reload{}, {}};
+    return {action::Reload{}, {}};
   }
   if (name == "set") {
     auto key_space = args.find(' ');
@@ -725,17 +725,17 @@ std::pair<std::optional<Command>, std::string> TerminalController::parse_command
     std::string value = (key_space != std::string::npos) ? trim(args.substr(key_space + 1)) : "";
 
     if (key == "theme") {
-      return {cmd::SetTheme{value}, {}};
+      return {action::SetTheme{value}, {}};
     }
     if (key == "mode") {
-      return {cmd::SetViewMode{value}, {}};
+      return {action::SetViewMode{value}, {}};
     }
     if (key == "render-scale") {
-      return {cmd::SetRenderScale{value}, {}};
+      return {action::SetRenderScale{value}, {}};
     }
     if (key == "sidebar-width") {
       try {
-        return {cmd::SetSidebarWidth{std::stoi(value)}, {}};
+        return {action::SetSidebarWidth{std::stoi(value)}, {}};
       }
       catch (...) {
         return {std::nullopt, std::format("Invalid width: {}", value)};
@@ -891,29 +891,29 @@ void TerminalController::handle_input(const InputEvent& event) {
   // Normal mode — use translate() for shared commands
   auto client = frontend_.client_info();
   auto mode = effective_input_mode();
-  auto cmd = input_handler_.translate(event, mode, client.rows, client.cell);
-  if (!cmd) {
+  auto act = input_handler_.translate(event, mode, client.rows, client.cell);
+  if (!act) {
     return;
   }
 
   // Intercept terminal-only actions before forwarding
-  if (std::holds_alternative<cmd::EnterCommandMode>(*cmd)) {
+  if (std::holds_alternative<action::EnterCommandMode>(*act)) {
     enter_command_mode();
     return;
   }
-  if (std::holds_alternative<cmd::EnterSearchMode>(*cmd)) {
+  if (std::holds_alternative<action::EnterSearchMode>(*act)) {
     enter_search_mode();
     return;
   }
-  if (std::holds_alternative<cmd::ShowHelp>(*cmd)) {
+  if (std::holds_alternative<action::ShowHelp>(*act)) {
     show_help();
     return;
   }
-  if (std::holds_alternative<cmd::OpenOutline>(*cmd)) {
+  if (std::holds_alternative<action::OpenOutline>(*act)) {
     open_outline();
     return;
   }
-  if (std::holds_alternative<cmd::ToggleSidebar>(*cmd)) {
+  if (std::holds_alternative<action::ToggleSidebar>(*act)) {
     toggle_sidebar();
     return;
   }
@@ -921,61 +921,61 @@ void TerminalController::handle_input(const InputEvent& event) {
   // Subtract canvas inset from mouse coordinates for ClickAt/DragStart/DragUpdate/DragEnd
   int inset = frontend_.canvas_inset();
   if (inset > 0) {
-    if (auto* click = std::get_if<cmd::ClickAt>(&*cmd)) {
-      cmd = cmd::ClickAt{click->col - inset, click->row};
+    if (auto* click = std::get_if<action::ClickAt>(&*act)) {
+      act = action::ClickAt{click->col - inset, click->row};
     }
-    else if (auto* ds = std::get_if<cmd::DragStart>(&*cmd)) {
-      cmd = cmd::DragStart{ds->col - inset, ds->row};
+    else if (auto* ds = std::get_if<action::DragStart>(&*act)) {
+      act = action::DragStart{ds->col - inset, ds->row};
     }
-    else if (auto* du = std::get_if<cmd::DragUpdate>(&*cmd)) {
-      cmd = cmd::DragUpdate{du->col - inset, du->row};
+    else if (auto* du = std::get_if<action::DragUpdate>(&*act)) {
+      act = action::DragUpdate{du->col - inset, du->row};
     }
-    else if (auto* de = std::get_if<cmd::DragEnd>(&*cmd)) {
-      cmd = cmd::DragEnd{de->col - inset, de->row};
+    else if (auto* de = std::get_if<action::DragEnd>(&*act)) {
+      act = action::DragEnd{de->col - inset, de->row};
     }
   }
 
   // Scroll coalescing: drain pending scroll events before rendering
-  auto delta = scroll_delta(*cmd, client.cell);
+  auto delta = scroll_delta(*act, client.cell);
   if (delta) {
     int dx = delta->first;
     int dy = delta->second;
     while (auto next = frontend_.poll_input(0)) {
-      auto next_cmd = input_handler_.translate(*next, effective_input_mode(), client.rows, client.cell);
-      if (next_cmd) {
-        auto next_delta = scroll_delta(*next_cmd, client.cell);
+      auto next_act = input_handler_.translate(*next, effective_input_mode(), client.rows, client.cell);
+      if (next_act) {
+        auto next_delta = scroll_delta(*next_act, client.cell);
         if (next_delta) {
           dx += next_delta->first;
           dy += next_delta->second;
         }
         else {
           if (dx != 0 || dy != 0) {
-            forward_command(cmd::MouseScroll{dx, dy});
+            forward_action(action::MouseScroll{dx, dy});
             dx = 0;
             dy = 0;
           }
-          forward_command(*next_cmd);
+          forward_action(*next_act);
           break;
         }
       }
     }
     if (dx != 0 || dy != 0) {
-      forward_command(cmd::MouseScroll{dx, dy});
+      forward_action(action::MouseScroll{dx, dy});
     }
   }
-  else if (auto* move = std::get_if<cmd::SelectionMove>(&*cmd)) {
+  else if (auto* move = std::get_if<action::SelectionMove>(&*act)) {
     int dx = move->dx;
     int dy = move->dy;
     while (auto next = frontend_.poll_input(0)) {
-      auto next_cmd = input_handler_.translate(*next, effective_input_mode(), client.rows, client.cell);
-      if (next_cmd) {
-        if (auto* nm = std::get_if<cmd::SelectionMove>(&*next_cmd)) {
+      auto next_act = input_handler_.translate(*next, effective_input_mode(), client.rows, client.cell);
+      if (next_act) {
+        if (auto* nm = std::get_if<action::SelectionMove>(&*next_act)) {
           dx += nm->dx;
           dy += nm->dy;
         }
         else {
-          forward_command(cmd::SelectionMove{dx, dy});
-          forward_command(*next_cmd);
+          forward_action(action::SelectionMove{dx, dy});
+          forward_action(*next_act);
           dx = 0;
           dy = 0;
           break;
@@ -983,32 +983,32 @@ void TerminalController::handle_input(const InputEvent& event) {
       }
     }
     if (dx != 0 || dy != 0) {
-      forward_command(cmd::SelectionMove{dx, dy});
+      forward_action(action::SelectionMove{dx, dy});
     }
   }
-  else if (auto* drag = std::get_if<cmd::DragUpdate>(&*cmd)) {
+  else if (auto* drag = std::get_if<action::DragUpdate>(&*act)) {
     int col = drag->col;
     int row = drag->row;
     while (auto next = frontend_.poll_input(0)) {
-      auto next_cmd = input_handler_.translate(*next, effective_input_mode(), client.rows, client.cell);
-      if (next_cmd) {
-        if (auto* nd = std::get_if<cmd::DragUpdate>(&*next_cmd)) {
+      auto next_act = input_handler_.translate(*next, effective_input_mode(), client.rows, client.cell);
+      if (next_act) {
+        if (auto* nd = std::get_if<action::DragUpdate>(&*next_act)) {
           col = nd->col;
           row = nd->row;
         }
         else {
-          forward_command(cmd::DragUpdate{col, row});
-          forward_command(*next_cmd);
+          forward_action(action::DragUpdate{col, row});
+          forward_action(*next_act);
           col = -1;
           break;
         }
       }
     }
     if (col >= 0) {
-      forward_command(cmd::DragUpdate{col, row});
+      forward_action(action::DragUpdate{col, row});
     }
   }
   else {
-    forward_command(*cmd);
+    forward_action(*act);
   }
 }

@@ -1,4 +1,5 @@
 #include "config.hpp"
+#include "action_traits.hpp"
 #include "color.hpp"
 
 #include <spdlog/spdlog.h>
@@ -198,7 +199,7 @@ static void parse_keys_table(const toml::table& tbl, Config& cfg) {
       continue;
     }
 
-    cfg.keys[action_name] = std::move(specs);
+    cfg.keys[normalize_action_name(action_name)] = std::move(specs);
     cfg.has_keys = true;
   }
 }

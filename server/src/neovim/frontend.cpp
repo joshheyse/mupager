@@ -1,7 +1,7 @@
 #include "neovim/frontend.hpp"
 
 #include "frontend.hpp"
-#include "command.hpp"
+#include "action.hpp"
 #include "geometry.hpp"
 #include "graphics/kitty.hpp"
 #include "graphics/sgr.hpp"
@@ -156,7 +156,7 @@ void NeovimFrontend::set_window_info(int cols, int rows, int offset_row, int off
 
 std::optional<InputEvent> NeovimFrontend::poll_input(int timeout_ms) {
   // If we have commands queued, return the sentinel immediately
-  if (!command_queue_.empty()) {
+  if (!action_queue_.empty()) {
     return InputEvent{input::RpcCommand, 0, EventType::Press};
   }
 
@@ -172,7 +172,7 @@ std::optional<InputEvent> NeovimFrontend::poll_input(int timeout_ms) {
     // Unwrap single-element array from msgpack-RPC: [arg] -> arg
     const auto& params = (raw_params.type == msgpack::type::ARRAY && raw_params.via.array.size == 1) ? raw_params.via.array.ptr[0] : raw_params;
     if (params.type == msgpack::type::MAP) {
-      cmd::Resize r{};
+      action::Resize r{};
       auto map = params.via.map;
       for (uint32_t i = 0; i < map.size; ++i) {
         auto& kv = map.ptr[i];
@@ -195,7 +195,7 @@ std::optional<InputEvent> NeovimFrontend::poll_input(int timeout_ms) {
       }
       set_window_info(r.cols, r.rows, r.offset_row, r.offset_col);
       query_tty_cell_size();
-      command_queue_.push_back(r);
+      action_queue_.push_back(r);
     }
     if (msg->type == RpcMessageType::Request) {
       transport_.respond_nil(msg->msgid);
@@ -203,10 +203,10 @@ std::optional<InputEvent> NeovimFrontend::poll_input(int timeout_ms) {
     return InputEvent{input::RpcCommand, 0, EventType::Press};
   }
 
-  // Parse the message into an Command
-  auto cmd = RpcTransport::parse_command(msg->method, msg->params.get());
-  if (cmd) {
-    command_queue_.push_back(*cmd);
+  // Parse the message into an Action
+  auto act = RpcTransport::parse_action(msg->method, msg->params.get());
+  if (act) {
+    action_queue_.push_back(*act);
     if (msg->type == RpcMessageType::Request) {
       transport_.respond_nil(msg->msgid);
     }
@@ -393,11 +393,11 @@ void NeovimFrontend::write_raw(const char* data, size_t len) {
   std::fflush(tty_);
 }
 
-std::optional<Command> NeovimFrontend::pop_command() {
-  if (command_queue_.empty()) {
+std::optional<Action> NeovimFrontend::pop_action() {
+  if (action_queue_.empty()) {
     return std::nullopt;
   }
-  auto cmd = std::move(command_queue_.front());
-  command_queue_.pop_front();
-  return cmd;
+  auto act = std::move(action_queue_.front());
+  action_queue_.pop_front();
+  return act;
 }

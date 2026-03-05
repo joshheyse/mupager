@@ -1,5 +1,6 @@
 #include "neovim/rpc_transport.hpp"
-#include "command.hpp"
+#include "action.hpp"
+#include "action_traits.hpp"
 
 #include <poll.h>
 #include <spdlog/spdlog.h>
@@ -13,11 +14,40 @@
 #include <optional>
 #include <msgpack/v3/object_fwd_decl.hpp>
 #include <msgpack/v3/detail/cpp11_zone_decl.hpp>
+#include <string>
 #include <utility>
 #include <msgpack/v3/sbuffer_decl.hpp>
 #include <msgpack/v3/adaptor/adaptor_base_decl.hpp>
 
 static constexpr size_t ReadBufSize = 65536;
+
+/// @brief Extract an integer from a msgpack map by key, with a default value.
+static int extract_map_int(const msgpack::object& map_obj, const char* key, int default_val) {
+  if (map_obj.type != msgpack::type::MAP) {
+    return default_val;
+  }
+  auto map = map_obj.via.map;
+  for (uint32_t i = 0; i < map.size; ++i) {
+    if (map.ptr[i].key.type == msgpack::type::STR && map.ptr[i].key.as<std::string>() == key) {
+      return map.ptr[i].val.as<int>();
+    }
+  }
+  return default_val;
+}
+
+/// @brief Extract a string from a msgpack map by key, with a default value.
+static std::string extract_map_string(const msgpack::object& map_obj, const char* key, const std::string& default_val) {
+  if (map_obj.type != msgpack::type::MAP) {
+    return default_val;
+  }
+  auto map = map_obj.via.map;
+  for (uint32_t i = 0; i < map.size; ++i) {
+    if (map.ptr[i].key.type == msgpack::type::STR && map.ptr[i].key.as<std::string>() == key) {
+      return map.ptr[i].val.as<std::string>();
+    }
+  }
+  return default_val;
+}
 
 /// @brief Parse a decoded msgpack array into an RpcMessage.
 static std::optional<RpcMessage> parse_rpc_message(const msgpack::object& obj) {
@@ -172,9 +202,85 @@ void RpcTransport::notify_nvim_lua(const std::string& method, const msgpack::sbu
   notify("nvim_exec_lua", outer);
 }
 
-std::optional<Command> RpcTransport::parse_command(const std::string& method, const msgpack::object& params) {
+/// @brief Parse a "command" RPC call into an Action using compile-time lookup.
+static std::optional<Action> parse_rpc_command(const msgpack::object& params) {
+  if (params.type != msgpack::type::ARRAY || params.via.array.size < 1) {
+    spdlog::warn("rpc: command expects array params");
+    return std::nullopt;
+  }
+  auto* arr = params.via.array.ptr;
+  std::string cmd_name = arr[0].as<std::string>();
+
+  // Extract optional params map from second element
+  const msgpack::object* args_map = nullptr;
+  if (params.via.array.size >= 2 && arr[1].type == msgpack::type::MAP) {
+    args_map = &arr[1];
+  }
+
+  // Try compile-time name lookup for simple (default-constructible) actions
+  auto act = action_from_name(cmd_name);
+  if (act) {
+    // Some named actions need parameter extraction
+    if (cmd_name == "scroll_down" && args_map) {
+      return action::ScrollDown{extract_map_int(*args_map, "count", 1)};
+    }
+    if (cmd_name == "scroll_up" && args_map) {
+      return action::ScrollUp{extract_map_int(*args_map, "count", 1)};
+    }
+    if (cmd_name == "scroll_left" && args_map) {
+      return action::ScrollLeft{extract_map_int(*args_map, "count", 1)};
+    }
+    if (cmd_name == "scroll_right" && args_map) {
+      return action::ScrollRight{extract_map_int(*args_map, "count", 1)};
+    }
+    return *act;
+  }
+
+  // Parameterized actions that don't have Name (not in variant lookup)
+  if (cmd_name == "goto_page" && args_map) {
+    int page = extract_map_int(*args_map, "page", 0);
+    if (page > 0) {
+      return action::GotoPage{page};
+    }
+  }
+  if (cmd_name == "search" && args_map) {
+    std::string term = extract_map_string(*args_map, "term", "");
+    if (!term.empty()) {
+      return action::Search{term};
+    }
+  }
+  if (cmd_name == "set_view_mode" && args_map) {
+    std::string mode = extract_map_string(*args_map, "mode", "");
+    if (!mode.empty()) {
+      return action::SetViewMode{mode};
+    }
+  }
+  if (cmd_name == "set_theme" && args_map) {
+    std::string theme = extract_map_string(*args_map, "theme", "");
+    if (!theme.empty()) {
+      return action::SetTheme{theme};
+    }
+  }
+  if (cmd_name == "set_render_scale" && args_map) {
+    std::string strategy = extract_map_string(*args_map, "strategy", "");
+    if (!strategy.empty()) {
+      return action::SetRenderScale{strategy};
+    }
+  }
+  if (cmd_name == "reload") {
+    return action::Reload{};
+  }
+  if (cmd_name == "link_hint_cancel") {
+    return action::LinkHintCancel{};
+  }
+
+  spdlog::warn("rpc: unknown command '{}'", cmd_name);
+  return std::nullopt;
+}
+
+std::optional<Action> RpcTransport::parse_action(const std::string& method, const msgpack::object& params) {
   if (method == "quit") {
-    return cmd::Quit{};
+    return action::Quit{};
   }
 
   if (method == "resize") {
@@ -184,197 +290,42 @@ std::optional<Command> RpcTransport::parse_command(const std::string& method, co
       spdlog::warn("rpc: resize expects map params");
       return std::nullopt;
     }
-    cmd::Resize r{};
-    auto map = resize_params.via.map;
-    for (uint32_t i = 0; i < map.size; ++i) {
-      auto& kv = map.ptr[i];
-      if (kv.key.type != msgpack::type::STR) {
-        continue;
-      }
-      std::string key = kv.key.as<std::string>();
-      if (key == "cols") {
-        r.cols = kv.val.as<int>();
-      }
-      else if (key == "rows") {
-        r.rows = kv.val.as<int>();
-      }
-      else if (key == "offset_row") {
-        r.offset_row = kv.val.as<int>();
-      }
-      else if (key == "offset_col") {
-        r.offset_col = kv.val.as<int>();
-      }
-    }
+    action::Resize r{};
+    r.cols = extract_map_int(resize_params, "cols", 0);
+    r.rows = extract_map_int(resize_params, "rows", 0);
+    r.offset_row = extract_map_int(resize_params, "offset_row", 0);
+    r.offset_col = extract_map_int(resize_params, "offset_col", 0);
     return r;
   }
 
   if (method == "command") {
-    // params is an array: ["command_name", {optional args}]
-    if (params.type != msgpack::type::ARRAY || params.via.array.size < 1) {
-      spdlog::warn("rpc: command expects array params");
-      return std::nullopt;
-    }
-    auto* arr = params.via.array.ptr;
-    std::string cmd_name = arr[0].as<std::string>();
-
-    // Extract optional count from second element (map with "count" key)
-    int count = 1;
-    if (params.via.array.size >= 2 && arr[1].type == msgpack::type::MAP) {
-      auto map = arr[1].via.map;
-      for (uint32_t i = 0; i < map.size; ++i) {
-        if (map.ptr[i].key.type == msgpack::type::STR && map.ptr[i].key.as<std::string>() == "count") {
-          count = map.ptr[i].val.as<int>();
-        }
-      }
-    }
-
-    if (cmd_name == "scroll_down") {
-      return cmd::ScrollDown{count};
-    }
-    if (cmd_name == "scroll_up") {
-      return cmd::ScrollUp{count};
-    }
-    if (cmd_name == "half_page_down") {
-      return cmd::HalfPageDown{};
-    }
-    if (cmd_name == "half_page_up") {
-      return cmd::HalfPageUp{};
-    }
-    if (cmd_name == "page_down") {
-      return cmd::PageDown{};
-    }
-    if (cmd_name == "page_up") {
-      return cmd::PageUp{};
-    }
-    if (cmd_name == "scroll_left") {
-      return cmd::ScrollLeft{count};
-    }
-    if (cmd_name == "scroll_right") {
-      return cmd::ScrollRight{count};
-    }
-    if (cmd_name == "goto_first_page") {
-      return cmd::GotoFirstPage{};
-    }
-    if (cmd_name == "goto_last_page") {
-      return cmd::GotoLastPage{};
-    }
-    if (cmd_name == "zoom_in") {
-      return cmd::ZoomIn{};
-    }
-    if (cmd_name == "zoom_out") {
-      return cmd::ZoomOut{};
-    }
-    if (cmd_name == "zoom_reset") {
-      return cmd::ZoomReset{};
-    }
-    if (cmd_name == "toggle_view_mode") {
-      return cmd::ToggleViewMode{};
-    }
-    if (cmd_name == "toggle_theme") {
-      return cmd::ToggleTheme{};
-    }
-    if (cmd_name == "reload") {
-      return cmd::Reload{};
-    }
-    if (cmd_name == "search_next") {
-      return cmd::SearchNext{};
-    }
-    if (cmd_name == "search_prev") {
-      return cmd::SearchPrev{};
-    }
-    if (cmd_name == "clear_search") {
-      return cmd::ClearSearch{};
-    }
-    if (cmd_name == "jump_back") {
-      return cmd::JumpBack{};
-    }
-    if (cmd_name == "jump_forward") {
-      return cmd::JumpForward{};
-    }
-    if (cmd_name == "enter_link_hints") {
-      return cmd::EnterLinkHints{};
-    }
-    if (cmd_name == "link_hint_cancel") {
-      return cmd::LinkHintCancel{};
-    }
-
-    // Commands with string args in the params map
-    if (cmd_name == "goto_page" && params.via.array.size >= 2 && arr[1].type == msgpack::type::MAP) {
-      auto map = arr[1].via.map;
-      for (uint32_t i = 0; i < map.size; ++i) {
-        if (map.ptr[i].key.type == msgpack::type::STR && map.ptr[i].key.as<std::string>() == "page") {
-          return cmd::GotoPage{map.ptr[i].val.as<int>()};
-        }
-      }
-    }
-    if (cmd_name == "search" && params.via.array.size >= 2 && arr[1].type == msgpack::type::MAP) {
-      auto map = arr[1].via.map;
-      for (uint32_t i = 0; i < map.size; ++i) {
-        if (map.ptr[i].key.type == msgpack::type::STR && map.ptr[i].key.as<std::string>() == "term") {
-          return cmd::Search{map.ptr[i].val.as<std::string>()};
-        }
-      }
-    }
-    if (cmd_name == "set_view_mode" && params.via.array.size >= 2 && arr[1].type == msgpack::type::MAP) {
-      auto map = arr[1].via.map;
-      for (uint32_t i = 0; i < map.size; ++i) {
-        if (map.ptr[i].key.type == msgpack::type::STR && map.ptr[i].key.as<std::string>() == "mode") {
-          return cmd::SetViewMode{map.ptr[i].val.as<std::string>()};
-        }
-      }
-    }
-    if (cmd_name == "set_theme" && params.via.array.size >= 2 && arr[1].type == msgpack::type::MAP) {
-      auto map = arr[1].via.map;
-      for (uint32_t i = 0; i < map.size; ++i) {
-        if (map.ptr[i].key.type == msgpack::type::STR && map.ptr[i].key.as<std::string>() == "theme") {
-          return cmd::SetTheme{map.ptr[i].val.as<std::string>()};
-        }
-      }
-    }
-    if (cmd_name == "set_render_scale" && params.via.array.size >= 2 && arr[1].type == msgpack::type::MAP) {
-      auto map = arr[1].via.map;
-      for (uint32_t i = 0; i < map.size; ++i) {
-        if (map.ptr[i].key.type == msgpack::type::STR && map.ptr[i].key.as<std::string>() == "strategy") {
-          return cmd::SetRenderScale{map.ptr[i].val.as<std::string>()};
-        }
-      }
-    }
-
-    spdlog::warn("rpc: unknown command '{}'", cmd_name);
-    return std::nullopt;
+    return parse_rpc_command(params);
   }
 
   if (method == "link_key") {
     // Unwrap single-element array from msgpack-RPC: [arg] -> arg
     const auto& link_params = (params.type == msgpack::type::ARRAY && params.via.array.size == 1) ? params.via.array.ptr[0] : params;
-    if (link_params.type == msgpack::type::MAP) {
-      auto map = link_params.via.map;
-      for (uint32_t i = 0; i < map.size; ++i) {
-        if (map.ptr[i].key.type == msgpack::type::STR && map.ptr[i].key.as<std::string>() == "char") {
-          std::string ch = map.ptr[i].val.as<std::string>();
-          if (!ch.empty()) {
-            return cmd::LinkHintKey{ch[0]};
-          }
-        }
-      }
+    std::string ch = extract_map_string(link_params, "char", "");
+    if (!ch.empty()) {
+      return action::LinkHintKey{ch[0]};
     }
     return std::nullopt;
   }
 
   if (method == "hide") {
-    return cmd::Hide{};
+    return action::Hide{};
   }
   if (method == "show") {
-    return cmd::Show{};
+    return action::Show{};
   }
   if (method == "get_outline") {
-    return cmd::GetOutline{};
+    return action::GetOutline{};
   }
   if (method == "get_links") {
-    return cmd::GetLinks{};
+    return action::GetLinks{};
   }
   if (method == "get_state") {
-    return cmd::GetState{};
+    return action::GetState{};
   }
 
   spdlog::warn("rpc: unknown method '{}'", method);

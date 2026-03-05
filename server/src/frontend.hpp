@@ -1,7 +1,7 @@
 #pragma once
 
 #include "color_scheme.hpp"
-#include "command.hpp"
+#include "action.hpp"
 #include "geometry.hpp"
 #include "graphics/pixmap.hpp"
 #include "input_event.hpp"
@@ -105,7 +105,7 @@ public:
 
   /// @brief Pop a queued RPC command (Neovim frontend only).
   /// @return The next command, or nullopt if the queue is empty.
-  virtual std::optional<Command> pop_command() {
+  virtual std::optional<Action> pop_action() {
     return std::nullopt;
   }
 

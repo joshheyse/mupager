@@ -2,7 +2,7 @@
 
 #include "args.hpp"
 #include "color.hpp"
-#include "command.hpp"
+#include "action.hpp"
 #include "converter.hpp"
 #include "frontend.hpp"
 #include "page.hpp"
@@ -554,7 +554,7 @@ void App::idle_tick() {
   auto client = frontend_->client_info();
   if (client.pixel != layout_size_) {
     spdlog::info("idle resize: pixel {} -> {}", layout_size_, client.pixel);
-    handle_command(cmd::Resize{});
+    handle_action(action::Resize{});
   }
   else {
     auto idle = std::chrono::steady_clock::now() - last_activity_time_;
@@ -614,42 +614,42 @@ std::vector<PageLink> App::visible_links() const {
   return all_links;
 }
 
-void App::handle_command(const Command& cmd) {
+void App::handle_action(const Action& act) {
   last_activity_time_ = std::chrono::steady_clock::now();
 
   std::visit(
       [&](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
 
-        if constexpr (std::is_same_v<T, cmd::Quit>) {
+        if constexpr (std::is_same_v<T, action::Quit>) {
           spdlog::info("quit");
           running_ = false;
         }
-        else if constexpr (std::is_same_v<T, cmd::Resize>) {
+        else if constexpr (std::is_same_v<T, action::Resize>) {
           auto client = frontend_->client_info();
           spdlog::info("resize: {} px, {} cell", client.pixel, client.cell);
           frontend_->clear();
           render();
         }
-        else if constexpr (std::is_same_v<T, cmd::ScrollDown>) {
+        else if constexpr (std::is_same_v<T, action::ScrollDown>) {
           auto client = frontend_->client_info();
           int count = std::max(1, arg.count);
           scroll(0, client.cell.height * scroll_lines_ * count);
         }
-        else if constexpr (std::is_same_v<T, cmd::ScrollUp>) {
+        else if constexpr (std::is_same_v<T, action::ScrollUp>) {
           auto client = frontend_->client_info();
           int count = std::max(1, arg.count);
           scroll(0, -client.cell.height * scroll_lines_ * count);
         }
-        else if constexpr (std::is_same_v<T, cmd::HalfPageDown>) {
+        else if constexpr (std::is_same_v<T, action::HalfPageDown>) {
           auto client = frontend_->client_info();
           scroll(0, client.viewport_pixel().height / 2);
         }
-        else if constexpr (std::is_same_v<T, cmd::HalfPageUp>) {
+        else if constexpr (std::is_same_v<T, action::HalfPageUp>) {
           auto client = frontend_->client_info();
           scroll(0, -client.viewport_pixel().height / 2);
         }
-        else if constexpr (std::is_same_v<T, cmd::PageDown>) {
+        else if constexpr (std::is_same_v<T, action::PageDown>) {
           if (!layout_.empty()) {
             int p = current_page();
             if (view_mode_ == ViewMode::SideBySide) {
@@ -663,7 +663,7 @@ void App::handle_command(const Command& cmd) {
             }
           }
         }
-        else if constexpr (std::is_same_v<T, cmd::PageUp>) {
+        else if constexpr (std::is_same_v<T, action::PageUp>) {
           if (!layout_.empty()) {
             int p = current_page();
             if (view_mode_ == ViewMode::SideBySide) {
@@ -677,24 +677,24 @@ void App::handle_command(const Command& cmd) {
             }
           }
         }
-        else if constexpr (std::is_same_v<T, cmd::ScrollLeft>) {
+        else if constexpr (std::is_same_v<T, action::ScrollLeft>) {
           auto client = frontend_->client_info();
           int count = std::max(1, arg.count);
           scroll(-client.cell.width * scroll_lines_ * count, 0);
         }
-        else if constexpr (std::is_same_v<T, cmd::ScrollRight>) {
+        else if constexpr (std::is_same_v<T, action::ScrollRight>) {
           auto client = frontend_->client_info();
           int count = std::max(1, arg.count);
           scroll(client.cell.width * scroll_lines_ * count, 0);
         }
-        else if constexpr (std::is_same_v<T, cmd::GotoPage>) {
+        else if constexpr (std::is_same_v<T, action::GotoPage>) {
           jump_to_page(arg.page - 1);
         }
-        else if constexpr (std::is_same_v<T, cmd::GotoFirstPage>) {
+        else if constexpr (std::is_same_v<T, action::GotoFirstPage>) {
           spdlog::info("goto first page");
           jump_to_page(0);
         }
-        else if constexpr (std::is_same_v<T, cmd::GotoLastPage>) {
+        else if constexpr (std::is_same_v<T, action::GotoLastPage>) {
           spdlog::info("goto last page (bottom)");
           if (!layout_.empty()) {
             auto client = frontend_->client_info();
@@ -705,7 +705,7 @@ void App::handle_command(const Command& cmd) {
             update_viewport();
           }
         }
-        else if constexpr (std::is_same_v<T, cmd::ZoomIn>) {
+        else if constexpr (std::is_same_v<T, action::ZoomIn>) {
           float old = user_zoom_;
           for (float lvl : ZoomLevels) {
             if (lvl > user_zoom_ + 0.01f) {
@@ -716,7 +716,7 @@ void App::handle_command(const Command& cmd) {
           spdlog::info("zoom in: {:.0f}%", user_zoom_ * 100.0f);
           handle_zoom_change(old);
         }
-        else if constexpr (std::is_same_v<T, cmd::ZoomOut>) {
+        else if constexpr (std::is_same_v<T, action::ZoomOut>) {
           float old = user_zoom_;
           float best = ZoomLevels[0];
           for (float lvl : ZoomLevels) {
@@ -728,14 +728,14 @@ void App::handle_command(const Command& cmd) {
           spdlog::info("zoom out: {:.0f}%", user_zoom_ * 100.0f);
           handle_zoom_change(old);
         }
-        else if constexpr (std::is_same_v<T, cmd::ZoomReset>) {
+        else if constexpr (std::is_same_v<T, action::ZoomReset>) {
           float old = user_zoom_;
           user_zoom_ = 1.0f;
           scroll_.x = 0;
           spdlog::info("zoom reset: 100%");
           handle_zoom_change(old);
         }
-        else if constexpr (std::is_same_v<T, cmd::ToggleViewMode>) {
+        else if constexpr (std::is_same_v<T, action::ToggleViewMode>) {
           switch (view_mode_) {
             case ViewMode::Continuous:
               view_mode_ = ViewMode::PageWidth;
@@ -754,10 +754,10 @@ void App::handle_command(const Command& cmd) {
           scroll_.x = 0;
           render();
         }
-        else if constexpr (std::is_same_v<T, cmd::SetViewMode>) {
+        else if constexpr (std::is_same_v<T, action::SetViewMode>) {
           apply_view_mode(arg.mode);
         }
-        else if constexpr (std::is_same_v<T, cmd::ToggleTheme>) {
+        else if constexpr (std::is_same_v<T, action::ToggleTheme>) {
           if (theme_ == Theme::Dark) {
             theme_ = Theme::Light;
           }
@@ -770,18 +770,18 @@ void App::handle_command(const Command& cmd) {
           frontend_->clear();
           render();
         }
-        else if constexpr (std::is_same_v<T, cmd::SetTheme>) {
+        else if constexpr (std::is_same_v<T, action::SetTheme>) {
           apply_theme(arg.theme);
         }
-        else if constexpr (std::is_same_v<T, cmd::SetRenderScale>) {
+        else if constexpr (std::is_same_v<T, action::SetRenderScale>) {
           apply_render_scale(arg.strategy);
         }
-        else if constexpr (std::is_same_v<T, cmd::SetSidebarWidth>) {
+        else if constexpr (std::is_same_v<T, action::SetSidebarWidth>) {
         }
-        else if constexpr (std::is_same_v<T, cmd::Reload>) {
+        else if constexpr (std::is_same_v<T, action::Reload>) {
           do_reload();
         }
-        else if constexpr (std::is_same_v<T, cmd::JumpBack>) {
+        else if constexpr (std::is_same_v<T, action::JumpBack>) {
           if (!jump_history_.empty()) {
             if (jump_index_ < 0) {
               jump_history_.push_back({scroll_.x, scroll_.y});
@@ -798,7 +798,7 @@ void App::handle_command(const Command& cmd) {
             update_viewport();
           }
         }
-        else if constexpr (std::is_same_v<T, cmd::JumpForward>) {
+        else if constexpr (std::is_same_v<T, action::JumpForward>) {
           if (jump_index_ >= 0) {
             ++jump_index_;
             if (jump_index_ >= static_cast<int>(jump_history_.size()) - 1) {
@@ -814,27 +814,27 @@ void App::handle_command(const Command& cmd) {
             update_viewport();
           }
         }
-        else if constexpr (std::is_same_v<T, cmd::Search>) {
+        else if constexpr (std::is_same_v<T, action::Search>) {
           search_.term = arg.term;
           execute_search();
         }
-        else if constexpr (std::is_same_v<T, cmd::SearchNext>) {
+        else if constexpr (std::is_same_v<T, action::SearchNext>) {
           if (!search_.empty()) {
             search_navigate(1);
           }
         }
-        else if constexpr (std::is_same_v<T, cmd::SearchPrev>) {
+        else if constexpr (std::is_same_v<T, action::SearchPrev>) {
           if (!search_.empty()) {
             search_navigate(-1);
           }
         }
-        else if constexpr (std::is_same_v<T, cmd::ClearSearch>) {
+        else if constexpr (std::is_same_v<T, action::ClearSearch>) {
           clear_search();
         }
-        else if constexpr (std::is_same_v<T, cmd::EnterLinkHints>) {
+        else if constexpr (std::is_same_v<T, action::EnterLinkHints>) {
           enter_link_hints();
         }
-        else if constexpr (std::is_same_v<T, cmd::LinkHintKey>) {
+        else if constexpr (std::is_same_v<T, action::LinkHintKey>) {
           if (app_mode_ == AppMode::LinkHints) {
             link_hint_input_ += arg.ch;
             std::vector<ActiveLinkHint> matches;
@@ -854,32 +854,32 @@ void App::handle_command(const Command& cmd) {
             }
           }
         }
-        else if constexpr (std::is_same_v<T, cmd::LinkHintCancel>) {
+        else if constexpr (std::is_same_v<T, action::LinkHintCancel>) {
           if (app_mode_ == AppMode::LinkHints) {
             exit_link_hints();
           }
         }
-        else if constexpr (std::is_same_v<T, cmd::GetOutline>) {
+        else if constexpr (std::is_same_v<T, action::GetOutline>) {
           if (outline_.empty()) {
             outline_ = doc_.load_outline();
           }
         }
-        else if constexpr (std::is_same_v<T, cmd::GetLinks>) {
+        else if constexpr (std::is_same_v<T, action::GetLinks>) {
           // Data is fetched by the caller via visible_links()
         }
-        else if constexpr (std::is_same_v<T, cmd::GetState>) {
+        else if constexpr (std::is_same_v<T, action::GetState>) {
           // Data is fetched by the caller via view_state()
         }
-        else if constexpr (std::is_same_v<T, cmd::Hide>) {
+        else if constexpr (std::is_same_v<T, action::Hide>) {
           frontend_->show_pages({});
         }
-        else if constexpr (std::is_same_v<T, cmd::Show>) {
+        else if constexpr (std::is_same_v<T, action::Show>) {
           update_viewport();
         }
-        else if constexpr (std::is_same_v<T, cmd::MouseScroll>) {
+        else if constexpr (std::is_same_v<T, action::MouseScroll>) {
           scroll(arg.dx, arg.dy);
         }
-        else if constexpr (std::is_same_v<T, cmd::ClickAt>) {
+        else if constexpr (std::is_same_v<T, action::ClickAt>) {
           auto pp = screen_to_page_point(arg.col, arg.row);
           if (pp.page < 0) {
             return;
@@ -898,32 +898,32 @@ void App::handle_command(const Command& cmd) {
           last_click_point_ = pp;
           has_click_point_ = true;
         }
-        else if constexpr (std::is_same_v<T, cmd::EnterVisualMode>) {
+        else if constexpr (std::is_same_v<T, action::EnterVisualMode>) {
           enter_visual_mode(false);
         }
-        else if constexpr (std::is_same_v<T, cmd::EnterVisualBlockMode>) {
+        else if constexpr (std::is_same_v<T, action::EnterVisualBlockMode>) {
           enter_visual_mode(true);
         }
-        else if constexpr (std::is_same_v<T, cmd::SelectionMove>) {
+        else if constexpr (std::is_same_v<T, action::SelectionMove>) {
           move_selection_extent(arg.dx, arg.dy);
         }
-        else if constexpr (std::is_same_v<T, cmd::SelectionMoveWord>) {
+        else if constexpr (std::is_same_v<T, action::SelectionMoveWord>) {
           move_selection_word(arg.direction);
         }
-        else if constexpr (std::is_same_v<T, cmd::SelectionGoto>) {
+        else if constexpr (std::is_same_v<T, action::SelectionGoto>) {
           selection_goto(arg.target);
         }
-        else if constexpr (std::is_same_v<T, cmd::SelectionYank>) {
+        else if constexpr (std::is_same_v<T, action::SelectionYank>) {
           yank_selection();
         }
-        else if constexpr (std::is_same_v<T, cmd::SelectionCancel>) {
+        else if constexpr (std::is_same_v<T, action::SelectionCancel>) {
           cancel_selection();
         }
-        else if constexpr (std::is_same_v<T, cmd::DragStart>) {
+        else if constexpr (std::is_same_v<T, action::DragStart>) {
           last_click_point_ = screen_to_page_point(arg.col, arg.row);
           has_click_point_ = (last_click_point_.page >= 0);
         }
-        else if constexpr (std::is_same_v<T, cmd::DragUpdate>) {
+        else if constexpr (std::is_same_v<T, action::DragUpdate>) {
           if (app_mode_ == AppMode::Normal && has_click_point_) {
             selection_anchor_ = last_click_point_;
             selection_extent_ = last_click_point_;
@@ -933,24 +933,24 @@ void App::handle_command(const Command& cmd) {
             update_selection_extent(arg.col, arg.row);
           }
         }
-        else if constexpr (std::is_same_v<T, cmd::DragEnd>) {
+        else if constexpr (std::is_same_v<T, action::DragEnd>) {
           if (app_mode_ == AppMode::Visual || app_mode_ == AppMode::VisualBlock) {
             update_selection_extent(arg.col, arg.row);
           }
         }
         // Terminal-only commands handled by TerminalController, not App.
-        else if constexpr (std::is_same_v<T, cmd::OpenOutline>) {
+        else if constexpr (std::is_same_v<T, action::OpenOutline>) {
         }
-        else if constexpr (std::is_same_v<T, cmd::ToggleSidebar>) {
+        else if constexpr (std::is_same_v<T, action::ToggleSidebar>) {
         }
-        else if constexpr (std::is_same_v<T, cmd::EnterCommandMode>) {
+        else if constexpr (std::is_same_v<T, action::EnterCommandMode>) {
         }
-        else if constexpr (std::is_same_v<T, cmd::EnterSearchMode>) {
+        else if constexpr (std::is_same_v<T, action::EnterSearchMode>) {
         }
-        else if constexpr (std::is_same_v<T, cmd::ShowHelp>) {
+        else if constexpr (std::is_same_v<T, action::ShowHelp>) {
         }
       },
-      cmd
+      act
   );
 }
 
@@ -1472,32 +1472,32 @@ void App::move_selection_word(int direction) {
   update_viewport();
 }
 
-void App::selection_goto(cmd::SelectionTarget target) {
+void App::selection_goto(action::SelectionTarget target) {
   if (app_mode_ != AppMode::Visual && app_mode_ != AppMode::VisualBlock) {
     return;
   }
 
   PagePoint dest;
   switch (target) {
-    case cmd::SelectionTarget::WordEnd:
+    case action::SelectionTarget::WordEnd:
       dest = doc_.end_of_word_boundary(selection_extent_);
       break;
-    case cmd::SelectionTarget::LineStart:
+    case action::SelectionTarget::LineStart:
       dest = doc_.line_start(selection_extent_);
       break;
-    case cmd::SelectionTarget::LineEnd:
+    case action::SelectionTarget::LineEnd:
       dest = doc_.line_end(selection_extent_);
       break;
-    case cmd::SelectionTarget::FirstNonSpace:
+    case action::SelectionTarget::FirstNonSpace:
       dest = doc_.first_non_space(selection_extent_);
       break;
-    case cmd::SelectionTarget::DocStart: {
+    case action::SelectionTarget::DocStart: {
       // Go to first char on page 0
       auto chars_first = doc_.line_start({0, {}});
       dest = chars_first;
       break;
     }
-    case cmd::SelectionTarget::DocEnd: {
+    case action::SelectionTarget::DocEnd: {
       // Go to last char on last page
       int last_page = doc_.page_count() - 1;
       if (last_page >= 0) {

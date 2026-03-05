@@ -37,8 +37,8 @@ private:
   /// @brief Compute the effective InputMode for translate() from terminal + app modes.
   InputMode effective_input_mode() const;
 
-  /// @brief Forward a shared Command to App and update terminal UI after.
-  void forward_command(const Command& cmd);
+  /// @brief Forward a shared Action to App and update terminal UI after.
+  void forward_action(const Action& act);
 
   // Terminal UI rendering
   void update_statusline();
@@ -87,8 +87,8 @@ private:
 
   static bool fuzzy_match(const std::string& text, const std::string& pattern);
 
-  /// @brief Parse a command-bar input string into a Command.
-  static std::pair<std::optional<Command>, std::string> parse_command_string(const std::string& raw);
+  /// @brief Parse a command-bar input string into an Action.
+  static std::pair<std::optional<Action>, std::string> parse_command_string(const std::string& raw);
 
   App& app_;
   TerminalFrontend& frontend_;

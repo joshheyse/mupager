@@ -177,15 +177,15 @@ void Args::apply_config(const Config& cfg) {
   key_bindings = KeyBindings::defaults();
   if (cfg.has_keys) {
     for (const auto& [action_name, specs] : cfg.keys) {
-      auto* info = action_from_name(action_name);
-      if (!info) {
+      auto* entry = KeyBindings::entry_from_name(action_name);
+      if (!entry) {
         continue; // Unknown action names already warned in config parse
       }
-      key_bindings.clear(info);
+      key_bindings.clear(entry);
       for (const auto& spec_str : specs) {
-        auto ks = parse_key_spec(spec_str);
+        auto ks = KeySpec::parse(spec_str);
         if (ks) {
-          key_bindings.bind(info, *ks);
+          key_bindings.bind(entry, *ks);
         }
       }
     }

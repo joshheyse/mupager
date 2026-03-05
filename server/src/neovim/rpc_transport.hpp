@@ -1,6 +1,6 @@
 #pragma once
 
-#include "command.hpp"
+#include "action.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -66,11 +66,11 @@ public:
   /// @param params_buf Pre-packed parameters buffer.
   void notify_nvim_lua(const std::string& method, const msgpack::sbuffer& params_buf);
 
-  /// @brief Parse an RPC method + params into an Command.
+  /// @brief Parse an RPC method + params into an Action.
   /// @param method The RPC method name.
   /// @param params The msgpack params object.
-  /// @return The parsed command, or nullopt if unrecognized.
-  static std::optional<Command> parse_command(const std::string& method, const msgpack::object& params);
+  /// @return The parsed action, or nullopt if unrecognized.
+  static std::optional<Action> parse_action(const std::string& method, const msgpack::object& params);
 
 private:
   int read_fd_;

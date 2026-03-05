@@ -3,7 +3,7 @@
 #include "args.hpp"
 #include "color.hpp"
 #include "color_scheme.hpp"
-#include "command.hpp"
+#include "action.hpp"
 #include "document.hpp"
 #include "frontend.hpp"
 #include "geometry.hpp"
@@ -238,7 +238,7 @@ public:
   void initialize();
 
   /// @brief Sole entry point for all state mutations.
-  void handle_command(const Command& cmd);
+  void handle_action(const Action& act);
 
   /// @brief Handle idle tasks: pre-upload, flash expiry, resize detection.
   void idle_tick();
@@ -301,7 +301,7 @@ private:
   void update_selection_extent(int col, int row);
   void move_selection_extent(int dx_cells, int dy_cells);
   void move_selection_word(int direction);
-  void selection_goto(cmd::SelectionTarget target);
+  void selection_goto(action::SelectionTarget target);
   void yank_selection();
   void cancel_selection();
   void refresh_selection_pages();

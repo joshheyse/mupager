@@ -2,7 +2,7 @@
 
 #include "app.hpp"
 #include "document.hpp"
-#include "command.hpp"
+#include "action.hpp"
 #include "neovim/frontend.hpp"
 #include "neovim/rpc_transport.hpp"
 
@@ -94,9 +94,9 @@ void run_neovim(App& app, NeovimFrontend& frontend) {
       continue;
     }
 
-    while (auto cmd = frontend.pop_command()) {
-      if (!initialized && std::holds_alternative<cmd::Resize>(*cmd)) {
-        app.handle_command(*cmd);
+    while (auto act = frontend.pop_action()) {
+      if (!initialized && std::holds_alternative<action::Resize>(*act)) {
+        app.handle_action(*act);
         app.initialize();
         initialized = true;
         continue;
@@ -106,10 +106,10 @@ void run_neovim(App& app, NeovimFrontend& frontend) {
         continue;
       }
 
-      bool is_get_outline = std::holds_alternative<cmd::GetOutline>(*cmd);
-      bool is_get_links = std::holds_alternative<cmd::GetLinks>(*cmd);
+      bool is_get_outline = std::holds_alternative<action::GetOutline>(*act);
+      bool is_get_links = std::holds_alternative<action::GetLinks>(*act);
 
-      app.handle_command(*cmd);
+      app.handle_action(*act);
 
       if (is_get_outline) {
         send_outline(frontend.transport(), app.outline());

@@ -27,7 +27,7 @@ public:
   void show_sidebar(const std::vector<std::string>& lines, int highlight_line, int width_cols, bool focused) override;
   void show_link_hints(const std::vector<LinkHintDisplay>& hints) override;
   void write_raw(const char* data, size_t len) override;
-  std::optional<Command> pop_command() override;
+  std::optional<Action> pop_action() override;
 
   /// @brief Get the RPC transport for sending notifications.
   RpcTransport& transport() {
@@ -54,7 +54,7 @@ private:
   RpcTransport transport_;
   FILE* tty_ = nullptr; ///< /dev/tty for direct Kitty output.
   int tty_fd_ = -1;     ///< File descriptor for /dev/tty.
-  std::deque<Command> command_queue_;
+  std::deque<Action> action_queue_;
 
   int win_cols_ = 0;   ///< Neovim window width in columns.
   int win_rows_ = 0;   ///< Neovim window height in rows.
