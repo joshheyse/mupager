@@ -258,8 +258,8 @@ RenderParams App::make_render_params() const {
 
 HighlightParams App::make_highlight_params() const {
   return {
-      &search_results_,
-      search_current_,
+      &search_.results,
+      search_.current,
       &colors_,
       app_mode_,
       selection_anchor_,
@@ -530,8 +530,8 @@ void App::idle_tick() {
           layout_,
           make_render_params(),
           make_highlight_params(),
-          search_results_,
-          search_current_
+          search_.results,
+          search_.current
       );
     }
     if (last_action_.expired()) {
@@ -777,16 +777,16 @@ void App::handle_command(const Command& cmd) {
           }
         }
         else if constexpr (std::is_same_v<T, cmd::Search>) {
-          search_term_ = arg.term;
+          search_.term = arg.term;
           execute_search();
         }
         else if constexpr (std::is_same_v<T, cmd::SearchNext>) {
-          if (!search_results_.empty()) {
+          if (!search_.empty()) {
             search_navigate(1);
           }
         }
         else if constexpr (std::is_same_v<T, cmd::SearchPrev>) {
-          if (!search_results_.empty()) {
+          if (!search_.empty()) {
             search_navigate(-1);
           }
         }
@@ -831,16 +831,6 @@ void App::handle_command(const Command& cmd) {
         }
         else if constexpr (std::is_same_v<T, cmd::GetState>) {
           // Data is fetched by the caller via view_state()
-        }
-        else if constexpr (std::is_same_v<T, cmd::OpenOutline>) {
-        }
-        else if constexpr (std::is_same_v<T, cmd::ToggleSidebar>) {
-        }
-        else if constexpr (std::is_same_v<T, cmd::EnterCommandMode>) {
-        }
-        else if constexpr (std::is_same_v<T, cmd::EnterSearchMode>) {
-        }
-        else if constexpr (std::is_same_v<T, cmd::ShowHelp>) {
         }
         else if constexpr (std::is_same_v<T, cmd::Hide>) {
           frontend_->show_pages({});
@@ -910,6 +900,17 @@ void App::handle_command(const Command& cmd) {
             update_selection_extent(arg.col, arg.row);
           }
         }
+        // Terminal-only commands handled by TerminalController, not App.
+        else if constexpr (std::is_same_v<T, cmd::OpenOutline>) {
+        }
+        else if constexpr (std::is_same_v<T, cmd::ToggleSidebar>) {
+        }
+        else if constexpr (std::is_same_v<T, cmd::EnterCommandMode>) {
+        }
+        else if constexpr (std::is_same_v<T, cmd::EnterSearchMode>) {
+        }
+        else if constexpr (std::is_same_v<T, cmd::ShowHelp>) {
+        }
       },
       cmd
   );
@@ -922,9 +923,7 @@ void App::do_reload() {
     doc_.reload(file_path_);
 
     outline_.clear();
-    search_results_.clear();
-    search_term_.clear();
-    search_current_ = -1;
+    search_.clear();
 
     build_layout();
 
@@ -998,16 +997,19 @@ void App::apply_render_scale(const std::string& name) {
 }
 
 void App::execute_search() {
-  if (search_term_.empty()) {
+  if (search_.term.empty()) {
     return;
   }
 
-  search_results_ = doc_.search(search_term_);
-  search_total_matches_ = static_cast<int>(search_results_.size());
+  search_.results = doc_.search(search_.term);
+  search_.page_counts.clear();
+  for (const auto& hit : search_.results) {
+    ++search_.page_counts[hit.page];
+  }
 
-  if (search_results_.empty()) {
-    search_current_ = -1;
-    last_action_.set("Pattern not found: {}", search_term_);
+  if (search_.empty()) {
+    search_.current = -1;
+    last_action_.set("Pattern not found: {}", search_.term);
     return;
   }
 
@@ -1015,8 +1017,8 @@ void App::execute_search() {
   auto client = frontend_->client_info();
   int vh = client.viewport_pixel().height;
   int first_visible = -1;
-  for (int i = 0; i < static_cast<int>(search_results_.size()); ++i) {
-    const auto& hit = search_results_[i];
+  for (int i = 0; i < search_.total(); ++i) {
+    const auto& hit = search_.results[i];
     if (hit.page < viewport_first_page_ || hit.page > viewport_last_page_) {
       continue;
     }
@@ -1029,15 +1031,15 @@ void App::execute_search() {
   }
 
   if (first_visible >= 0) {
-    search_current_ = first_visible;
+    search_.current = first_visible;
   }
   else {
     // Find first match on or after current page
     int cur = current_page();
-    search_current_ = 0;
-    for (int i = 0; i < static_cast<int>(search_results_.size()); ++i) {
-      if (search_results_[i].page >= cur) {
-        search_current_ = i;
+    search_.current = 0;
+    for (int i = 0; i < search_.total(); ++i) {
+      if (search_.results[i].page >= cur) {
+        search_.current = i;
         break;
       }
     }
@@ -1049,34 +1051,30 @@ void App::execute_search() {
 }
 
 void App::clear_search() {
-  search_results_.clear();
-  search_term_.clear();
-  search_current_ = -1;
-  search_page_matches_ = 0;
-  search_total_matches_ = 0;
+  search_.clear();
   frontend_->clear();
   render();
 }
 
 void App::search_navigate(int delta) {
-  if (search_results_.empty()) {
+  if (search_.empty()) {
     return;
   }
 
-  int n = static_cast<int>(search_results_.size());
-  search_current_ = ((search_current_ + delta) % n + n) % n;
+  int n = search_.total();
+  search_.current = ((search_.current + delta) % n + n) % n;
   scroll_to_search_hit();
   frontend_->clear();
   render();
 }
 
 void App::scroll_to_search_hit() {
-  if (search_current_ < 0 || search_current_ >= static_cast<int>(search_results_.size())) {
+  if (search_.current < 0 || search_.current >= search_.total()) {
     return;
   }
 
   push_jump_history();
-  const auto& hit = search_results_[search_current_];
+  const auto& hit = search_.results[search_.current];
   int page = hit.page;
   page = std::clamp(page, 0, static_cast<int>(layout_.size()) - 1);
 
@@ -1584,9 +1582,10 @@ ViewState App::view_state() const {
       static_cast<int>(user_zoom_ * 100.0f + 0.5f),
       to_string(view_mode_),
       to_string(theme_),
-      search_term_,
-      search_current_ >= 0 ? search_current_ + 1 : 0,
-      static_cast<int>(search_results_.size()),
+      search_.term,
+      search_.current >= 0 ? search_.current + 1 : 0,
+      search_.total(),
+      search_.matches_on_page(current_page()),
       app_mode_ == AppMode::LinkHints,
       std::move(vis_mode),
       {},

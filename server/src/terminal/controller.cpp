@@ -100,7 +100,12 @@ void TerminalController::update_statusline() {
     left = std::format("/{}", search_input_);
   }
   else if (vs.search_total > 0 && terminal_mode_ == TerminalMode::Normal && app_.app_mode() == AppMode::Normal) {
-    left = std::format("/{} [{}/{}]", vs.search_term, vs.search_current, vs.search_total);
+    if (vs.search_page_matches > 0 && vs.search_page_matches < vs.search_total) {
+      left = std::format("/{} [{}/{} ({})]", vs.search_term, vs.search_current, vs.search_total, vs.search_page_matches);
+    }
+    else {
+      left = std::format("/{} [{}/{}]", vs.search_term, vs.search_current, vs.search_total);
+    }
   }
   else if (!vs.visual_mode.empty()) {
     if (vs.visual_mode == "visual") {

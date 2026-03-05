@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 /// @brief Layout information for a single page in the continuous scroll.
@@ -119,6 +120,34 @@ enum class InputMode {
   LinkHints
 };
 
+/// @brief Bundled search state.
+struct SearchState {
+  std::string term;
+  SearchResults results;
+  int current = -1; ///< Index into results of the focused match (-1 = none).
+  std::unordered_map<int, int> page_counts; ///< Page number → match count.
+
+  /// @brief Clear all search state.
+  void clear() {
+    term.clear();
+    results.clear();
+    current = -1;
+    page_counts.clear();
+  }
+
+  /// @brief Whether there are any results.
+  bool empty() const { return results.empty(); }
+
+  /// @brief Total number of matches.
+  int total() const { return static_cast<int>(results.size()); }
+
+  /// @brief Number of matches on a specific page.
+  int matches_on_page(int page) const {
+    auto it = page_counts.find(page);
+    return it != page_counts.end() ? it->second : 0;
+  }
+};
+
 /// @brief A saved scroll position for jump history.
 struct JumpPoint {
   int scroll_x; ///< Horizontal scroll position.
@@ -182,8 +211,9 @@ struct ViewState {
   std::string view_mode;
   std::string theme;
   std::string search_term;
-  int search_current; ///< 1-based index of current match (0 = none).
-  int search_total;   ///< Total number of search matches.
+  int search_current;      ///< 1-based index of current match (0 = none).
+  int search_total;        ///< Total number of search matches.
+  int search_page_matches; ///< Number of matches on the current page.
   bool link_hints_active;
   std::string visual_mode;   ///< Visual mode string ("visual", "visual-block", or "").
   std::string cache_pages;   ///< Cached page ranges (e.g. "1-3,5,8-10"), empty when debug is off.
@@ -307,11 +337,7 @@ private:
   AppMode app_mode_ = AppMode::Normal;
   float user_zoom_ = 1.0f;           ///< User zoom multiplier (1.0 = fit-to-viewport).
   RenderScale render_scale_setting_; ///< From CLI --render-scale.
-  std::string search_term_;
-  int search_page_matches_ = 0;
-  int search_total_matches_ = 0;
-  SearchResults search_results_;
-  int search_current_ = -1; ///< Index into search_results_ of the focused match (-1 = none).
+  SearchState search_;
 
   std::vector<PageLayout> layout_;
   PageManager page_manager_;

@@ -12,7 +12,7 @@
 static void send_state(RpcTransport& transport, const ViewState& state) {
   msgpack::sbuffer buf;
   msgpack::packer<msgpack::sbuffer> pk(buf);
-  pk.pack_map(12);
+  pk.pack_map(13);
   pk.pack("current_page");
   pk.pack(state.current_page);
   pk.pack("total_pages");
@@ -29,6 +29,8 @@ static void send_state(RpcTransport& transport, const ViewState& state) {
   pk.pack(state.search_current);
   pk.pack("search_total");
   pk.pack(state.search_total);
+  pk.pack("search_page_matches");
+  pk.pack(state.search_page_matches);
   pk.pack("link_hints_active");
   pk.pack(state.link_hints_active);
   pk.pack("visual_mode");
