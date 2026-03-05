@@ -39,6 +39,11 @@ Page Page::render(
     pixmap.recolor(params.recolor_fg, params.recolor_bg, params.recolor_accent);
   }
 
+  if (params.draw_separator && page_num > 0) {
+    PixelRect sep = {0, 0, pixmap.width(), 2};
+    pixmap.highlight_rect(sep, params.separator_color, 255);
+  }
+
   auto base = pixmap.pack_pixels();
   int w = pixmap.width();
   int h = pixmap.height();

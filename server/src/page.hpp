@@ -23,6 +23,8 @@ struct RenderParams {
   Color recolor_bg;      ///< Resolved bg for terminal theme.
   Color recolor_accent;  ///< Accent color for terminal theme.
   CellSize client_cell;  ///< Terminal cell size for grid computation.
+  Color separator_color; ///< Color for the 1px separator line between pages.
+  bool draw_separator;   ///< Whether to draw separators (continuous mode).
 };
 
 /// @brief Parameters for highlight overlays.

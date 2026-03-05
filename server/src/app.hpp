@@ -271,8 +271,6 @@ public:
   std::vector<PageLink> visible_links() const;
 
 private:
-  static constexpr int PageGapPx = 16;
-
   void build_layout();
   int page_at_y(int y) const;
   void update_viewport();

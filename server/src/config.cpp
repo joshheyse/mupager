@@ -155,6 +155,9 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
     else if (k == "recolor-accent") {
       cfg.colors.recolor_accent = *color;
     }
+    else if (k == "page-separator") {
+      cfg.colors.page_separator = *color;
+    }
   }
 }
 

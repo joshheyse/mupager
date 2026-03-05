@@ -37,6 +37,8 @@ struct ColorScheme {
   Color selection_highlight = Color::rgb(100, 149, 237); ///< Visual selection highlight color.
   uint8_t selection_highlight_alpha = 80;                ///< Visual selection blend factor.
 
+  Color page_separator = Color::terminal_default(); ///< Separator line between pages. Default = auto from theme.
+
   Color recolor_dark = Color::terminal_default();   ///< Replaces black/text in terminal theme.
   Color recolor_light = Color::terminal_default();  ///< Replaces white/background in terminal theme.
   Color recolor_accent = Color::terminal_default(); ///< Tint for saturated pixels (links). Default = no tinting.

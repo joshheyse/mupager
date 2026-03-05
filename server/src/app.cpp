@@ -146,18 +146,13 @@ void App::build_layout() {
     }
   }
   else {
-    int cell_h = client.cell.height;
-    int gap = 0;
-    if (view_mode_ == ViewMode::Continuous && cell_h > 0) {
-      gap = std::max(1, (PageGapPx + cell_h - 1) / cell_h) * cell_h;
-    }
     int y = 0;
     for (int i = 0; i < num_pages; ++i) {
       auto ps = doc_.page_size(i);
       float zoom = static_cast<float>(vw) / ps.width;
       int h = static_cast<int>(ps.height * zoom * user_zoom_);
       layout_[i] = {{0, y, vw, h}, zoom};
-      y += h + gap;
+      y += h;
     }
   }
 }
@@ -245,14 +240,36 @@ void App::handle_zoom_change(float old_zoom) {
 RenderParams App::make_render_params() const {
   auto [fg, bg] = resolve_recolor_colors();
   auto client = frontend_->client_info();
+  auto theme = effective_theme();
+  Color sep = colors_.page_separator;
+  if (sep.is_default) {
+    switch (theme) {
+      case Theme::Light:
+        sep = Color::rgb(160, 160, 160);
+        break;
+      case Theme::Dark:
+        sep = Color::rgb(100, 100, 100);
+        break;
+      case Theme::Terminal: {
+        auto mix = [](uint8_t a, uint8_t b) -> uint8_t { return static_cast<uint8_t>(a + (b - a) * 50 / 100); };
+        sep = Color::rgb(mix(bg.r, fg.r), mix(bg.g, fg.g), mix(bg.b, fg.b));
+        break;
+      }
+      default:
+        sep = Color::rgb(100, 100, 100);
+        break;
+    }
+  }
   return {
       user_zoom_,
       effective_render_scale(),
-      effective_theme(),
+      theme,
       fg,
       bg,
       colors_.recolor_accent,
       client.cell,
+      sep,
+      view_mode_ == ViewMode::Continuous,
   };
 }
 
