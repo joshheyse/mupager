@@ -1,9 +1,12 @@
 #include "frontend.hpp"
 
+#include "color_scheme.hpp"
 #include "graphics/kitty.hpp"
 #include "util/base64.hpp"
 
+#include <cstdint>
 #include <cstdlib>
+#include <string>
 
 Frontend::Frontend(uint32_t initial_image_id)
     : next_image_id_(initial_image_id) {

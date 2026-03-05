@@ -1,8 +1,26 @@
 #include "document.hpp"
+#include <mupdf/fitz/context.h>
+#include <mupdf/fitz/types.h>
+#include <mupdf/fitz/document.h>
+#include "geometry.hpp"
+#include <mupdf/fitz/geometry.h>
+#include "graphics/pixmap.hpp"
+#include <mupdf/fitz/color.h>
+#include <mupdf/fitz/util.h>
+#include <mupdf/fitz/device.h>
+#include <mupdf/fitz/pixmap.h>
+#include <mupdf/fitz/outline.h>
+#include <mupdf/fitz/link.h>
+#include <mupdf/fitz/structured-text.h>
+#include <mupdf/fitz/string-util.h>
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <stdexcept>
+#include <string>
+#include <vector>
+#include <utility>
 
 void ContextDeleter::operator()(fz_context* ctx) const {
   fz_drop_context(ctx);
@@ -71,7 +89,7 @@ Pixmap Document::render_page(int page_num, float zoom) const {
     throw std::runtime_error("failed to render page: " + msg);
   }
 
-  return Pixmap(raw_ctx, pix);
+  return {raw_ctx, pix};
 }
 
 Pixmap Document::render_page(int page_num, float zoom, int x_offset, int y_offset, int viewport_w, int viewport_h) const {
@@ -100,7 +118,7 @@ Pixmap Document::render_page(int page_num, float zoom, int x_offset, int y_offse
     throw std::runtime_error("failed to render page: " + msg);
   }
 
-  return Pixmap(raw_ctx, pix);
+  return {raw_ctx, pix};
 }
 
 static void flatten_outline(fz_context* ctx, fz_document* doc, fz_outline* node, int level, Outline& out) {

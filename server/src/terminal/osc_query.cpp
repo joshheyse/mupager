@@ -1,13 +1,20 @@
 #include "osc_query.hpp"
+#include "color.hpp"
 
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/fcntl.h>
+#include <sys/poll.h>
+#include <sys/_types/_ssize_t.h>
 #include <termios.h>
 #include <unistd.h>
 
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <string>
+#include <utility>
 
 /// @brief Parse an OSC color response component "RRRR/GGGG/BBBB" (16-bit hex per channel).
 static std::optional<Color> parse_osc_color_response(const std::string& payload) {

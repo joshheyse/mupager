@@ -1,13 +1,34 @@
 #include "app.hpp"
 
+#include "args.hpp"
+#include "color.hpp"
+#include "command.hpp"
 #include "converter.hpp"
+#include "frontend.hpp"
+#include "page.hpp"
+#include "geometry.hpp"
+#include "document.hpp"
 
 #include <spdlog/spdlog.h>
+#include <sys/_types/_pid_t.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include <algorithm>
+#include <optional>
+#include <memory>
+#include <cmath>
+#include <cstdint>
+#include <chrono>
+#include <stdexcept>
+#include <cstdlib>
+#include <cstdio>
 #include <string>
+#include <utility>
+#include <vector>
+#include <variant>
+#include <type_traits>
 
 /// @brief Discrete zoom levels for step-zoom in/out.
 static constexpr float ZoomLevels[] = {1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};

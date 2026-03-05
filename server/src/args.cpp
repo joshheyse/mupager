@@ -1,9 +1,12 @@
 #include "args.hpp"
 
 #include "config.hpp"
+#include "terminal/key_bindings.hpp"
 
 #include <cstdlib>
 #include <filesystem>
+#include <string>
+#include <stdexcept>
 #include <vector>
 
 #include <CLI/CLI.hpp>

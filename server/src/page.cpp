@@ -1,11 +1,19 @@
 #include "page.hpp"
 
 #include "app.hpp"
+#include "geometry.hpp"
+#include "document.hpp"
+#include "frontend.hpp"
+#include "graphics/pixmap.hpp"
 #include "util/stopwatch.hpp"
 
-#include <spdlog/spdlog.h>
+#include <mupdf/fitz/context.h>
 
+#include <cstdint>
+#include <algorithm>
 #include <format>
+#include <vector>
+#include <utility>
 
 Page::Page(std::vector<unsigned char> pixels, int w, int h, int comp, float zoom, float scale, uint32_t id, CellSize grid)
     : base_pixels_(std::move(pixels))

@@ -1,11 +1,16 @@
 #include "neovim/loop.hpp"
 
 #include "app.hpp"
+#include "document.hpp"
+#include "command.hpp"
 #include "neovim/frontend.hpp"
+#include "neovim/rpc_transport.hpp"
 
-#include <spdlog/spdlog.h>
 
 #include <variant>
+#include <msgpack/v3/sbuffer_decl.hpp>
+#include <msgpack/v3/adaptor/adaptor_base_decl.hpp>
+#include <vector>
 
 #include <msgpack.hpp>
 

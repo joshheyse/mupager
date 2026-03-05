@@ -5,6 +5,9 @@
 #include "util/base64.hpp"
 
 #include <cctype>
+#include <cstddef>
+#include <cstdint>
+#include <string>
 
 namespace kitty {
 

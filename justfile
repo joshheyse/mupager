@@ -68,6 +68,21 @@ lint-cpp preset=default_preset: (build preset)
         "${extra_args[@]}" \
         --header-filter="server/"
 
+# Run clang-tidy --fix on all C++ translation units (excludes test files)
+lint-fix preset=default_preset: (build preset)
+    #!/usr/bin/env bash
+    set -euo pipefail
+    extra_args=()
+    while IFS= read -r dir; do
+        extra_args+=(--extra-arg=-isystem --extra-arg="$dir")
+    done < <(clang++ -E -x c++ /dev/null -v 2>&1 \
+        | sed -n '/#include <...> search starts here:/,/End of search list/p' \
+        | grep '^ ' | sed 's/^ *//')
+    find server -name '*.cpp' ! -name '*.test.cpp' | xargs clang-tidy -p build/{{preset}} \
+        "${extra_args[@]}" \
+        --header-filter="server/" \
+        --fix
+
 # Run include-what-you-use on all C++ source files (excludes test files)
 iwyu preset=default_preset: (build preset)
     #!/usr/bin/env bash

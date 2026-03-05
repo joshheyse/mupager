@@ -6,7 +6,11 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <optional>
+#include <map>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 /// @brief Shell-escape a path by wrapping in single quotes.
 static std::string shell_escape(const std::string& path) {

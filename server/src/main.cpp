@@ -9,16 +9,23 @@
 #include "terminal/loop.hpp"
 #include "terminal/osc_query.hpp"
 
+#include <spdlog/common.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
+#include <sys/signal.h>
 
 #include <algorithm>
+#include <chrono>
+#include <cctype>
 #include <csignal>
 #include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_set>
+#include <utility>
 
 int main(int argc, char* argv[]) {
   // Auto-reap child processes (clipboard helpers, browser openers) to prevent zombies.

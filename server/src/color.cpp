@@ -2,7 +2,10 @@
 
 #include "graphics/sgr.hpp"
 
+#include <cstdint>
 #include <format>
+#include <optional>
+#include <string>
 
 Color Color::rgb(uint8_t r, uint8_t g, uint8_t b) {
   return {r, g, b, 0, false, false};

@@ -1,7 +1,16 @@
 #include "terminal/key_bindings.hpp"
+#include "command.hpp"
+#include "input_event.hpp"
 
 #include <cctype>
+#include <cstddef>
+#include <string>
+#include <cstdint>
+#include <optional>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 const ActionInfo ActionTable[] = {
     {cmd::ScrollDown::Action, "Scroll Down", [] { return Command{cmd::ScrollDown{}}; }},

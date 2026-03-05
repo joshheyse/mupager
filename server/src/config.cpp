@@ -1,12 +1,20 @@
 #include "config.hpp"
+#include "color.hpp"
 
 #include <spdlog/spdlog.h>
 
+#include <cstdint>
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
+#include <optional>
+#include <string>
+#include <map>
 #include <unordered_set>
+#include <vector>
+#include <utility>
 
-#include <toml++/toml.hpp>
+#include <toml++/toml.hpp> // NOLINT(misc-include-cleaner)
 
 static std::filesystem::path config_path() {
   const char* xdg = std::getenv("XDG_CONFIG_HOME");

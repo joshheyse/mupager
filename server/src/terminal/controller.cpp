@@ -1,14 +1,24 @@
 #include "terminal/controller.hpp"
 
 #include "app.hpp"
+#include "command.hpp"
+#include "geometry.hpp"
 #include "graphics/sgr.hpp"
+#include "terminal/frontend.hpp"
+#include "terminal/key_bindings.hpp"
+#include "input_event.hpp"
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstddef>
+#include <cctype>
 #include <format>
 #include <optional>
+#include <string>
 #include <utility>
+#include <variant>
+#include <vector>
 
 /// @brief Box-drawing separator for the status line (│).
 static constexpr const char* Sep = " \xe2\x94\x82 ";

@@ -1,8 +1,18 @@
 #include "graphics/pixmap.hpp"
+#include <mupdf/fitz/color.h>
+#include <mupdf/fitz/pixmap.h>
+#include <mupdf/fitz/context.h>
+#include "geometry.hpp"
+#include "color.hpp"
+#include <mupdf/fitz/buffer.h>
+#include <mupdf/fitz/write-pixmap.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 void PixmapDeleter::operator()(fz_pixmap* pix) const {
   fz_drop_pixmap(ctx, pix);
@@ -26,7 +36,7 @@ Pixmap Pixmap::from_pixels(fz_context* ctx, int w, int h, int comp, const unsign
   for (int y = 0; y < h; ++y) {
     std::memcpy(dst + y * stride, data + y * row_bytes, row_bytes);
   }
-  return Pixmap(ctx, pix);
+  return {ctx, pix};
 }
 
 int Pixmap::width() const {

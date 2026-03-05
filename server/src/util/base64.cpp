@@ -1,6 +1,9 @@
 #include "base64.hpp"
 
+#include <cstddef>
 #include <cstdint>
+#include <string>
+#include <span>
 
 namespace base64 {
 

@@ -1,5 +1,7 @@
 #include "terminal/frontend.hpp"
 
+#include "geometry.hpp"
+#include "frontend.hpp"
 #include "graphics/kitty.hpp"
 #include "graphics/sgr.hpp"
 #include "input_event.hpp"
@@ -7,12 +9,19 @@
 
 #include <ncurses.h>
 #include <spdlog/spdlog.h>
+#include <sys/_types/_wint_t.h>
 #include <sys/ioctl.h>
+#include <sys/ttycom.h>
 #include <unistd.h>
 
+#include <cstdint>
+#include <algorithm>
 #include <cstdio>
 #include <format>
 #include <iterator>
+#include <string>
+#include <optional>
+#include <vector>
 
 TerminalFrontend::TerminalFrontend() {
   set_escdelay(25);

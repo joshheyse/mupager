@@ -1,13 +1,18 @@
 #include "page_manager.hpp"
 
 #include "app.hpp"
+#include "document.hpp"
+#include "frontend.hpp"
+#include "page.hpp"
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <format>
 #include <string>
+#include <utility>
 #include <vector>
 
 PageManager::PageManager(size_t max_cache_bytes)
