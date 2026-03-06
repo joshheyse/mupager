@@ -23,13 +23,6 @@ struct DirtyState {
   T value{};
 };
 
-/// @brief Cached statusline content for dirty-checking.
-struct StatuslineState {
-  std::string left;
-  std::string right;
-  bool operator==(const StatuslineState&) const = default;
-};
-
 /// @brief Cached sidebar content for dirty-checking.
 struct SidebarState {
   std::vector<std::string> lines;
@@ -125,7 +118,6 @@ private:
   TerminalFrontend& frontend_;
   TerminalInputHandler input_handler_;
   TerminalMode terminal_mode_ = TerminalMode::Normal;
-  DirtyState<StatuslineState> statusline_state_;
   DirtyState<SidebarState> sidebar_state_;
 
   // Command bar

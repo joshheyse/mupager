@@ -71,10 +71,9 @@ std::optional<InputEvent> TerminalFrontend::poll_input(int timeout_ms) {
       query_winsize();
       if (static_cast<int>(ws_row_) != LINES || static_cast<int>(ws_col_) != COLS) {
         resizeterm(ws_row_, ws_col_);
+        clearok(curscr, FALSE);
+        untouchwin(stdscr);
       }
-      clearok(curscr, TRUE);
-      erase();
-      refresh();
       return InputEvent{input::Resize, 0, EventType::Press};
     }
     if (wch == KEY_MOUSE) {
@@ -222,17 +221,35 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   out.reserve(total_rows * 128);
 
   if (in_tmux_) {
-    erase();
+    // Interleave per-row clearing with placeholder writes to avoid flash.
+    // If we batch-clear all rows first, tmux may render a blank frame between
+    // the clear block and the placeholder block.
+    int content_rows = static_cast<int>(ws_row_) - 1;
+    std::vector<bool> row_touched(content_rows, false);
+
     for (const auto& s : slices) {
       int dst_col = s.dst.x + inset_cols_;
       int first_cell_row = (s.src.y > 0 && s.img_px_size.height > 0) ? s.src.y * s.img_grid.height / s.img_px_size.height : 0;
       int first_cell_col = (s.src.x > 0 && s.img_px_size.width > 0) ? s.src.x * s.img_grid.width / s.img_px_size.width : 0;
       int visible_cols = (s.dst.width > 0) ? s.dst.width : s.img_grid.width;
-      // Emit one row at a time with explicit cursor positioning to avoid
-      // \n\r in placeholders resetting the column to 1.
       for (int r = 0; r < s.dst.height; ++r) {
+        int screen_row = s.dst.y + r;
+        // First slice touching this row: clear from inset to EOL
+        if (screen_row >= 0 && screen_row < content_rows && !row_touched[screen_row]) {
+          row_touched[screen_row] = true;
+          sgr::move_to(out, screen_row + 1, inset_cols_ + 1);
+          out += "\033[K";
+        }
         sgr::move_to(out, s.dst.y + 1 + r, dst_col + 1);
         out += kitty::placeholders(s.image_id, first_cell_row + r, 1, visible_cols, first_cell_col);
+      }
+    }
+
+    // Clear remaining empty rows (no content to display)
+    for (int r = 0; r < content_rows; ++r) {
+      if (!row_touched[r]) {
+        sgr::move_to(out, r + 1, inset_cols_ + 1);
+        out += "\033[K";
       }
     }
   }
@@ -260,9 +277,6 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
   std::fwrite(out.data(), 1, out.size(), stdout);
   std::fflush(stdout);
 
-  if (in_tmux_) {
-    refresh();
-  }
 }
 
 /// Count display columns, skipping ANSI escape sequences.
@@ -429,9 +443,17 @@ void TerminalFrontend::show_overlay(const std::string& title, const std::vector<
 }
 
 void TerminalFrontend::clear_overlay() {
-  // Erase text cells so the overlay disappears before images are re-placed.
-  erase();
-  refresh();
+  // Clear content rows with raw EL escapes (skip statusline on last row).
+  // The subsequent show_pages() call overwrites with new content.
+  std::string out;
+  int content_rows = static_cast<int>(ws_row_) - 1;
+  out.reserve(content_rows * 16);
+  for (int r = 0; r < content_rows; ++r) {
+    sgr::move_to(out, r + 1, inset_cols_ + 1);
+    out += "\033[K";
+  }
+  std::fwrite(out.data(), 1, out.size(), stdout);
+  std::fflush(stdout);
 }
 
 void TerminalFrontend::show_sidebar(const std::vector<std::string>& lines, int highlight_line, int width_cols, bool focused) {

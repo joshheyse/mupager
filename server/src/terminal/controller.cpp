@@ -146,9 +146,6 @@ void TerminalController::update_statusline() {
     }
   }
 
-  if (!statusline_state_.update({left, right})) {
-    return;
-  }
   frontend_.statusline(left, right);
 }
 

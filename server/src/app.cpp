@@ -448,7 +448,22 @@ void App::update_viewport() {
   }
 
   spdlog::debug("update_viewport: pages [{},{}] slices={}", first, last, slices.size());
+
+  // Wrap show_pages + statusline in CSI 2026 synchronized update to prevent
+  // tmux from rendering intermediate frames (page content without statusline).
+  static const char BSU[] = "\033[?2026h";
+  frontend_->write_raw(BSU, sizeof(BSU) - 1);
+
   frontend_->show_pages(slices);
+
+  // Fire observer after show_pages() so the statusline is the last thing rendered,
+  // reflecting the final viewport state.
+  if (state_observer_) {
+    state_observer_();
+  }
+
+  static const char ESU[] = "\033[?2026l";
+  frontend_->write_raw(ESU, sizeof(ESU) - 1);
 }
 
 int App::current_page() const {
@@ -557,10 +572,31 @@ void App::idle_tick() {
       resize_pending_since_ = {};
       auto client = frontend_->client_info();
       spdlog::info("resize (debounced): {} px, {} cell", client.pixel, client.cell);
-      render();
-      if (state_observer_) {
-        state_observer_();
+
+      // Rebuild layout without clearing the page cache. ensure_uploaded() will
+      // re-render only pages whose zoom actually changed (e.g. width resize in
+      // Continuous mode) and keep cached pages whose zoom still matches (e.g.
+      // height-only resize).
+      build_layout();
+
+      if (!layout_.empty()) {
+        int vh = client.viewport_pixel().height;
+        int vw = client.viewport_pixel().width;
+        int total_height = document_height();
+        int max_y = std::max(0, total_height - vh);
+        scroll_.y = std::clamp(scroll_.y, 0, max_y);
+        if (user_zoom_ <= 1.0f) {
+          scroll_.x = 0;
+        }
+        else {
+          int p = page_at_y(scroll_.y);
+          int zoomed_w = static_cast<int>(doc_.page_size(p).width * layout_[p].zoom * user_zoom_);
+          int max_x = std::max(0, zoomed_w - vw);
+          scroll_.x = std::clamp(scroll_.x, 0, max_x);
+        }
       }
+
+      update_viewport();
     }
     return;
   }

@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <format>
 #include <string>
 #include <utility>
 #include <vector>
@@ -46,15 +45,13 @@ void PageManager::ensure_uploaded(
         cache_.erase(it);
       }
       else {
-        if (it->second.render_scale() >= render.render_scale) {
+        if (it->second.render_scale() >= render.render_scale && it->second.render_zoom() == render_zoom) {
           continue;
         }
         it->second.free_image(frontend);
         cache_.erase(it);
       }
     }
-
-    frontend.statusline(std::format("Rendering page {}...", i + 1), "");
 
     cache_.insert_or_assign(i, Page::render(doc, i, render, base_zoom, highlights, frontend));
   }

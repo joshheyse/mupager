@@ -26,50 +26,53 @@
         devShells.default = pkgs.mkShell {
           name = "mupager";
 
-          packages = with pkgs; [
-            # Compilers
-            clang_19
-            llvmPackages_19.bintools
+          packages = with pkgs;
+            [
+              # Compilers
+              clang_19
+              llvmPackages_19.bintools
 
-            # Build tools
-            cmake
-            ninja
-            pkg-config
+              # Build tools
+              cmake
+              ninja
+              pkg-config
 
-            # C++ formatting / linting / LSP
-            clang-tools
-            wrapped-clangd
-            include-what-you-use
+              # C++ formatting / linting / LSP
+              clang-tools
+              wrapped-clangd
+              include-what-you-use
 
-            # Lua formatting / linting
-            stylua
-            selene
+              # Lua formatting / linting
+              stylua
+              selene
 
-            # Task runner
-            just
+              # Task runner
+              just
 
-            # Terminal graphics testing
-            kitty
+              # Terminal graphics testing
+              kitty
 
-            # Document conversion
-            pandoc
+              # Document conversion
+              pandoc
 
-            # Libraries
-            mupdf
-            msgpack-cxx
-            boost
-            ncurses
-          ] ++ lib.optionals isLinux [
-            # Linux-only tools
-            gcc14
-            gdb
-            valgrind
-          ];
+              # Libraries
+              mupdf
+              msgpack-cxx
+              boost
+              ncurses
+            ]
+            ++ lib.optionals isLinux [
+              # Linux-only tools
+              gcc14
+              gdb
+              valgrind
+            ];
 
           shellHook = ''
             export CC=clang
             export CXX=clang++
             unset NIX_ENFORCE_NO_NATIVE
+            export MallocNanoZone=0
             export PATH="${wrapped-clangd}/bin:$PATH"
           '';
         };
