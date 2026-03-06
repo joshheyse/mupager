@@ -3,6 +3,7 @@
 #include "color.hpp"
 #include "config.hpp"
 #include "converter.hpp"
+#include "diagnose.hpp"
 #include "neovim/frontend.hpp"
 #include "terminal/frontend.hpp"
 #include "terminal/osc_query.hpp"
@@ -35,6 +36,10 @@ int main(int argc, char* argv[]) {
   catch (const std::exception& e) {
     std::fprintf(stderr, "%s\n", e.what());
     return 1;
+  }
+
+  if (args->diagnose) {
+    return run_diagnose();
   }
 
   try {

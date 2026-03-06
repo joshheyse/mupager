@@ -40,6 +40,7 @@ struct Args {
   std::optional<std::string> terminal_fg;        ///< Override for detected terminal foreground.
   std::optional<std::string> terminal_bg;        ///< Override for detected terminal background.
   KeyBindings key_bindings;                      ///< Configurable key bindings.
+  bool diagnose = false;                         ///< Print diagnostic info and exit.
 
   Args(int argc, char* argv[]);
 

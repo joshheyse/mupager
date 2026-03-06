@@ -47,7 +47,9 @@ Args::Args(int argc, char* argv[])
     , log_file{default_log_path()}
     , view_mode{"continuous"} {
   CLI::App cli{"mupager - terminal document viewer"};
-  cli.add_option("file", file, "Document to open")->required();
+  cli.set_version_flag("--version", MUPAGER_VERSION);
+  cli.add_flag("--diagnose", diagnose, "Print diagnostic info and exit");
+  cli.add_option("file", file, "Document to open");
   auto* log_level_opt = cli.add_option("--log-level", log_level, "Log level (trace, debug, info, warn, error, critical)");
   auto* log_file_opt = cli.add_option("--log-file", log_file, "Log file path");
   auto* view_mode_opt = cli.add_option("--view-mode", view_mode, "View mode (continuous, page, page-height, side-by-side)")
@@ -72,6 +74,14 @@ Args::Args(int argc, char* argv[])
   }
   catch (const CLI::CallForHelp&) {
     throw std::runtime_error(cli.help());
+  }
+  catch (const CLI::CallForVersion&) {
+    std::printf("%s\n", MUPAGER_VERSION);
+    std::exit(0);
+  }
+
+  if (!diagnose && file.empty()) {
+    throw CLI::ValidationError("file", "Document path is required (or use --diagnose)");
   }
 
   if (!log_level_opt->count()) {
