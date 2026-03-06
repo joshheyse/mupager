@@ -18,7 +18,7 @@ jobs:
             cmake_extra: ""
           - os: macos-latest
             artifact: mupager-aarch64-darwin
-            install: brew install mupdf
+            install: brew install mupdf ncurses
             cmake_extra: ""
           - os: ubuntu-latest
             artifact: mupager-x86_64-linux-portable
@@ -30,7 +30,7 @@ jobs:
             cmake_extra: -DMUPAGER_STATIC_DEPS=ON
           - os: macos-latest
             artifact: mupager-aarch64-darwin-portable
-            install: brew install mupdf
+            install: brew install mupdf ncurses
             cmake_extra: -DMUPAGER_STATIC_DEPS=ON
     runs-on: ${{ matrix.os }}
     steps:
@@ -39,6 +39,11 @@ jobs:
           fetch-depth: 0
       - name: Install dependencies
         run: ${{ matrix.install }}
+      - name: Set Homebrew pkg-config paths
+        if: runner.os == 'macOS'
+        run: |
+          echo "PKG_CONFIG_PATH=$(brew --prefix mupdf)/lib/pkgconfig:$(brew --prefix ncurses)/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix mupdf);$(brew --prefix ncurses)" >> "$GITHUB_ENV"
       - name: Configure
         run: cmake -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_extra }} -S . -B build
       - name: Build

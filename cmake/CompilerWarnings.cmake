@@ -9,6 +9,7 @@ target_compile_options(compiler_warnings INTERFACE
   -Werror
   -Wno-error=unused-parameter
   "$<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-error=#warnings>"
+  $<$<CXX_COMPILER_ID:GNU>:-Wno-error=clobbered>
 )
 
 # Apply compiler warnings to a target via INTERFACE linkage.
