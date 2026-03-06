@@ -19,7 +19,7 @@ Checks: >
   performance-unnecessary-value-param,
   misc-include-cleaner,
 
-HeaderFilterRegex: "server/"
+HeaderFilterRegex: "src/"
 
 CheckOptions:
   readability-braces-around-statements.ShortStatementLines: "0"

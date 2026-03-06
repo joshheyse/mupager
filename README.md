@@ -40,7 +40,7 @@ git clone https://github.com/joshheyse/mupager.git
 cd mupager
 cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -S . -B build
 cmake --build build
-# Binary at build/server/mupager
+# Binary at build/src/mupager
 ```
 
 ## Quickstart
@@ -59,7 +59,7 @@ Add the plugin with [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
-  "joshheyse/mupager",
+  "joshheyse/mupager.nvim",
   ft = { "pdf" },
   config = function()
     require("mupager").setup()

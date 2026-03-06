@@ -1,14 +1,1 @@
-{
-  "runtime": {
-    "version": "LuaJIT"
-  },
-  "workspace": {
-    "library": [
-      "${3rd}/luv/library"
-    ],
-    "checkThirdParty": false
-  },
-  "diagnostics": {
-    "globals": ["vim"]
-  }
-}
+nvim/.luarc.json

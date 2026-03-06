@@ -19,7 +19,7 @@ just init       # configure (debug + ASan/UBSan) and build
 just test       # run tests
 just fmt        # format C++ and Lua
 just lint       # lint C++ and Lua
-mupager doc.pdf # run from build/debug/server/mupager
+mupager doc.pdf # run from build/debug/src/mupager
 ```
 
 ## Build Presets
@@ -97,10 +97,8 @@ Both are enforced in CI. Run them before committing.
 ## Project Structure
 
 ```
-server/           C++20 rendering server
-  src/            Source files and headers
-  CMakeLists.txt  Server build config
-nvim/             Neovim plugin
+src/              C++20 rendering server (source files, headers, CMakeLists.txt)
+nvim/             Neovim plugin (submodule → mupager.nvim)
   lua/mupager/    Plugin Lua modules
   doc/            Vimdoc help files
 cmake/            CMake helpers (CPM, warnings, sanitizers)

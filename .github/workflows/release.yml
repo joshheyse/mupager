@@ -44,6 +44,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: true
       - name: Install dependencies
         run: ${{ matrix.install }}
       - name: Configure
@@ -51,7 +52,7 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
       - name: Copy binary
-        run: cp build/server/mupager ${{ matrix.artifact }}
+        run: cp build/src/mupager ${{ matrix.artifact }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}

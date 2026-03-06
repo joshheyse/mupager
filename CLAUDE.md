@@ -4,8 +4,8 @@ Terminal document viewer with Neovim integration. See PROJECT_DETAILS.md for ful
 
 ## Project Structure
 
-- `server/` — C++20 rendering server (MuPDF, Kitty graphics protocol, msgpack-rpc)
-- `nvim/` — Neovim plugin (Lua)
+- `src/` — C++20 rendering server (MuPDF, Kitty graphics protocol, msgpack-rpc)
+- `nvim/` — Neovim plugin (submodule → [mupager.nvim](https://github.com/joshheyse/mupager.nvim))
 - `cmake/` — CMake helpers (CPM.cmake, CompilerWarnings.cmake, Sanitizers.cmake)
 
 ## Build

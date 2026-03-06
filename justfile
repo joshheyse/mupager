@@ -26,7 +26,7 @@ build-tsan: (build "debug-tsan")
 
 # Run with test PDF (pass extra args after --)
 run *ARGS: build
-    ./build/debug/server/mupager --config fixtures/mupager.toml fixtures/test.pdf {{ARGS}}
+    ./build/debug/src/mupager --config fixtures/mupager.toml fixtures/test.pdf {{ARGS}}
 
 # Remove build directories and reinitialize
 clean:
@@ -45,7 +45,7 @@ sanitize: test test-tsan
 
 # Format all C++ source files
 fmt-cpp:
-    find server -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i
+    find src -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i
 
 # Format all Lua source files
 fmt-lua:
@@ -64,9 +64,9 @@ lint-cpp preset=default_preset: (build preset)
     done < <(clang++ -E -x c++ /dev/null -v 2>&1 \
         | sed -n '/#include <...> search starts here:/,/End of search list/p' \
         | grep '^ ' | sed 's/^ *//')
-    find server -name '*.cpp' ! -name '*.test.cpp' | xargs clang-tidy -p build/{{preset}} \
+    find src -name '*.cpp' ! -name '*.test.cpp' | xargs clang-tidy -p build/{{preset}} \
         "${extra_args[@]}" \
-        --header-filter="server/"
+        --header-filter="src/"
 
 # Run clang-tidy --fix on all C++ translation units (excludes test files)
 lint-fix preset=default_preset: (build preset)
@@ -78,16 +78,16 @@ lint-fix preset=default_preset: (build preset)
     done < <(clang++ -E -x c++ /dev/null -v 2>&1 \
         | sed -n '/#include <...> search starts here:/,/End of search list/p' \
         | grep '^ ' | sed 's/^ *//')
-    find server -name '*.cpp' ! -name '*.test.cpp' | xargs clang-tidy -p build/{{preset}} \
+    find src -name '*.cpp' ! -name '*.test.cpp' | xargs clang-tidy -p build/{{preset}} \
         "${extra_args[@]}" \
-        --header-filter="server/" \
+        --header-filter="src/" \
         --fix
 
 # Run include-what-you-use on all C++ source files (excludes test files)
 iwyu preset=default_preset: (build preset)
     #!/usr/bin/env bash
     set -euo pipefail
-    find server -name '*.cpp' ! -name '*.test.cpp' | while read -r f; do
+    find src -name '*.cpp' ! -name '*.test.cpp' | while read -r f; do
       echo "=== $f ==="
       include-what-you-use -p build/{{preset}} "$f" 2>&1 || true
     done
@@ -101,7 +101,7 @@ lint: lint-cpp lint-lua
 
 # Check C++ formatting (no changes)
 fmt-check-cpp:
-    find server -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run --Werror
+    find src -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run --Werror
 
 # Check Lua formatting (no changes)
 fmt-check-lua:
