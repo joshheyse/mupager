@@ -13,7 +13,7 @@ jobs:
             artifact: mupager-x86_64-linux
             install: >-
               sudo apt-get update && sudo apt-get install -y
-              libmupdf-dev libncursesw5-dev
+              libmupdf-dev libncursesw5-dev libfreetype-dev
             cmake_extra: ""
           - os: macos-latest
             artifact: mupager-aarch64-darwin
