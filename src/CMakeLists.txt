@@ -92,7 +92,7 @@ target_link_libraries(server-lib
   PUBLIC msgpack-cxx
 )
 
-if(MUPAGER_STATIC_DEPS AND TARGET PkgConfig::MUPDF_DEPS)
+if(TARGET PkgConfig::MUPDF_DEPS)
   target_link_libraries(server-lib PUBLIC PkgConfig::MUPDF_DEPS)
 endif()
 

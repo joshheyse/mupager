@@ -30,10 +30,6 @@ jobs:
               libharfbuzz-dev libjpeg-dev libopenjp2-7-dev
               libgumbo-dev zlib1g-dev
             cmake_extra: -DMUPAGER_STATIC_DEPS=ON
-          - os: macos-latest
-            artifact: mupager-aarch64-darwin-portable
-            install: brew install mupdf ncurses
-            cmake_extra: -DMUPAGER_STATIC_DEPS=ON
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
