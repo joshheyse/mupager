@@ -36,9 +36,6 @@ link-hint-bg = "#e0af68"
 # Search highlights
 search-highlight = "#e0af68"
 search-highlight-alpha = 80
-search-active = "#ff9e64"
-search-active-alpha = 120
-
 # Selection highlights
 selection-highlight = "#7aa2f7"
 selection-highlight-alpha = 80

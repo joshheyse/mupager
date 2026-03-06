@@ -257,15 +257,28 @@ void TerminalController::search_cancel() {
 void TerminalController::show_help() {
   terminal_mode_ = TerminalMode::Help;
 
+  // UTF-8 display width: count codepoints (all key label chars are single-width).
+  auto display_width = [](const std::string& s) {
+    int w = 0;
+    for (size_t i = 0; i < s.size(); ++w) {
+      auto c = static_cast<unsigned char>(s[i]);
+      if (c < 0x80) { i += 1; }
+      else if (c < 0xE0) { i += 2; }
+      else if (c < 0xF0) { i += 3; }
+      else { i += 4; }
+    }
+    return w;
+  };
+
   auto bindings = app_.bindings().help_bindings();
   int max_key_len = 0;
   for (const auto& hb : bindings) {
-    max_key_len = std::max(max_key_len, static_cast<int>(hb.key_label.size()));
+    max_key_len = std::max(max_key_len, display_width(hb.key_label));
   }
 
   auto format_line = [&](const std::string& key, const std::string& desc) {
     std::string line = key;
-    line += std::string(max_key_len - static_cast<int>(key.size()) + 3, ' ');
+    line += std::string(max_key_len - display_width(key) + 3, ' ');
     line += desc;
     return line;
   };
