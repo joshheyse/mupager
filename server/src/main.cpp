@@ -77,6 +77,9 @@ int main(int argc, char* argv[]) {
   spdlog::set_level(spdlog::level::from_str(args->log_level));
   spdlog::flush_every(std::chrono::seconds(1));
   spdlog::info("mupager starting: {} (mode: {})", args->file, args->mode);
+  if (args->config_file) {
+    spdlog::info("config loaded from {}", *args->config_file);
+  }
 
   // Run file conversion if a converter matches.
   struct TempFileGuard {

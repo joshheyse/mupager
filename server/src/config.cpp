@@ -211,7 +211,7 @@ Config load_config(const std::optional<std::string>& path_override) {
     return {};
   }
 
-  spdlog::info("config: loading {}", path.string());
+  spdlog::debug("config: loading {}", path.string());
   auto tbl = toml::parse_file(path.string());
 
   Config cfg;
