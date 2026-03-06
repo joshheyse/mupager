@@ -1362,6 +1362,7 @@ void App::follow_link(const PageLink& link) {
   app_mode_ = AppMode::Normal;
   link_hints_.clear();
   link_hint_input_.clear();
+  frontend_->clear_overlay();
 
   if (link.dest_page >= 0) {
     // Internal link — scroll to anchor position
@@ -1401,6 +1402,7 @@ void App::follow_link(const PageLink& link) {
     else {
       last_action_.set("Copied: {}", link.uri);
     }
+    update_viewport();
   }
 }
 

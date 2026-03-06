@@ -344,7 +344,32 @@ void NeovimFrontend::show_overlay(const std::string& /*title*/, const std::vecto
 }
 
 void NeovimFrontend::clear_overlay() {
-  // No-op.
+  // Clear the viewport text cells to remove hint labels written directly to the TTY.
+  // This writes spaces over every cell so Kitty images (behind cells) show through.
+  if (win_cols_ <= 0 || win_rows_ <= 0) {
+    return;
+  }
+  std::string blank(static_cast<size_t>(win_cols_), ' ');
+  std::string out;
+  out += sgr::Reset;
+  if (in_tmux_) {
+    std::string raw;
+    for (int r = 0; r < win_rows_; ++r) {
+      int term_row = tmux_pane_top_ + offset_row_ + r;
+      int term_col = tmux_pane_left_ + offset_col_;
+      sgr::move_to(raw, term_row + 1, term_col + 1);
+      raw += blank;
+    }
+    out = tmux_dcs_wrap(raw);
+  }
+  else {
+    for (int r = 0; r < win_rows_; ++r) {
+      sgr::move_to(out, offset_row_ + r + 1, offset_col_ + 1);
+      out += blank;
+    }
+  }
+  tty_write(out);
+  std::fflush(tty_);
 }
 
 void NeovimFrontend::show_sidebar(const std::vector<std::string>& /*lines*/, int /*highlight_line*/, int /*width_cols*/, bool /*focused*/) {
@@ -357,9 +382,7 @@ void NeovimFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints) 
   }
 
   if (in_tmux_) {
-    // Wrap delete + cursor positioning + text labels in DCS passthrough
     std::string raw;
-    raw += kitty::delete_all_placements();
     for (const auto& hint : hints) {
       int term_row = tmux_pane_top_ + hint.row + offset_row_;
       int term_col = tmux_pane_left_ + hint.col + offset_col_;
@@ -374,7 +397,7 @@ void NeovimFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints) 
     tty_write(out);
   }
   else {
-    std::string out = kitty::delete_all_placements();
+    std::string out;
     for (const auto& hint : hints) {
       int row = hint.row + offset_row_;
       int col = hint.col + offset_col_;

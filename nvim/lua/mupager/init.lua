@@ -271,19 +271,20 @@ function M.open(file)
   require("mupager.commands").setup(mupager_bufnr, config)
 
   -- Register notification handlers
+  local prev_link_hints_active = false
   server.on("state_changed", function(params)
     log.debug("notification: state_changed page=%s", tostring(params and params.current_page))
+    -- Full redraw when link hints deactivate to clear hint labels from cells
+    if prev_link_hints_active and params and not params.link_hints_active then
+      vim.cmd "redraw"
+    end
+    prev_link_hints_active = params and params.link_hints_active or false
     vim.cmd "redrawstatus"
   end)
 
   server.on("flash", function(params)
     log.debug("notification: flash message=%s", tostring(params and params.message))
     if params and params.message then vim.notify(params.message, vim.log.levels.INFO) end
-  end)
-
-  server.on("link_hints", function(params)
-    log.debug("notification: link_hints active=%s", tostring(params and params.active))
-    if params and not params.active then vim.cmd "redraw" end
   end)
 
   server.on("outline", function(entries)
