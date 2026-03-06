@@ -11,10 +11,9 @@
 
 #include <ncurses.h>
 #include <spdlog/spdlog.h>
-#include <sys/_types/_wint_t.h>
 #include <sys/ioctl.h>
-#include <sys/ttycom.h>
 #include <unistd.h>
+#include <wchar.h>
 
 #include <algorithm>
 #include <cstdint>

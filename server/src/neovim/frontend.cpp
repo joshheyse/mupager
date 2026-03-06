@@ -12,7 +12,6 @@
 
 #include <spdlog/spdlog.h>
 #include <sys/ioctl.h>
-#include <sys/ttycom.h>
 #include <unistd.h>
 
 #include <array>

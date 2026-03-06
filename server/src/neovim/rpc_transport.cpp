@@ -5,8 +5,7 @@
 
 #include <poll.h>
 #include <spdlog/spdlog.h>
-#include <sys/_types/_ssize_t.h>
-#include <sys/poll.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <cstddef>

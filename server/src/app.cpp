@@ -11,8 +11,8 @@
 
 #include <spdlog/spdlog.h>
 #include <stdio.h>
-#include <sys/_types/_pid_t.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <algorithm>

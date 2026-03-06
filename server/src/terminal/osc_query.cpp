@@ -4,9 +4,7 @@
 
 #include <fcntl.h>
 #include <poll.h>
-#include <sys/_types/_ssize_t.h>
-#include <sys/fcntl.h>
-#include <sys/poll.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
