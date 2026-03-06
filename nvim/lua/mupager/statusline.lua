@@ -23,7 +23,7 @@ function M.get()
   local right = {}
   if s.view_mode then table.insert(right, s.view_mode) end
   if s.zoom_percent and s.zoom_percent ~= 100 then table.insert(right, string.format("%d%%%%", s.zoom_percent)) end
-  if s.theme then table.insert(right, s.theme:upper()) end
+  if s.theme then table.insert(right, s.theme) end
   table.insert(right, string.format("%d/%d", s.current_page, s.total_pages))
 
   -- Debug: cache stats

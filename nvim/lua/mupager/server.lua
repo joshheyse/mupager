@@ -6,6 +6,7 @@ local log = require "mupager.log"
 M.state = {}
 
 local job_id = nil
+local stopping_ = false
 local handlers = {}
 
 --- Register a handler for server notifications.
@@ -99,10 +100,17 @@ function M.start(file, opts)
         if line ~= "" then log.warn("stderr: %s", line) end
       end
     end,
-    on_exit = function(_, code)
-      log.info("exit: code=%d", code)
-      job_id = nil
-      if code ~= 0 then vim.notify("[mupager] server exited with code " .. code, vim.log.levels.WARN) end
+    on_exit = function(id, code)
+      log.info("exit: job=%d code=%d", id, code)
+      -- Only clear job_id if it still matches this job. A rapid close+start
+      -- cycle can cause the old job's on_exit to fire after a new job started;
+      -- clobbering job_id would orphan the new server.
+      if job_id == id then job_id = nil end
+      -- 143 = SIGTERM (from jobstop), 141 = SIGPIPE — both expected during intentional shutdown.
+      if code ~= 0 and not stopping_ then
+        vim.notify("[mupager] server exited with code " .. code, vim.log.levels.WARN)
+      end
+      stopping_ = false
     end,
     stderr_buffered = false,
   })
@@ -146,6 +154,7 @@ end
 function M.stop()
   if job_id then
     log.info("stop: sending quit, stopping job_id=%d", job_id)
+    stopping_ = true
     M.notify "quit"
     vim.fn.jobstop(job_id)
     job_id = nil

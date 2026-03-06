@@ -5,9 +5,11 @@ local config = {}
 local mupager_bufnr = nil
 local mupager_winid = nil
 local saved_hl_ = {} -- original highlight groups to restore on close
+local saved_wo_ = {} -- original window options to restore on close
 local focus_timer = nil
 local float_timer = nil
 local opaque_ns = nil -- highlight namespace for float window bg override
+local closing_ = false -- re-entry guard for close()
 
 -- Default extensions: only binary/archive document formats that aren't text-editable.
 -- Text-editable formats (HTML, SVG, images) require explicit config.patterns opt-in.
@@ -67,17 +69,16 @@ function M.setup(opts)
     group = vim.api.nvim_create_augroup("mupager_filetype", { clear = true }),
     pattern = patterns,
     callback = function(ev)
+      if ev.buf == mupager_bufnr then return end
       local file = vim.api.nvim_buf_get_name(ev.buf)
       log.info("BufReadCmd: intercepted buf=%d file=%s", ev.buf, file)
-      -- Open mupager first so the window always has a buffer, then delete
-      -- the intercepted buffer. Reversing this order can briefly leave the
-      -- window empty, triggering neo-tree auto-close and quitting Neovim.
-      vim.schedule(function()
-        M.open(file)
-        if vim.api.nvim_buf_is_valid(ev.buf) and ev.buf ~= mupager_bufnr then
-          vim.api.nvim_buf_delete(ev.buf, { force = true })
-        end
-      end)
+      -- Set buftype immediately so no plugin or autocmd can re-trigger
+      -- BufReadCmd on this buffer before the scheduled M.open runs.
+      vim.bo[ev.buf].buftype = "nofile"
+      -- Reuse ev.buf as the mupager buffer — keeps the real file path as the
+      -- buffer name so Telescope cwd_only works, avoids mupager:// scheme
+      -- issues (Snacks curl, E95 name conflicts).
+      vim.schedule(function() M.open(file, ev.buf) end)
     end,
   })
 end
@@ -214,7 +215,8 @@ end
 
 --- Open a document in mupager.
 --- @param file string Path to the document file.
-function M.open(file)
+--- @param reuse_buf number|nil Buffer handle to reuse (from BufReadCmd).
+function M.open(file, reuse_buf)
   if not file or file == "" then
     vim.notify("[mupager] No file specified", vim.log.levels.ERROR)
     return
@@ -222,7 +224,7 @@ function M.open(file)
 
   -- Resolve to absolute path
   file = vim.fn.fnamemodify(file, ":p")
-  log.info("open: file=%s", file)
+  log.info("open: file=%s reuse_buf=%s", file, tostring(reuse_buf))
 
   -- Close existing mupager session
   if mupager_bufnr and vim.api.nvim_buf_is_valid(mupager_bufnr) then
@@ -230,25 +232,42 @@ function M.open(file)
     M.close()
   end
 
-  -- Create a scratch buffer
-  mupager_bufnr = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(mupager_bufnr, "buftype", "nofile")
-  vim.api.nvim_buf_set_option(mupager_bufnr, "bufhidden", "wipe")
-  vim.api.nvim_buf_set_option(mupager_bufnr, "swapfile", false)
-  vim.api.nvim_buf_set_name(mupager_bufnr, "mupager://" .. vim.fn.fnamemodify(file, ":t"))
+  -- Reuse the buffer from BufReadCmd if provided, otherwise create one.
+  if reuse_buf and vim.api.nvim_buf_is_valid(reuse_buf) then
+    mupager_bufnr = reuse_buf
+  else
+    mupager_bufnr = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_buf_set_name(mupager_bufnr, file)
+  end
+  vim.bo[mupager_bufnr].buftype = "nofile"
+  vim.bo[mupager_bufnr].bufhidden = "hide"
+  vim.bo[mupager_bufnr].swapfile = false
+  vim.bo[mupager_bufnr].modifiable = false
+  vim.bo[mupager_bufnr].buflisted = true
+  vim.bo[mupager_bufnr].filetype = "mupager"
 
   -- Switch to the buffer
   vim.api.nvim_set_current_buf(mupager_bufnr)
   mupager_winid = vim.api.nvim_get_current_win()
 
-  -- Disable window decorations so the image fills the full window area
-  vim.wo[mupager_winid].signcolumn = "no"
-  vim.wo[mupager_winid].number = false
-  vim.wo[mupager_winid].relativenumber = false
-  vim.wo[mupager_winid].foldcolumn = "0"
-  vim.wo[mupager_winid].statuscolumn = ""
-  vim.wo[mupager_winid].fillchars = "eob: "
-  vim.wo[mupager_winid].statusline = "%{%v:lua.require('mupager').statusline()%}"
+  -- Disable window decorations so the image fills the full window area.
+  -- Save originals so we can restore them when mupager closes.
+  local wo_overrides = {
+    signcolumn = "no",
+    number = false,
+    relativenumber = false,
+    foldcolumn = "0",
+    statuscolumn = "",
+    fillchars = "eob: ",
+    statusline = "%{%v:lua.require('mupager').statusline()%}",
+  }
+  saved_wo_ = {}
+  for k, _ in pairs(wo_overrides) do
+    saved_wo_[k] = vim.wo[mupager_winid][k]
+  end
+  for k, v in pairs(wo_overrides) do
+    vim.wo[mupager_winid][k] = v
+  end
 
   -- Start the server
   local server = require "mupager.server"
@@ -330,11 +349,29 @@ function M.open(file)
     end,
   })
 
-  -- Hide image when the mupager buffer is replaced in its window
+  -- Hide image when the mupager buffer leaves a window
   vim.api.nvim_create_autocmd("BufWinLeave", {
     group = augroup,
     buffer = mupager_bufnr,
-    callback = function() server.notify "hide" end,
+    callback = function()
+      if server.is_running() then server.notify "hide" end
+    end,
+  })
+
+  -- Show image and re-apply window options when switching back to the mupager buffer
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = augroup,
+    buffer = mupager_bufnr,
+    callback = function()
+      mupager_winid = vim.api.nvim_get_current_win()
+      for k, v in pairs(wo_overrides) do
+        vim.wo[mupager_winid][k] = v
+      end
+      if server.is_running() then
+        server.send_resize(mupager_winid)
+        server.notify "show"
+      end
+    end,
   })
 
   -- Hide/show when switching tmux windows. Kitty images persist at
@@ -347,13 +384,14 @@ function M.open(file)
   local tmux_polling = false
 
   local function check_window_active()
-    if not tmux_pane or tmux_polling then return end
+    if not tmux_pane or tmux_polling or not server.is_running() then return end
     tmux_polling = true
     vim.system(
       { "tmux", "display-message", "-t", tmux_pane, "-p", "#{window_active}" },
       { text = true },
       vim.schedule_wrap(function(obj)
         tmux_polling = false
+        if not server.is_running() then return end
         local active = vim.trim(obj.stdout or "") == "1"
         if focus_hidden and active then
           focus_hidden = false
@@ -423,7 +461,7 @@ function M.open(file)
   vim.api.nvim_create_autocmd("BufWipeout", {
     group = augroup,
     buffer = mupager_bufnr,
-    callback = function() M.close() end,
+    callback = function() M.close(true) end,
   })
 
   -- Send initial resize after a small delay to let the window settle
@@ -433,7 +471,11 @@ function M.open(file)
 end
 
 --- Close the mupager session.
-function M.close()
+--- @param skip_buf_delete boolean|nil If true, skip buffer deletion (called from BufWipeout).
+function M.close(skip_buf_delete)
+  if closing_ then return end
+  closing_ = true
+
   log.info "close: stopping server"
   stop_timers()
   local server = require "mupager.server"
@@ -442,13 +484,25 @@ function M.close()
   pcall(vim.api.nvim_del_augroup_by_name, "mupager")
   restore_saved_hl()
 
-  if mupager_bufnr and vim.api.nvim_buf_is_valid(mupager_bufnr) then
-    vim.api.nvim_buf_delete(mupager_bufnr, { force = true })
+  -- Restore window options so the window behaves normally for the next buffer.
+  if mupager_winid and vim.api.nvim_win_is_valid(mupager_winid) then
+    for k, v in pairs(saved_wo_) do
+      pcall(function() vim.wo[mupager_winid][k] = v end)
+    end
+  end
+  saved_wo_ = {}
+
+  -- Only delete the buffer when close() is called directly (e.g. :MupagerClose).
+  -- When called from BufWipeout, the buffer is already being wiped by Neovim —
+  -- attempting to delete it again triggers E937.
+  if not skip_buf_delete and mupager_bufnr and vim.api.nvim_buf_is_valid(mupager_bufnr) then
+    pcall(vim.api.nvim_buf_delete, mupager_bufnr, { force = true })
   end
 
   opaque_ns = nil
   mupager_bufnr = nil
   mupager_winid = nil
+  closing_ = false
   log.close()
 end
 
