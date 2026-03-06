@@ -11,9 +11,15 @@ find_package(PkgConfig REQUIRED)
 # mupdf: try pkg-config first, fall back to find_library (Homebrew has no .pc)
 pkg_check_modules(MUPDF IMPORTED_TARGET mupdf)
 if(NOT MUPDF_FOUND)
-  find_path(MUPDF_INCLUDE_DIR mupdf/fitz.h)
-  find_library(MUPDF_LIBRARY mupdf)
-  find_library(MUPDF_THIRD_LIBRARY mupdf-third)
+  find_path(MUPDF_INCLUDE_DIR mupdf/fitz.h
+    HINTS ENV CMAKE_PREFIX_PATH
+    PATH_SUFFIXES include)
+  find_library(MUPDF_LIBRARY mupdf
+    HINTS ENV CMAKE_PREFIX_PATH
+    PATH_SUFFIXES lib)
+  find_library(MUPDF_THIRD_LIBRARY mupdf-third
+    HINTS ENV CMAKE_PREFIX_PATH
+    PATH_SUFFIXES lib)
   if(NOT MUPDF_INCLUDE_DIR OR NOT MUPDF_LIBRARY)
     message(FATAL_ERROR "mupdf not found via pkg-config or find_library")
   endif()
