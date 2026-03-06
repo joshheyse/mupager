@@ -1230,8 +1230,11 @@ std::pair<Color, Color> App::resolve_recolor_colors() const {
   if (fg.is_default && detected_terminal_fg_) {
     fg = *detected_terminal_fg_;
   }
-  else if (fg.is_default) {
-    fg = Color::rgb(192, 192, 192); // Fallback light gray
+  else if (fg.is_default && detected_terminal_bg_) {
+    // Infer fg from bg: dark bg → light fg, light bg → dark fg
+    float bg_lum = detected_terminal_bg_->luminance();
+    auto level = static_cast<uint8_t>(bg_lum < 0.5f ? 192 + (1.0f - bg_lum) * 63 : static_cast<int>((1.0f - bg_lum) * 0.12f * 255));
+    fg = Color::rgb(level, level, level);
   }
 
   // bg = recolor_light (replaces white/background)
@@ -1239,8 +1242,11 @@ std::pair<Color, Color> App::resolve_recolor_colors() const {
   if (bg.is_default && detected_terminal_bg_) {
     bg = *detected_terminal_bg_;
   }
-  else if (bg.is_default) {
-    bg = Color::rgb(30, 30, 30); // Fallback dark
+  else if (bg.is_default && detected_terminal_fg_) {
+    // Infer bg from fg: light fg → dark bg, dark fg → light bg
+    float fg_lum = detected_terminal_fg_->luminance();
+    auto level = static_cast<uint8_t>(fg_lum > 0.5f ? (1.0f - fg_lum) * 0.12f * 255 : (1.0f - (1.0f - fg_lum) * 0.12f) * 255);
+    bg = Color::rgb(level, level, level);
   }
 
   return {fg, bg};

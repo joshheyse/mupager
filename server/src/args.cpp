@@ -67,6 +67,10 @@ Args::Args(int argc, char* argv[])
   auto* show_stats_opt = cli.add_flag("--show-stats", show_stats, "Show cache stats in the statusline");
   auto* watch_opt = cli.add_flag("--watch", watch, "Auto-reload document on file changes");
   auto* converter_opt = cli.add_option("--converter", converter, "Converter command for this file (%i=input, %o=output, %d=tmpdir)");
+  std::string terminal_fg_str;
+  cli.add_option("--terminal-fg", terminal_fg_str, "Terminal foreground color (#RRGGBB)");
+  std::string terminal_bg_str;
+  cli.add_option("--terminal-bg", terminal_bg_str, "Terminal background color (#RRGGBB)");
   std::vector<std::string> converter_patterns;
   cli.add_option("--converter-pattern", converter_patterns, "Converter pattern (glob=command, e.g. '*.md=pandoc %i -o %o')");
   try {
@@ -127,6 +131,13 @@ Args::Args(int argc, char* argv[])
   }
   if (converter_opt->count()) {
     cli_explicit_ |= CliConverter;
+  }
+
+  if (!terminal_fg_str.empty()) {
+    terminal_fg = terminal_fg_str;
+  }
+  if (!terminal_bg_str.empty()) {
+    terminal_bg = terminal_bg_str;
   }
 
   // Parse converter patterns (glob=command) into converters map.

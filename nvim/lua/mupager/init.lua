@@ -82,6 +82,38 @@ function M.setup(opts)
   })
 end
 
+--- Compute the luminance (0-1) of an integer color (0xRRGGBB).
+--- @param color number
+--- @return number
+local function luminance(color)
+  local r = math.floor(color / 0x10000) % 256
+  local g = math.floor(color / 0x100) % 256
+  local b = color % 256
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255
+end
+
+--- Infer a contrasting bg from a fg color.
+--- Light fg → dark neutral bg, dark fg → light neutral bg.
+--- @param fg number Foreground color (0xRRGGBB).
+--- @return number
+local function infer_bg_from_fg(fg)
+  local lum = luminance(fg)
+  -- Scale to opposite end: light fg → ~10% brightness, dark fg → ~90%
+  local level = math.floor((1 - lum) * 0.12 * 255 + 0.5)
+  if lum <= 0.5 then level = math.floor((1 - (1 - lum) * 0.12) * 255 + 0.5) end
+  return level * 0x10101
+end
+
+--- Find the Normal fg color from highlight groups.
+--- @return number|nil
+local function find_normal_fg()
+  for _, name in ipairs { "Normal", "NormalFloat" } do
+    local hl = vim.api.nvim_get_hl(0, { name = name, link = false })
+    if hl.fg then return hl.fg end
+  end
+  return nil
+end
+
 --- Find a bg color for opaque float backgrounds, even when the theme is transparent.
 --- Nudges the color by 1 unit to ensure it differs from the terminal's own default
 --- bg — Kitty treats cells with its exact default bg as "transparent" for z-index
@@ -96,7 +128,14 @@ local function find_float_bg()
       break
     end
   end
-  bg = bg or (vim.o.background == "light" and 0xf0f0f0 or 0x1a1b2c)
+  -- Fallback for transparent themes where no highlight group has an explicit bg.
+  -- Set config.fallback_bg to your terminal's actual background color.
+  if not bg then bg = config.fallback_bg end
+  if not bg then
+    local fg = find_normal_fg()
+    if fg then bg = infer_bg_from_fg(fg) end
+  end
+  if not bg then return 0 end
   -- Nudge blue channel so the color never exactly matches the terminal bg
   local b = bg % 256
   return bg - b + (b < 255 and b + 1 or b - 1)
@@ -224,6 +263,8 @@ function M.open(file)
     watch = config.watch,
     converter = config.converter,
     converters = config.converters,
+    fallback_fg = config.fallback_fg,
+    fallback_bg = config.fallback_bg,
   })
 
   -- Set up keybindings

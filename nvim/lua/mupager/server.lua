@@ -65,6 +65,29 @@ function M.start(file, opts)
     table.insert(cmd, tostring(opts.scroll_lines))
   end
 
+  -- Pass Neovim's terminal colors to the server for theme/recolor detection.
+  -- Falls back to config.fallback_bg/fg for transparent themes, then infers bg from fg.
+  local hl = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+  local fg = hl.fg or opts.fallback_fg
+  local bg = hl.bg or opts.fallback_bg
+  if not bg and fg then
+    -- Infer bg from fg luminance: light fg → dark bg, dark fg → light bg
+    local r = math.floor(fg / 0x10000) % 256
+    local g = math.floor(fg / 0x100) % 256
+    local b = fg % 256
+    local lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    local level = lum > 0.5 and math.floor((1 - lum) * 0.12 * 255 + 0.5) or math.floor((1 - (1 - lum) * 0.12) * 255 + 0.5)
+    bg = level * 0x10101
+  end
+  if fg then
+    table.insert(cmd, "--terminal-fg")
+    table.insert(cmd, string.format("#%06x", fg))
+  end
+  if bg then
+    table.insert(cmd, "--terminal-bg")
+    table.insert(cmd, string.format("#%06x", bg))
+  end
+
   table.insert(cmd, file)
   log.info("start: cmd=%s", table.concat(cmd, " "))
 
