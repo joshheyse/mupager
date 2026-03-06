@@ -134,15 +134,23 @@ void TerminalController::update_statusline() {
   if (vs.zoom_percent != 100) {
     right += std::format("{}{}%", Sep, vs.zoom_percent);
   }
-  right += std::format("{}{}{}{}/{}", Sep, vs.theme, Sep, vs.current_page, vs.total_pages);
+  int page_width = static_cast<int>(std::to_string(vs.total_pages).size());
+  right += std::format("{}{}{}{:>{}}/{}", Sep, vs.theme, Sep, vs.current_page, page_width, vs.total_pages);
 
   if (!vs.cache_pages.empty()) {
-    auto rs_str = vs.cache_pages; // Reuse field for render-scale info
+    std::string stats;
     if (vs.cache_bytes >= 1024 * 1024) {
-      right += std::format(" [{}] {:.1f}M", vs.cache_pages, static_cast<double>(vs.cache_bytes) / (1024.0 * 1024.0));
+      stats = std::format("[{}] {:.1f}M", vs.cache_pages, static_cast<double>(vs.cache_bytes) / (1024.0 * 1024.0));
     }
     else if (vs.cache_bytes > 0) {
-      right += std::format(" [{}] {:.0f}K", vs.cache_pages, static_cast<double>(vs.cache_bytes) / 1024.0);
+      stats = std::format("[{}] {:.0f}K", vs.cache_pages, static_cast<double>(vs.cache_bytes) / 1024.0);
+    }
+    if (!stats.empty()) {
+      static constexpr int StatsWidth = 20;
+      int pad = std::max(0, StatsWidth - static_cast<int>(stats.size()));
+      right += Sep;
+      right.append(pad, ' ');
+      right += stats;
     }
   }
 
