@@ -1,10 +1,12 @@
 #include "terminal/frontend.hpp"
 
-#include "geometry.hpp"
+#include "app.hpp"
 #include "frontend.hpp"
+#include "geometry.hpp"
 #include "graphics/kitty.hpp"
 #include "graphics/sgr.hpp"
 #include "input_event.hpp"
+#include "terminal/controller.hpp"
 #include "util/stopwatch.hpp"
 
 #include <ncurses.h>
@@ -569,4 +571,21 @@ void TerminalFrontend::show_link_hints(const std::vector<LinkHintDisplay>& hints
 void TerminalFrontend::write_raw(const char* data, size_t len) {
   std::fwrite(data, 1, len, stdout);
   std::fflush(stdout);
+}
+
+void TerminalFrontend::run(App& app, const KeyBindings& bindings, int scroll_lines) {
+  TerminalController controller(app, *this, bindings, scroll_lines);
+  app.initialize();
+  controller.initialize();
+
+  while (app.is_running()) {
+    auto event = poll_input(100);
+    if (!event) {
+      app.idle_tick();
+      controller.idle_tick();
+      continue;
+    }
+
+    controller.handle_input(*event);
+  }
 }

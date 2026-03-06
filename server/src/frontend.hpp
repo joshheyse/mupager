@@ -1,7 +1,6 @@
 #pragma once
 
 #include "color_scheme.hpp"
-#include "action.hpp"
 #include "geometry.hpp"
 #include "graphics/pixmap.hpp"
 #include "input_event.hpp"
@@ -102,12 +101,6 @@ public:
 
   /// @brief Apply a color scheme to the frontend.
   void set_color_scheme(const ColorScheme& scheme);
-
-  /// @brief Pop a queued RPC command (Neovim frontend only).
-  /// @return The next command, or nullopt if the queue is empty.
-  virtual std::optional<Action> pop_action() {
-    return std::nullopt;
-  }
 
 protected:
   /// @param initial_image_id Starting image ID (offset to avoid collisions between frontends).

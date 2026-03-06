@@ -2,6 +2,9 @@
 
 #include <frontend.hpp> // angle brackets to resolve base, not self
 
+class App;
+class KeyBindings;
+
 /// @brief ncurses + Kitty graphics terminal frontend.
 class TerminalFrontend : public Frontend {
 public:
@@ -22,6 +25,12 @@ public:
   void show_sidebar(const std::vector<std::string>& lines, int highlight_line, int width_cols, bool focused) override;
   void show_link_hints(const std::vector<LinkHintDisplay>& hints) override;
   void write_raw(const char* data, size_t len) override;
+
+  /// @brief Run the terminal event loop.
+  /// @param app Application instance.
+  /// @param bindings Key bindings for the input handler.
+  /// @param scroll_lines Lines per scroll step for the input handler.
+  void run(App& app, const KeyBindings& bindings, int scroll_lines = 3);
 
   /// @brief Set left-side canvas inset (e.g. for sidebar).
   /// Subsequent client_info(), show_pages(), show_link_hints() account for this offset.

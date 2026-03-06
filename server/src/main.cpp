@@ -4,9 +4,7 @@
 #include "config.hpp"
 #include "converter.hpp"
 #include "neovim/frontend.hpp"
-#include "neovim/loop.hpp"
 #include "terminal/frontend.hpp"
-#include "terminal/loop.hpp"
 #include "terminal/osc_query.hpp"
 
 #include <spdlog/common.h>
@@ -140,14 +138,14 @@ int main(int argc, char* argv[]) {
       frontend->set_color_scheme(args->colors);
       auto* nvim = frontend.get();
       App app(std::move(frontend), *args, detected_fg, detected_bg);
-      run_neovim(app, *nvim);
+      nvim->run(app);
     }
     else {
       auto frontend = std::make_unique<TerminalFrontend>();
       frontend->set_color_scheme(args->colors);
       auto* term = frontend.get();
       App app(std::move(frontend), *args, detected_fg, detected_bg);
-      run_terminal(app, *term, args->key_bindings, args->scroll_lines);
+      term->run(app, args->key_bindings, args->scroll_lines);
     }
   }
   catch (const std::exception& e) {

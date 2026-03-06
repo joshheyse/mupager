@@ -24,10 +24,8 @@ set(SERVER_LIB_SOURCES
   src/terminal/controller.cpp
   src/terminal/frontend.cpp
   src/terminal/input.cpp
-  src/terminal/loop.cpp
   src/terminal/osc_query.cpp
   src/neovim/frontend.cpp
-  src/neovim/loop.cpp
   src/neovim/rpc_transport.cpp
   src/util/base64.cpp
 )

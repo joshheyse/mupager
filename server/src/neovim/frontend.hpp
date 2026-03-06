@@ -7,6 +7,8 @@
 
 #include <frontend.hpp> // angle brackets to resolve base, not self
 
+class App;
+
 /// @brief Neovim backend frontend: renders images to /dev/tty, communicates with plugin via msgpack-RPC on stdin/stdout.
 class NeovimFrontend : public Frontend {
 public:
@@ -27,7 +29,10 @@ public:
   void show_sidebar(const std::vector<std::string>& lines, int highlight_line, int width_cols, bool focused) override;
   void show_link_hints(const std::vector<LinkHintDisplay>& hints) override;
   void write_raw(const char* data, size_t len) override;
-  std::optional<Action> pop_action() override;
+
+  /// @brief Run the Neovim event loop.
+  /// @param app Application instance.
+  void run(App& app);
 
   /// @brief Get the RPC transport for sending notifications.
   RpcTransport& transport() {
@@ -47,6 +52,7 @@ public:
   }
 
 private:
+  std::optional<Action> pop_action();
   void query_tty_cell_size();
   void tty_write(const char* data, size_t len);
   void tty_write(const std::string& s);
