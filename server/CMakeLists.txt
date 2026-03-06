@@ -17,8 +17,6 @@ if(MUPAGER_STATIC_DEPS)
   pkg_check_modules(NCURSESW_STATIC REQUIRED IMPORTED_TARGET ncursesw --static)
 endif()
 
-find_path(MSGPACK_INCLUDE_DIR NAMES msgpack.hpp REQUIRED)
-
 # --- Server library (shared between exe and tests) ---
 
 set(SERVER_LIB_SOURCES
@@ -54,7 +52,6 @@ target_compile_definitions(server-lib PUBLIC
 target_include_directories(server-lib
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
   PUBLIC ${MUPDF_INCLUDE_DIRS}
-  PRIVATE ${MSGPACK_INCLUDE_DIR}
 )
 
 if(MUPAGER_STATIC_DEPS)
@@ -64,6 +61,7 @@ if(MUPAGER_STATIC_DEPS)
     PUBLIC spdlog::spdlog
     PRIVATE CLI11::CLI11
     PRIVATE tomlplusplus::tomlplusplus
+    PRIVATE msgpack-cxx
   )
 else()
   target_link_libraries(server-lib
@@ -72,6 +70,7 @@ else()
     PUBLIC spdlog::spdlog
     PRIVATE CLI11::CLI11
     PRIVATE tomlplusplus::tomlplusplus
+    PRIVATE msgpack-cxx
   )
 endif()
 
@@ -85,10 +84,6 @@ add_executable(mupager src/main.cpp)
 set_target_properties(mupager PROPERTIES
   VERSION ${PROJECT_VERSION}
   POSITION_INDEPENDENT_CODE ON
-)
-
-target_include_directories(mupager
-  PRIVATE ${MSGPACK_INCLUDE_DIR}
 )
 
 target_link_libraries(mupager
@@ -115,10 +110,6 @@ add_executable(ServerTests ${SERVER_TEST_SOURCES})
 
 target_compile_definitions(ServerTests
   PRIVATE PROJECT_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
-)
-
-target_include_directories(ServerTests
-  PRIVATE ${MSGPACK_INCLUDE_DIR}
 )
 
 target_link_libraries(ServerTests

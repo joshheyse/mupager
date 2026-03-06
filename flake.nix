@@ -23,6 +23,22 @@
           exec ${pkgs.clang-tools}/bin/clangd --query-driver="/nix/store/*/bin/*" "$@"
         '';
       in {
+        packages.default = pkgs.clangStdenv.mkDerivation {
+          pname = "mupager";
+          version = "0.1.0";
+          src = pkgs.lib.cleanSource ./.;
+          nativeBuildInputs = with pkgs; [cmake ninja pkg-config];
+          buildInputs = with pkgs; [mupdf ncurses];
+          doCheck = true;
+          checkPhase = ''ctest -j$NIX_BUILD_CORES --output-on-failure'';
+          meta = with pkgs.lib; {
+            description = "Terminal document viewer with pixel-perfect rendering";
+            license = licenses.mit;
+            platforms = platforms.unix;
+            mainProgram = "mupager";
+          };
+        };
+
         devShells.default = pkgs.mkShell {
           name = "mupager";
 
@@ -57,7 +73,6 @@
 
               # Libraries
               mupdf
-              msgpack-cxx
               boost
               ncurses
             ]

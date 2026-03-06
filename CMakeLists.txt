@@ -12,6 +12,13 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-ggdb -fno-omit-frame-pointer)
 endif()
 
+execute_process(COMMAND git describe --always --dirty
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE MUPAGER_GIT_HASH OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+if(NOT MUPAGER_GIT_HASH)
+  set(MUPAGER_GIT_HASH "unknown")
+endif()
+
 include(cmake/CPM.cmake)
 include(cmake/CompilerWarnings.cmake)
 include(cmake/Sanitizers.cmake)
@@ -45,6 +52,17 @@ CPMAddPackage(
   SYSTEM TRUE
   OPTIONS "SPDLOG_USE_STD_FORMAT ON"
 )
+
+CPMAddPackage(
+  NAME msgpack-cxx
+  GITHUB_REPOSITORY msgpack/msgpack-c
+  GIT_TAG cpp-6.1.1
+  DOWNLOAD_ONLY TRUE
+)
+if(msgpack-cxx_ADDED)
+  add_library(msgpack-cxx INTERFACE)
+  target_include_directories(msgpack-cxx SYSTEM INTERFACE ${msgpack-cxx_SOURCE_DIR}/include)
+endif()
 
 enable_testing()
 
