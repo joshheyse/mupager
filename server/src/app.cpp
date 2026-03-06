@@ -52,13 +52,13 @@ std::optional<ViewMode> parse_view_mode(const std::string& s) {
 const char* to_label(Theme t, Theme effective) {
   switch (t) {
     case Theme::Light:
-      return "Light";
+      return "light";
     case Theme::Dark:
-      return "Dark";
+      return "dark";
     case Theme::Auto:
-      return (effective == Theme::Dark) ? "Auto/Dark" : "Auto/Light";
+      return (effective == Theme::Dark) ? "auto/dark" : "auto/light";
     case Theme::Terminal:
-      return "Terminal";
+      return "terminal";
   }
   return "";
 }
@@ -681,6 +681,30 @@ void App::handle_action(const Action& act) {
       act
   );
 
+  // Dismiss link hints on any action. LinkHintKey matches first, all others just exit.
+  if (app_mode_ == AppMode::LinkHints) {
+    if (auto* key = std::get_if<action::LinkHintKey>(&act)) {
+      link_hint_input_ += key->ch;
+      std::vector<ActiveLinkHint> matches;
+      for (const auto& hint : link_hints_) {
+        if (hint.label.substr(0, link_hint_input_.size()) == link_hint_input_) {
+          matches.push_back(hint);
+        }
+      }
+      if (matches.size() == 1) {
+        follow_link(matches[0].link);
+      }
+      else if (matches.empty()) {
+        exit_link_hints();
+      }
+      else {
+        render_link_hints();
+      }
+      return;
+    }
+    exit_link_hints();
+  }
+
   std::visit(
       [&](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
@@ -894,30 +918,8 @@ void App::handle_action(const Action& act) {
         else if constexpr (std::is_same_v<T, action::EnterLinkHints>) {
           enter_link_hints();
         }
-        else if constexpr (std::is_same_v<T, action::LinkHintKey>) {
-          if (app_mode_ == AppMode::LinkHints) {
-            link_hint_input_ += arg.ch;
-            std::vector<ActiveLinkHint> matches;
-            for (const auto& hint : link_hints_) {
-              if (hint.label.substr(0, link_hint_input_.size()) == link_hint_input_) {
-                matches.push_back(hint);
-              }
-            }
-            if (matches.size() == 1) {
-              follow_link(matches[0].link);
-            }
-            else if (matches.empty()) {
-              exit_link_hints();
-            }
-            else {
-              render_link_hints();
-            }
-          }
-        }
-        else if constexpr (std::is_same_v<T, action::LinkHintCancel>) {
-          if (app_mode_ == AppMode::LinkHints) {
-            exit_link_hints();
-          }
+        else if constexpr (std::is_same_v<T, action::LinkHintKey> || std::is_same_v<T, action::LinkHintCancel>) {
+          // Handled by the early link-hints dismissal block above.
         }
         else if constexpr (std::is_same_v<T, action::GetOutline>) {
           if (outline_.empty()) {
@@ -1279,6 +1281,10 @@ void App::push_jump_history() {
 }
 
 void App::enter_link_hints() {
+  // Clear any stale hint labels from a previous invocation, then refresh the viewport.
+  frontend_->clear_overlay();
+  update_viewport();
+
   auto client = frontend_->client_info();
   if (!client.is_valid() || layout_.empty()) {
     return;
@@ -1292,8 +1298,12 @@ void App::enter_link_hints() {
   link_hints_.clear();
   link_hint_input_.clear();
 
+  spdlog::debug("enter_link_hints: pages=[{},{}] scroll=({},{}) vp={}x{}", viewport_first_page_, viewport_last_page_,
+                scroll_.x, scroll_.y, vw, vh);
+
   for (int p = viewport_first_page_; p <= viewport_last_page_; ++p) {
     auto page_links = doc_.load_links(p);
+    int visible_count = 0;
     for (auto& pl : page_links) {
       // Convert page points → screen cells
       float page_zoom = layout_[p].zoom * user_zoom_;
@@ -1318,29 +1328,43 @@ void App::enter_link_hints() {
       int row = vp_y / client.cell.height;
 
       link_hints_.push_back({std::move(pl), "", col, row});
+      ++visible_count;
     }
+    spdlog::debug("enter_link_hints: page {} total={} visible={}", p, page_links.size(), visible_count);
   }
+
+  spdlog::debug("enter_link_hints: total visible links={}", link_hints_.size());
 
   if (link_hints_.empty()) {
     last_action_.set("No links on page");
     return;
   }
 
-  // Assign labels
+  // Assign labels using base-26 encoding (a-z).
   static const char HintChars[] = "asdfghjklqwertyuiopzxcvbnm";
   static const int NumChars = 26;
 
-  if (static_cast<int>(link_hints_.size()) <= NumChars) {
-    for (int i = 0; i < static_cast<int>(link_hints_.size()); ++i) {
-      link_hints_[i].label = std::string(1, HintChars[i]);
+  // Determine label length needed: ceil(log26(n))
+  int label_len = 1;
+  {
+    int capacity = NumChars;
+    while (capacity < static_cast<int>(link_hints_.size())) {
+      ++label_len;
+      capacity *= NumChars;
     }
   }
-  else {
-    int idx = 0;
-    for (auto& hint : link_hints_) {
-      hint.label = std::string(1, HintChars[idx / NumChars]) + HintChars[idx % NumChars];
-      ++idx;
+
+  for (int i = 0; i < static_cast<int>(link_hints_.size()); ++i) {
+    std::string label;
+    int idx = i;
+    for (int d = label_len - 1; d >= 0; --d) {
+      int divisor = 1;
+      for (int k = 0; k < d; ++k) {
+        divisor *= NumChars;
+      }
+      label += HintChars[(idx / divisor) % NumChars];
     }
+    link_hints_[i].label = std::move(label);
   }
 
   app_mode_ = AppMode::LinkHints;
