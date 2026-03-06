@@ -237,16 +237,16 @@ static std::optional<Action> parse_rpc_command(const msgpack::object& params) {
   }
 
   // Parameterized actions that don't have Name (not in variant lookup)
-  if (cmd_name == "goto_page" && args_map) {
-    int page = extract_map_int(*args_map, "page", 0);
-    if (page > 0) {
-      return action::GotoPage{page};
-    }
-  }
   if (cmd_name == "search" && args_map) {
     std::string term = extract_map_string(*args_map, "term", "");
     if (!term.empty()) {
       return action::Search{term};
+    }
+  }
+  if (cmd_name == "goto_page" && args_map) {
+    int page = extract_map_int(*args_map, "page", 0);
+    if (page > 0) {
+      return action::GotoPage{page};
     }
   }
   if (cmd_name == "set_view_mode" && args_map) {

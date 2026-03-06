@@ -196,7 +196,7 @@ struct EnterCommandMode {
 };
 
 struct EnterSearchMode {
-  static constexpr const char* Name = "search";
+  static constexpr const char* Name = "enter_search";
   static constexpr const char* Description = "Search";
 };
 

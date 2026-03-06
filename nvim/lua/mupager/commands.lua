@@ -43,6 +43,8 @@ function M.setup(bufnr, opts)
   map("l", cmd_with_count "scroll_right", "Scroll right")
   map("<Left>", cmd_with_count "scroll_left", "Scroll left")
   map("<Right>", cmd_with_count "scroll_right", "Scroll right")
+  map("<ScrollWheelUp>", cmd_with_count "scroll_up", "Scroll up")
+  map("<ScrollWheelDown>", cmd_with_count "scroll_down", "Scroll down")
 
   -- Navigation
   map("gg", function()
@@ -50,7 +52,7 @@ function M.setup(bufnr, opts)
     if count > 0 then
       server.notify("command", "goto_page", { page = count })
     else
-      server.notify("command", "goto_first_page")
+      server.notify("command", "first_page")
     end
   end, "First page / goto page")
 
@@ -59,7 +61,7 @@ function M.setup(bufnr, opts)
     if count > 0 then
       server.notify("command", "goto_page", { page = count })
     else
-      server.notify("command", "goto_last_page")
+      server.notify("command", "last_page")
     end
   end, "Last page / goto page")
 
@@ -74,7 +76,7 @@ function M.setup(bufnr, opts)
   map("w", cmd "zoom_reset", "Fit width")
 
   -- View mode
-  map("<Tab>", cmd "toggle_view_mode", "Toggle view mode")
+  map("<Tab>", cmd "toggle_view", "Toggle view mode")
   map("t", cmd "toggle_theme", "Toggle theme")
 
   -- Reload
@@ -87,8 +89,8 @@ function M.setup(bufnr, opts)
     end)
   end, "Search")
 
-  map("n", cmd "search_next", "Next match")
-  map("N", cmd "search_prev", "Previous match")
+  map("n", cmd "next_match", "Next match")
+  map("N", cmd "prev_match", "Previous match")
   map("<Esc>", cmd "clear_search", "Clear search")
 
   -- Table of contents
@@ -96,7 +98,7 @@ function M.setup(bufnr, opts)
 
   -- Link hints
   map("f", function()
-    server.notify("command", "enter_link_hints")
+    server.notify("command", "link_hints")
 
     -- Enter a char-capture loop
     vim.schedule(function()
@@ -121,11 +123,6 @@ function M.setup(bufnr, opts)
     end)
   end, "Link hints")
 
-  -- Quit
-  map("q", function()
-    server.notify("command", "quit")
-    require("mupager").close()
-  end, "Quit")
 end
 
 return M
