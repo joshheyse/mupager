@@ -111,7 +111,6 @@ target_set_sanitizers(server-lib)
 add_executable(mupager main.cpp)
 
 set_target_properties(mupager PROPERTIES
-  VERSION ${PROJECT_VERSION}
   POSITION_INDEPENDENT_CODE ON
 )
 
