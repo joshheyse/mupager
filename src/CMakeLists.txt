@@ -40,8 +40,9 @@ if(NOT NCURSESW_FOUND)
   target_link_libraries(PkgConfig::NCURSESW INTERFACE ${CURSES_LIBRARIES})
 endif()
 
-if(MUPAGER_STATIC_DEPS AND NOT APPLE)
-  pkg_check_modules(MUPDF_DEPS REQUIRED IMPORTED_TARGET
+# mupdf's static lib needs its transitive deps linked explicitly
+if(NOT APPLE)
+  pkg_check_modules(MUPDF_DEPS IMPORTED_TARGET
     freetype2 harfbuzz libjpeg libopenjp2 gumbo zlib)
 endif()
 
