@@ -550,10 +550,25 @@ void App::initialize() {
 }
 
 void App::idle_tick() {
+  // Debounced resize: render once quiet period elapses after last resize event.
+  if (resize_pending_since_ != std::chrono::steady_clock::time_point{}) {
+    auto elapsed = std::chrono::steady_clock::now() - resize_pending_since_;
+    if (elapsed >= ResizeDebounce) {
+      resize_pending_since_ = {};
+      auto client = frontend_->client_info();
+      spdlog::info("resize (debounced): {} px, {} cell", client.pixel, client.cell);
+      render();
+      if (state_observer_) {
+        state_observer_();
+      }
+    }
+    return;
+  }
+
   auto client = frontend_->client_info();
   if (client.pixel != layout_size_) {
     spdlog::info("idle resize: pixel {} -> {}", layout_size_, client.pixel);
-    handle_action(action::Resize{});
+    resize_pending_since_ = std::chrono::steady_clock::now();
   }
   else {
     auto idle = std::chrono::steady_clock::now() - last_activity_time_;
@@ -625,9 +640,7 @@ void App::handle_action(const Action& act) {
           running_ = false;
         }
         else if constexpr (std::is_same_v<T, action::Resize>) {
-          auto client = frontend_->client_info();
-          spdlog::info("resize: {} px, {} cell", client.pixel, client.cell);
-          render();
+          resize_pending_since_ = std::chrono::steady_clock::now();
         }
         else if constexpr (std::is_same_v<T, action::ScrollDown>) {
           auto client = frontend_->client_info();

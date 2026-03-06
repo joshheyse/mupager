@@ -370,4 +370,8 @@ private:
   FlashMessage last_action_;
   std::chrono::steady_clock::time_point last_activity_time_; ///< Last render or input event, for deferring pre-uploads.
   std::function<void()> state_observer_;
+
+  /// @brief Non-zero when a resize is pending debounce.
+  std::chrono::steady_clock::time_point resize_pending_since_{};
+  static constexpr auto ResizeDebounce = std::chrono::milliseconds(80);
 };
