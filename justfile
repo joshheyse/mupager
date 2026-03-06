@@ -98,3 +98,14 @@ lint-lua:
 
 # Lint everything
 lint: lint-cpp lint-lua
+
+# Check C++ formatting (no changes)
+fmt-check-cpp:
+    find server -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run --Werror
+
+# Check Lua formatting (no changes)
+fmt-check-lua:
+    stylua --check nvim/
+
+# Check all formatting
+fmt-check: fmt-check-cpp fmt-check-lua
