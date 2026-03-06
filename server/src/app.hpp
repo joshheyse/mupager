@@ -309,6 +309,7 @@ private:
   void yank_selection();
   void cancel_selection();
   void refresh_selection_pages();
+  void refresh_search_pages();
   PagePoint screen_to_page_point(int col, int row) const;
   void copy_to_clipboard(const std::string& text);
 

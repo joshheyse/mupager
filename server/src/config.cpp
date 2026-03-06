@@ -43,7 +43,7 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
   static const std::unordered_set<std::string> KnownColorKeys = {
       "statusline-fg",    "statusline-bg",          "overlay-fg",        "overlay-bg",          "overlay-border",      "sidebar-fg",
       "sidebar-bg",       "sidebar-active-fg",      "sidebar-active-bg", "sidebar-border",      "link-hint-fg",        "link-hint-bg",
-      "search-highlight", "search-highlight-alpha", "search-active",     "search-active-alpha", "selection-highlight", "selection-highlight-alpha",
+      "search-highlight", "search-highlight-alpha", "selection-highlight", "selection-highlight-alpha",
       "recolor-dark",     "recolor-light",          "recolor-accent",
   };
 
@@ -58,16 +58,6 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
     if (k == "search-highlight-alpha") {
       if (auto v = val.value<int64_t>()) {
         cfg.colors.search_highlight_alpha = static_cast<uint8_t>(std::clamp<int64_t>(*v, 0, 255));
-        cfg.has_colors = true;
-      }
-      else {
-        spdlog::warn("config: [colors] '{}' must be an integer", k);
-      }
-      continue;
-    }
-    if (k == "search-active-alpha") {
-      if (auto v = val.value<int64_t>()) {
-        cfg.colors.search_active_alpha = static_cast<uint8_t>(std::clamp<int64_t>(*v, 0, 255));
         cfg.has_colors = true;
       }
       else {
@@ -148,9 +138,6 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
     }
     else if (k == "search-highlight") {
       cfg.colors.search_highlight = *color;
-    }
-    else if (k == "search-active") {
-      cfg.colors.search_active = *color;
     }
     else if (k == "selection-highlight") {
       cfg.colors.selection_highlight = *color;

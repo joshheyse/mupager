@@ -297,7 +297,6 @@ RenderParams App::make_render_params() const {
 HighlightParams App::make_highlight_params() const {
   return {
       &search_.results,
-      search_.current,
       &colors_,
       app_mode_,
       selection_anchor_,
@@ -1151,12 +1150,24 @@ void App::execute_search() {
     scroll_to_search_hit();
   }
 
-  render();
+  // Wrap refresh + viewport update in BSU/ESU so the image free/upload
+  // from refresh_highlights is atomic with show_pages (prevents flash).
+  static const char BSU[] = "\033[?2026h";
+  static const char ESU[] = "\033[?2026l";
+  frontend_->write_raw(BSU, sizeof(BSU) - 1);
+  refresh_search_pages();
+  update_viewport();
+  frontend_->write_raw(ESU, sizeof(ESU) - 1);
 }
 
 void App::clear_search() {
   search_.clear();
-  render();
+  static const char BSU[] = "\033[?2026h";
+  static const char ESU[] = "\033[?2026l";
+  frontend_->write_raw(BSU, sizeof(BSU) - 1);
+  refresh_search_pages();
+  update_viewport();
+  frontend_->write_raw(ESU, sizeof(ESU) - 1);
 }
 
 void App::search_navigate(int delta) {
@@ -1167,7 +1178,7 @@ void App::search_navigate(int delta) {
   int n = search_.total();
   search_.current = ((search_.current + delta) % n + n) % n;
   scroll_to_search_hit();
-  render();
+  update_viewport();
 }
 
 void App::scroll_to_search_hit() {
@@ -1603,6 +1614,13 @@ void App::refresh_selection_pages() {
   int hi = std::max(selection_anchor_.page, selection_extent_.page);
   hi = std::min(hi, static_cast<int>(layout_.size()) - 1);
   page_manager_.refresh_highlights(lo, hi, doc_, *frontend_, make_highlight_params());
+}
+
+void App::refresh_search_pages() {
+  int num_pages = static_cast<int>(layout_.size());
+  if (num_pages > 0) {
+    page_manager_.refresh_highlights(0, num_pages - 1, doc_, *frontend_, make_highlight_params());
+  }
 }
 
 void App::yank_selection() {

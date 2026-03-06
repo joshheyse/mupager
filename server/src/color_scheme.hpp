@@ -31,9 +31,6 @@ struct ColorScheme {
 
   Color search_highlight = Color::rgb(255, 255, 0); ///< Background match highlight color.
   uint8_t search_highlight_alpha = 80;              ///< Background match blend factor.
-  Color search_active = Color::rgb(255, 165, 0);    ///< Active/focused match highlight color.
-  uint8_t search_active_alpha = 120;                ///< Active match blend factor.
-
   Color selection_highlight = Color::rgb(100, 149, 237); ///< Visual selection highlight color.
   uint8_t selection_highlight_alpha = 80;                ///< Visual selection blend factor.
 

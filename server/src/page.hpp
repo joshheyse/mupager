@@ -30,7 +30,6 @@ struct RenderParams {
 /// @brief Parameters for highlight overlays.
 struct HighlightParams {
   const SearchResults* search_results; ///< Search results to highlight (may be nullptr).
-  int search_current;                  ///< Index of current search hit (-1 for none).
   const ColorScheme* colors;           ///< Color scheme for highlight colors.
   AppMode app_mode;                    ///< Current app mode (for selection highlighting).
   PagePoint selection_anchor;          ///< Selection anchor point.

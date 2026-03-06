@@ -119,12 +119,7 @@ void Page::highlight_search(Pixmap& pixmap, int page_num, float render_zoom, con
         static_cast<int>(hit.rect.height * render_zoom),
     };
 
-    if (i == params.search_current) {
-      pixmap.highlight_rect(rect, colors.search_active, colors.search_active_alpha);
-    }
-    else {
-      pixmap.highlight_rect(rect, colors.search_highlight, colors.search_highlight_alpha);
-    }
+    pixmap.highlight_rect(rect, colors.search_highlight, colors.search_highlight_alpha);
   }
 }
 
