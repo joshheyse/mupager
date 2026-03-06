@@ -7,10 +7,34 @@ if(MUPAGER_STATIC_DEPS)
 endif()
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(MUPDF REQUIRED IMPORTED_TARGET mupdf)
-pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw)
 
-if(MUPAGER_STATIC_DEPS)
+# mupdf: try pkg-config first, fall back to find_library (Homebrew has no .pc)
+pkg_check_modules(MUPDF IMPORTED_TARGET mupdf)
+if(NOT MUPDF_FOUND)
+  find_path(MUPDF_INCLUDE_DIR mupdf/fitz.h)
+  find_library(MUPDF_LIBRARY mupdf)
+  find_library(MUPDF_THIRD_LIBRARY mupdf-third)
+  if(NOT MUPDF_INCLUDE_DIR OR NOT MUPDF_LIBRARY)
+    message(FATAL_ERROR "mupdf not found via pkg-config or find_library")
+  endif()
+  add_library(PkgConfig::MUPDF INTERFACE IMPORTED)
+  target_include_directories(PkgConfig::MUPDF INTERFACE ${MUPDF_INCLUDE_DIR})
+  target_link_libraries(PkgConfig::MUPDF INTERFACE ${MUPDF_LIBRARY})
+  if(MUPDF_THIRD_LIBRARY)
+    target_link_libraries(PkgConfig::MUPDF INTERFACE ${MUPDF_THIRD_LIBRARY})
+  endif()
+  set(MUPDF_INCLUDE_DIRS ${MUPDF_INCLUDE_DIR})
+endif()
+
+pkg_check_modules(NCURSESW IMPORTED_TARGET ncursesw)
+if(NOT NCURSESW_FOUND)
+  find_package(Curses REQUIRED)
+  add_library(PkgConfig::NCURSESW INTERFACE IMPORTED)
+  target_include_directories(PkgConfig::NCURSESW INTERFACE ${CURSES_INCLUDE_DIRS})
+  target_link_libraries(PkgConfig::NCURSESW INTERFACE ${CURSES_LIBRARIES})
+endif()
+
+if(MUPAGER_STATIC_DEPS AND NOT APPLE)
   pkg_check_modules(MUPDF_DEPS REQUIRED IMPORTED_TARGET
     freetype2 harfbuzz libjpeg libopenjp2 gumbo zlib)
 endif()
@@ -52,25 +76,17 @@ target_include_directories(server-lib
   PUBLIC ${MUPDF_INCLUDE_DIRS}
 )
 
-if(MUPAGER_STATIC_DEPS)
-  target_link_libraries(server-lib
-    PUBLIC PkgConfig::MUPDF
-    PUBLIC PkgConfig::MUPDF_DEPS
-    PUBLIC PkgConfig::NCURSESW
-    PUBLIC spdlog::spdlog
-    PRIVATE CLI11::CLI11
-    PRIVATE tomlplusplus::tomlplusplus
-    PUBLIC msgpack-cxx
-  )
-else()
-  target_link_libraries(server-lib
-    PUBLIC PkgConfig::MUPDF
-    PUBLIC PkgConfig::NCURSESW
-    PUBLIC spdlog::spdlog
-    PRIVATE CLI11::CLI11
-    PRIVATE tomlplusplus::tomlplusplus
-    PUBLIC msgpack-cxx
-  )
+target_link_libraries(server-lib
+  PUBLIC PkgConfig::MUPDF
+  PUBLIC PkgConfig::NCURSESW
+  PUBLIC spdlog::spdlog
+  PRIVATE CLI11::CLI11
+  PRIVATE tomlplusplus::tomlplusplus
+  PUBLIC msgpack-cxx
+)
+
+if(MUPAGER_STATIC_DEPS AND TARGET PkgConfig::MUPDF_DEPS)
+  target_link_libraries(server-lib PUBLIC PkgConfig::MUPDF_DEPS)
 endif()
 
 target_set_warnings(server-lib)

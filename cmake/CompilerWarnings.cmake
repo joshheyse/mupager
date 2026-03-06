@@ -8,7 +8,7 @@ target_compile_options(compiler_warnings INTERFACE
   -Wpedantic
   -Werror
   -Wno-error=unused-parameter
-  $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-error=#warnings>
+  "$<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-error=#warnings>"
 )
 
 # Apply compiler warnings to a target via INTERFACE linkage.
