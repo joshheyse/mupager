@@ -8,6 +8,37 @@
 
 class App;
 
+/// @brief Tracks state and reports whether it changed since last check.
+template <typename T>
+struct DirtyState {
+  /// @brief Update the stored state. Returns true if the value changed.
+  bool update(const T& new_value) {
+    if (value == new_value) {
+      return false;
+    }
+    value = new_value;
+    return true;
+  }
+
+  T value{};
+};
+
+/// @brief Cached statusline content for dirty-checking.
+struct StatuslineState {
+  std::string left;
+  std::string right;
+  bool operator==(const StatuslineState&) const = default;
+};
+
+/// @brief Cached sidebar content for dirty-checking.
+struct SidebarState {
+  std::vector<std::string> lines;
+  int highlight_line = -1;
+  int width_cols = 0;
+  bool focused = false;
+  bool operator==(const SidebarState&) const = default;
+};
+
 /// @brief Terminal-only mode (superset of App modes, for terminal UI state).
 enum class TerminalMode {
   Normal,
@@ -94,6 +125,8 @@ private:
   TerminalFrontend& frontend_;
   TerminalInputHandler input_handler_;
   TerminalMode terminal_mode_ = TerminalMode::Normal;
+  DirtyState<StatuslineState> statusline_state_;
+  DirtyState<SidebarState> sidebar_state_;
 
   // Command bar
   std::string command_input_;

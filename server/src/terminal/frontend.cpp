@@ -69,6 +69,12 @@ std::optional<InputEvent> TerminalFrontend::poll_input(int timeout_ms) {
   if (rc == KEY_CODE_YES) {
     if (wch == KEY_RESIZE) {
       query_winsize();
+      if (static_cast<int>(ws_row_) != LINES || static_cast<int>(ws_col_) != COLS) {
+        resizeterm(ws_row_, ws_col_);
+      }
+      clearok(curscr, TRUE);
+      erase();
+      refresh();
       return InputEvent{input::Resize, 0, EventType::Press};
     }
     if (wch == KEY_MOUSE) {
@@ -152,9 +158,6 @@ void TerminalFrontend::clear() {
 
   query_winsize();
 
-  // Update ncurses only when the terminal size actually changed.
-  // Calling resizeterm() unconditionally pushes KEY_RESIZE on macOS ncurses
-  // even when the size hasn't changed, causing an infinite resize loop.
   if (static_cast<int>(ws_row_) != LINES || static_cast<int>(ws_col_) != COLS) {
     resizeterm(ws_row_, ws_col_);
   }

@@ -57,7 +57,9 @@ static std::string trim(const std::string& s) {
 TerminalController::TerminalController(App& app, TerminalFrontend& frontend, const KeyBindings& bindings, int scroll_lines)
     : app_(app)
     , frontend_(frontend)
-    , input_handler_(bindings, scroll_lines) {}
+    , input_handler_(bindings, scroll_lines) {
+  app_.set_state_observer([this]() { update_terminal_ui(); });
+}
 
 InputMode TerminalController::effective_input_mode() const {
   switch (terminal_mode_) {
@@ -79,7 +81,6 @@ InputMode TerminalController::effective_input_mode() const {
 
 void TerminalController::forward_action(const Action& act) {
   app_.handle_action(act);
-  update_terminal_ui();
 }
 
 void TerminalController::update_terminal_ui() {
@@ -145,6 +146,9 @@ void TerminalController::update_statusline() {
     }
   }
 
+  if (!statusline_state_.update({left, right})) {
+    return;
+  }
   frontend_.statusline(left, right);
 }
 
@@ -652,6 +656,9 @@ void TerminalController::update_sidebar_display() {
       lines.emplace_back("  (no matches)");
     }
 
+    if (!sidebar_state_.update({lines, highlight_line, sidebar_cols, true})) {
+      return;
+    }
     frontend_.show_sidebar(lines, highlight_line, sidebar_cols, true);
   }
   else {
@@ -678,6 +685,9 @@ void TerminalController::update_sidebar_display() {
       }
     }
 
+    if (!sidebar_state_.update({lines, highlight_line, sidebar_cols, false})) {
+      return;
+    }
     frontend_.show_sidebar(lines, highlight_line, sidebar_cols, false);
   }
 }

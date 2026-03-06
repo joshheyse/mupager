@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <ctime>
 #include <format>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -243,6 +244,9 @@ public:
   /// @brief Handle idle tasks: pre-upload, flash expiry, resize detection.
   void idle_tick();
 
+  /// @brief Register a callback invoked after every handle_action().
+  void set_state_observer(std::function<void()> observer);
+
   /// @brief Whether the application is still running.
   bool is_running() const {
     return running_;
@@ -365,4 +369,5 @@ private:
 
   FlashMessage last_action_;
   std::chrono::steady_clock::time_point last_activity_time_; ///< Last render or input event, for deferring pre-uploads.
+  std::function<void()> state_observer_;
 };

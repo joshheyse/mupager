@@ -545,7 +545,6 @@ void App::jump_to_page(int page) {
 }
 
 void App::initialize() {
-  frontend_->clear();
   render();
   last_activity_time_ = std::chrono::steady_clock::now();
 }
@@ -628,7 +627,6 @@ void App::handle_action(const Action& act) {
         else if constexpr (std::is_same_v<T, action::Resize>) {
           auto client = frontend_->client_info();
           spdlog::info("resize: {} px, {} cell", client.pixel, client.cell);
-          frontend_->clear();
           render();
         }
         else if constexpr (std::is_same_v<T, action::ScrollDown>) {
@@ -767,7 +765,6 @@ void App::handle_action(const Action& act) {
           else {
             theme_ = Theme::Dark;
           }
-          frontend_->clear();
           render();
         }
         else if constexpr (std::is_same_v<T, action::SetTheme>) {
@@ -952,6 +949,14 @@ void App::handle_action(const Action& act) {
       },
       act
   );
+
+  if (state_observer_) {
+    state_observer_();
+  }
+}
+
+void App::set_state_observer(std::function<void()> observer) {
+  state_observer_ = std::move(observer);
 }
 
 void App::do_reload() {
@@ -971,7 +976,6 @@ void App::do_reload() {
     int max_y = std::max(0, total_height - vh);
     scroll_.y = std::clamp(scroll_.y, 0, max_y);
 
-    frontend_->clear();
     update_viewport();
     last_action_.set("Reloaded");
   }
@@ -984,7 +988,6 @@ void App::apply_theme(const std::string& name) {
   auto th = parse_theme(name);
   if (th) {
     theme_ = *th;
-    frontend_->clear();
     render();
   }
   else {
@@ -1030,7 +1033,6 @@ void App::apply_render_scale(const std::string& name) {
     last_action_.set("Unknown render-scale: {}", name);
     return;
   }
-  frontend_->clear();
   render();
 }
 
@@ -1084,13 +1086,11 @@ void App::execute_search() {
     scroll_to_search_hit();
   }
 
-  frontend_->clear();
   render();
 }
 
 void App::clear_search() {
   search_.clear();
-  frontend_->clear();
   render();
 }
 
@@ -1102,7 +1102,6 @@ void App::search_navigate(int delta) {
   int n = search_.total();
   search_.current = ((search_.current + delta) % n + n) % n;
   scroll_to_search_hit();
-  frontend_->clear();
   render();
 }
 
@@ -1297,7 +1296,6 @@ void App::follow_link(const PageLink& link) {
     int max_y = std::max(0, total_height - vh);
     scroll_.y = std::clamp(scroll_.y, 0, max_y);
 
-    frontend_->clear();
     update_viewport();
   }
   else {
