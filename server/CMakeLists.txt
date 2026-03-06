@@ -61,7 +61,7 @@ if(MUPAGER_STATIC_DEPS)
     PUBLIC spdlog::spdlog
     PRIVATE CLI11::CLI11
     PRIVATE tomlplusplus::tomlplusplus
-    PRIVATE msgpack-cxx
+    PUBLIC msgpack-cxx
   )
 else()
   target_link_libraries(server-lib
@@ -70,7 +70,7 @@ else()
     PUBLIC spdlog::spdlog
     PRIVATE CLI11::CLI11
     PRIVATE tomlplusplus::tomlplusplus
-    PRIVATE msgpack-cxx
+    PUBLIC msgpack-cxx
   )
 endif()
 
@@ -116,6 +116,9 @@ target_link_libraries(ServerTests
   PRIVATE server-lib
   PRIVATE doctest::doctest_with_main
 )
+
+get_target_property(_doctest_inc doctest::doctest_with_main INTERFACE_INCLUDE_DIRECTORIES)
+target_include_directories(ServerTests SYSTEM PRIVATE ${_doctest_inc})
 
 target_set_warnings(ServerTests)
 target_set_sanitizers(ServerTests)
