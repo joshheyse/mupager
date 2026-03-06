@@ -103,7 +103,7 @@ std::optional<std::pair<Color, Color>> query_terminal_colors(int timeout_ms) {
     query = "\x1b]10;?\x1b\\";
     query += "\x1b]11;?\x1b\\";
   }
-  write(fd, query.data(), query.size());
+  (void)write(fd, query.data(), query.size());
 
   // Read response
   std::string buf;
