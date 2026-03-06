@@ -66,12 +66,13 @@ CPMAddPackage(
 CPMAddPackage(
   NAME msgpack-cxx
   GITHUB_REPOSITORY msgpack/msgpack-c
-  GIT_TAG cpp-6.1.1
+  GIT_TAG cpp-7.0.0
   DOWNLOAD_ONLY TRUE
 )
 if(msgpack-cxx_ADDED)
   add_library(msgpack-cxx INTERFACE)
   target_include_directories(msgpack-cxx SYSTEM INTERFACE ${msgpack-cxx_SOURCE_DIR}/include)
+  target_compile_definitions(msgpack-cxx INTERFACE MSGPACK_NO_BOOST)
 endif()
 
 enable_testing()

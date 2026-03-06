@@ -1,5 +1,39 @@
 {
   "nodes": {
+    "cli11": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1714798251,
+        "narHash": "sha256-BLjGKN/UQIPVFlZaJ2VxTLFfY6otpJZ6HqfLtt5+r88=",
+        "owner": "CLIUtils",
+        "repo": "CLI11",
+        "rev": "6c7b07a878ad834957b98d0f9ce1dbe0cb204fc9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "CLIUtils",
+        "ref": "v2.4.2",
+        "repo": "CLI11",
+        "type": "github"
+      }
+    },
+    "doctest": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1745842486,
+        "narHash": "sha256-Fxs1EWydhqN9whx+Cn4fnZ4fhCEQvFgL5e9TUiXlnq8=",
+        "owner": "doctest",
+        "repo": "doctest",
+        "rev": "1da23a3e8119ec5cce4f9388e91b065e20bf06f5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "doctest",
+        "ref": "v2.4.12",
+        "repo": "doctest",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -18,13 +52,30 @@
         "type": "github"
       }
     },
+    "msgpack-cxx": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1730515301,
+        "narHash": "sha256-kg4mpNiigfZ59ZeL8LXEHwtkLU8Po+vgRcUcgTJd+h4=",
+        "owner": "msgpack",
+        "repo": "msgpack-c",
+        "rev": "919908742b4fdbc575e77fe1a8657e70c9573c44",
+        "type": "github"
+      },
+      "original": {
+        "owner": "msgpack",
+        "ref": "cpp-7.0.0",
+        "repo": "msgpack-c",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1771848320,
-        "narHash": "sha256-0MAd+0mun3K/Ns8JATeHT1sX28faLII5hVLq0L3BdZU=",
+        "lastModified": 1772624091,
+        "narHash": "sha256-QKyJ0QGWBn6r0invrMAK8dmJoBYWoOWy7lN+UHzW1jc=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "2fc6539b481e1d2569f25f8799236694180c0993",
+        "rev": "80bdc1e5ce51f56b19791b52b2901187931f5353",
         "type": "github"
       },
       "original": {
@@ -36,8 +87,30 @@
     },
     "root": {
       "inputs": {
+        "cli11": "cli11",
+        "doctest": "doctest",
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs"
+        "msgpack-cxx": "msgpack-cxx",
+        "nixpkgs": "nixpkgs",
+        "spdlog": "spdlog",
+        "tomlplusplus": "tomlplusplus"
+      }
+    },
+    "spdlog": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1731164490,
+        "narHash": "sha256-HCpnN28qWreg0NvL6Q9pfSSxOTHgV6glHt6P0FbH/Cw=",
+        "owner": "gabime",
+        "repo": "spdlog",
+        "rev": "8e5613379f5140fefb0b60412fbf1f5406e7c7f8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "gabime",
+        "ref": "v1.15.0",
+        "repo": "spdlog",
+        "type": "github"
       }
     },
     "systems": {
@@ -52,6 +125,23 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "tomlplusplus": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1697204382,
+        "narHash": "sha256-h5tbO0Rv2tZezY58yUbyRVpsfRjY3i+5TPkkxr6La8M=",
+        "owner": "marzer",
+        "repo": "tomlplusplus",
+        "rev": "30172438cee64926dc41fdd9c11fb3ba5b2ba9de",
+        "type": "github"
+      },
+      "original": {
+        "owner": "marzer",
+        "ref": "v3.4.0",
+        "repo": "tomlplusplus",
         "type": "github"
       }
     }
