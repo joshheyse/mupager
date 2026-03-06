@@ -1,0 +1,319 @@
+.TH MUPAGER 1 "2024" "mupager" "User Commands"
+.SH NAME
+mupager \- terminal document viewer with pixel-perfect rendering
+.SH SYNOPSIS
+.B mupager
+.RI [ OPTIONS ]
+.I file
+.SH DESCRIPTION
+.B mupager
+is a terminal document viewer that renders documents with pixel-perfect
+quality using the Kitty graphics protocol. It supports PDF, EPUB, XPS,
+CBZ/CBR, FB2, MOBI, SVG, HTML, and image formats via the MuPDF library.
+.PP
+It provides continuous scroll, single-page, page-height, and side-by-side
+view modes, Vim-style search with highlighted matches, table of contents
+overlay and sidebar, link hints, configurable themes, and fully
+customizable keybindings.
+.PP
+.B mupager
+can run as a standalone terminal application or as a Neovim plugin backend.
+.SH OPTIONS
+.TP
+.B \-\-version
+Print the version and exit.
+.TP
+.B \-\-diagnose
+Print diagnostic information (terminal, display, tmux, config) and exit.
+.TP
+.BI \-\-view\-mode " MODE"
+View mode. One of
+.BR continuous ,
+.BR page ,
+.BR page\-height ,
+.BR side\-by\-side .
+Default:
+.BR continuous .
+.TP
+.BI \-\-render\-scale " SCALE"
+Render scale for cached page rendering. One of
+.BR auto ,
+.BR never ,
+.BR 0.25 ,
+.BR 0.5 ,
+.BR 1 ,
+.BR 2 ,
+.BR 4 .
+Default:
+.BR auto .
+.TP
+.BI \-\-mode " MODE"
+Frontend mode. One of
+.BR terminal ,
+.BR neovim .
+Default:
+.BR terminal .
+.TP
+.BI \-\-theme " THEME"
+Color theme. One of
+.BR dark ,
+.BR light ,
+.BR auto ,
+.BR terminal .
+Default:
+.BR dark .
+.TP
+.BI \-\-scroll\-lines " N"
+Number of lines per scroll step.
+Default: 3.
+.TP
+.BI \-\-max\-page\-cache " MB"
+Maximum page cache size in megabytes.
+Default: 64.
+.TP
+.BI \-\-log\-level " LEVEL"
+Log level. One of
+.BR trace ,
+.BR debug ,
+.BR info ,
+.BR warn ,
+.BR error ,
+.BR critical .
+Default:
+.BR info .
+.TP
+.BI \-\-log\-file " PATH"
+Log file path.
+Default: \fI$XDG_STATE_HOME/mupager/mupager.log\fR.
+.TP
+.B \-\-show\-stats
+Show cache statistics in the statusline.
+.TP
+.BI \-c\  PATH\fR,\ \fB\-\-config " PATH"
+Config file path, overriding the XDG default location.
+.SH KEYBINDINGS
+The following keybindings are available in terminal mode. All bindings
+are configurable via the
+.B [keys]
+section of the config file.
+.PP
+.TS
+lb lb
+l l .
+Key	Action
+_
+j / Down	Scroll down
+k / Up	Scroll up
+d	Half page down
+u	Half page up
+Ctrl+F	Page down
+Ctrl+B	Page up
+h / Left	Scroll left
+l / Right	Scroll right
++ / =	Zoom in
+\-	Zoom out
+0 / w	Fit width (zoom reset)
+Tab	Toggle view mode
+t	Toggle theme
+q	Quit
+gg	First page
+G	Last page
+H	Jump back
+L	Jump forward
+f	Link hints
+:	Command mode
+/	Search
+n	Next match
+N	Previous match
+o	Table of contents
+e	Toggle sidebar TOC
+?	Toggle help
+Esc	Clear search
+[n]gg / [n]G	Go to page n
+:reload	Reload document
+.TE
+.SH CONFIGURATION
+Configuration is read from a TOML file at
+.IR $XDG_CONFIG_HOME/mupager/config.toml
+(typically
+.IR ~/.config/mupager/config.toml ).
+Use the
+.B \-\-config
+option to specify an alternative path.
+.PP
+Command-line options take precedence over config file values.
+.SS Top-level keys
+.TS
+lb lb lb
+l l l .
+Key	Type	Default
+_
+view\-mode	string	"continuous"
+theme	string	"dark"
+render\-scale	string	"auto"
+scroll\-lines	integer	3
+max\-page\-cache	integer	64
+log\-level	string	"info"
+log\-file	string	(auto)
+show\-stats	boolean	false
+terminal\-fg	string	(detect)
+terminal\-bg	string	(detect)
+.TE
+.PP
+.B terminal\-fg
+and
+.B terminal\-bg
+override the auto-detected terminal foreground and background colors.
+Values are specified as
+.B "#RRGGBB"
+strings.
+.SS [colors] section
+Color values are specified as
+.B "#RRGGBB"
+strings,
+.BR "default" ,
+or a 256-color index (integer 0\(en255). Alpha values are integers 0\(en255.
+.PP
+.TS
+lb lb
+l l .
+Key	Description
+_
+statusline\-fg	Statusline foreground
+statusline\-bg	Statusline background
+overlay\-fg	TOC/help overlay foreground
+overlay\-bg	TOC/help overlay background
+overlay\-border	TOC/help overlay border
+sidebar\-fg	Sidebar foreground
+sidebar\-bg	Sidebar background
+sidebar\-active\-fg	Sidebar active item foreground
+sidebar\-active\-bg	Sidebar active item background
+sidebar\-border	Sidebar border
+link\-hint\-fg	Link hint label foreground
+link\-hint\-bg	Link hint label background
+search\-highlight	Search match highlight color
+search\-highlight\-alpha	Search match highlight alpha (0\(en255)
+search\-active	Active search match color
+search\-active\-alpha	Active search match alpha (0\(en255)
+recolor\-dark	Dark theme recolor base
+recolor\-light	Light theme recolor base
+recolor\-accent	Accent color for terminal theme
+.TE
+.SS [keys] section
+Keybindings are configured by mapping action names to key specs:
+.PP
+.RS
+.nf
+[keys]
+scroll\-down = ["j", "Down"]
+quit = "q"
+first\-page = "gg"
+page\-down = "Ctrl+F"
+.fi
+.RE
+.PP
+Key specs can be:
+.IP \(bu 2
+Single characters:
+.B "j"
+.IP \(bu 2
+Special names:
+.BR Tab ", " Esc ", " Up ", " Down ", " Left ", " Right ", " PageUp ", " PageDown ", " Home ", " End ", " Space ", " Enter ", " Backspace
+.IP \(bu 2
+Ctrl combos:
+.B "Ctrl+F"
+.IP \(bu 2
+Double-key sequences:
+.B "gg"
+.PP
+Assigning a key spec to an action replaces all default bindings for that action.
+.SH FILES
+.TP
+.I ~/.config/mupager/config.toml
+Default configuration file (or \fI$XDG_CONFIG_HOME/mupager/config.toml\fR).
+.TP
+.I ~/.local/state/mupager/mupager.log
+Default log file (or \fI$XDG_STATE_HOME/mupager/mupager.log\fR).
+.SH ENVIRONMENT
+.TP
+.B XDG_CONFIG_HOME
+Base directory for configuration files. Defaults to
+.IR ~/.config .
+.TP
+.B XDG_STATE_HOME
+Base directory for state files (logs). Defaults to
+.IR ~/.local/state .
+.TP
+.B SPDLOG_LEVEL
+Fallback log level when
+.B \-\-log\-level
+is not specified.
+.TP
+.B NVIM
+Neovim RPC socket path. When set, indicates the process is running
+inside Neovim.
+.TP
+.B TERM
+Terminal type identifier.
+.TP
+.B TERM_PROGRAM
+Terminal emulator name (e.g., "kitty", "WezTerm").
+.TP
+.B TMUX
+Tmux socket path. When set, enables tmux-aware visibility management.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Error (invalid arguments, missing file, render failure, config error).
+.SH EXAMPLES
+View a PDF:
+.PP
+.RS
+.B mupager document.pdf
+.RE
+.PP
+Open in page-height mode with light theme:
+.PP
+.RS
+.B mupager \-\-view\-mode page\-height \-\-theme light paper.pdf
+.RE
+.PP
+Use a custom config file:
+.PP
+.RS
+.B mupager \-\-config ~/my\-config.toml thesis.pdf
+.RE
+.PP
+Run diagnostics:
+.PP
+.RS
+.B mupager \-\-diagnose
+.RE
+.PP
+Open an EPUB with debug logging:
+.PP
+.RS
+.B mupager \-\-log\-level debug novel.epub
+.RE
+.SH TERMINAL COMPATIBILITY
+.TP
+.B Kitty
+Full support (native graphics protocol).
+.TP
+.B WezTerm
+Full support (Kitty graphics protocol compatible).
+.TP
+.B Ghostty
+Full support (Kitty graphics protocol compatible).
+.TP
+.B Tmux
+Requires
+.B "set \-g allow\-passthrough on"
+in
+.IR tmux.conf .
+.SH SEE ALSO
+.BR less (1),
+.BR zathura (1)
