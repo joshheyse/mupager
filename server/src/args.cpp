@@ -5,8 +5,8 @@
 
 #include <cstdlib>
 #include <filesystem>
-#include <string>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 #include <CLI/CLI.hpp>

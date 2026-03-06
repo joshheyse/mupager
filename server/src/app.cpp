@@ -1,34 +1,34 @@
 #include "app.hpp"
 
+#include "action.hpp"
 #include "args.hpp"
 #include "color.hpp"
-#include "action.hpp"
 #include "converter.hpp"
-#include "frontend.hpp"
-#include "page.hpp"
-#include "geometry.hpp"
 #include "document.hpp"
+#include "frontend.hpp"
+#include "geometry.hpp"
+#include "page.hpp"
 
 #include <spdlog/spdlog.h>
-#include <sys/_types/_pid_t.h>
 #include <stdio.h>
+#include <sys/_types/_pid_t.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include <algorithm>
-#include <optional>
-#include <memory>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <chrono>
-#include <stdexcept>
-#include <cstdlib>
 #include <cstdio>
+#include <cstdlib>
+#include <memory>
+#include <optional>
+#include <stdexcept>
 #include <string>
-#include <utility>
-#include <vector>
-#include <variant>
 #include <type_traits>
+#include <utility>
+#include <variant>
+#include <vector>
 
 /// @brief Discrete zoom levels for step-zoom in/out.
 static constexpr float ZoomLevels[] = {1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
@@ -669,9 +669,8 @@ void App::handle_action(const Action& act) {
   std::visit(
       [](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, action::ScrollDown> || std::is_same_v<T, action::ScrollUp>
-                      || std::is_same_v<T, action::ScrollLeft> || std::is_same_v<T, action::ScrollRight>
-                      || std::is_same_v<T, action::MouseScroll> || std::is_same_v<T, action::Resize>
+        if constexpr (std::is_same_v<T, action::ScrollDown> || std::is_same_v<T, action::ScrollUp> || std::is_same_v<T, action::ScrollLeft>
+                      || std::is_same_v<T, action::ScrollRight> || std::is_same_v<T, action::MouseScroll> || std::is_same_v<T, action::Resize>
                       || std::is_same_v<T, action::DragUpdate> || std::is_same_v<T, action::SelectionMove>) {
           spdlog::trace("action: {}", T::Name);
         }

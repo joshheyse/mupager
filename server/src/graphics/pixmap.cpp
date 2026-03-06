@@ -1,10 +1,12 @@
 #include "graphics/pixmap.hpp"
-#include <mupdf/fitz/color.h>
-#include <mupdf/fitz/pixmap.h>
-#include <mupdf/fitz/context.h>
-#include "geometry.hpp"
+
 #include "color.hpp"
+#include "geometry.hpp"
+
 #include <mupdf/fitz/buffer.h>
+#include <mupdf/fitz/color.h>
+#include <mupdf/fitz/context.h>
+#include <mupdf/fitz/pixmap.h>
 #include <mupdf/fitz/write-pixmap.h>
 
 #include <algorithm>

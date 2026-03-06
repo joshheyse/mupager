@@ -1,18 +1,18 @@
 #include "terminal/controller.hpp"
 
-#include "app.hpp"
 #include "action.hpp"
+#include "app.hpp"
 #include "geometry.hpp"
 #include "graphics/sgr.hpp"
+#include "input_event.hpp"
 #include "terminal/frontend.hpp"
 #include "terminal/key_bindings.hpp"
-#include "input_event.hpp"
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
-#include <cstddef>
 #include <cctype>
+#include <cstddef>
 #include <format>
 #include <optional>
 #include <string>
@@ -262,10 +262,18 @@ void TerminalController::show_help() {
     int w = 0;
     for (size_t i = 0; i < s.size(); ++w) {
       auto c = static_cast<unsigned char>(s[i]);
-      if (c < 0x80) { i += 1; }
-      else if (c < 0xE0) { i += 2; }
-      else if (c < 0xF0) { i += 3; }
-      else { i += 4; }
+      if (c < 0x80) {
+        i += 1;
+      }
+      else if (c < 0xE0) {
+        i += 2;
+      }
+      else if (c < 0xF0) {
+        i += 3;
+      }
+      else {
+        i += 4;
+      }
     }
     return w;
   };

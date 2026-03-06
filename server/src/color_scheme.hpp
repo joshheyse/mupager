@@ -29,8 +29,8 @@ struct ColorScheme {
   Color link_hint_fg = Color::indexed(234); ///< Link hint label foreground.
   Color link_hint_bg = Color::indexed(180); ///< Link hint label background.
 
-  Color search_highlight = Color::rgb(255, 255, 0); ///< Background match highlight color.
-  uint8_t search_highlight_alpha = 80;              ///< Background match blend factor.
+  Color search_highlight = Color::rgb(255, 255, 0);      ///< Background match highlight color.
+  uint8_t search_highlight_alpha = 80;                   ///< Background match blend factor.
   Color selection_highlight = Color::rgb(100, 149, 237); ///< Visual selection highlight color.
   uint8_t selection_highlight_alpha = 80;                ///< Visual selection blend factor.
 

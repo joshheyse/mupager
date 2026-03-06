@@ -1,4 +1,5 @@
 #include "terminal/key_bindings.hpp"
+
 #include "action.hpp"
 #include "action_traits.hpp"
 #include "input_event.hpp"

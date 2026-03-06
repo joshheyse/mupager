@@ -1,9 +1,9 @@
 #pragma once
 
+#include "action.hpp"
 #include "args.hpp"
 #include "color.hpp"
 #include "color_scheme.hpp"
-#include "action.hpp"
 #include "document.hpp"
 #include "frontend.hpp"
 #include "geometry.hpp"
@@ -125,7 +125,7 @@ enum class InputMode {
 struct SearchState {
   std::string term;
   SearchResults results;
-  int current = -1; ///< Index into results of the focused match (-1 = none).
+  int current = -1;                         ///< Index into results of the focused match (-1 = none).
   std::unordered_map<int, int> page_counts; ///< Page number → match count.
 
   /// @brief Clear all search state.
@@ -137,10 +137,14 @@ struct SearchState {
   }
 
   /// @brief Whether there are any results.
-  bool empty() const { return results.empty(); }
+  bool empty() const {
+    return results.empty();
+  }
 
   /// @brief Total number of matches.
-  int total() const { return static_cast<int>(results.size()); }
+  int total() const {
+    return static_cast<int>(results.size());
+  }
 
   /// @brief Number of matches on a specific page.
   int matches_on_page(int page) const {

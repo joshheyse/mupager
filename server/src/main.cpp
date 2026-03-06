@@ -14,8 +14,8 @@
 #include <sys/signal.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cctype>
+#include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <exception>

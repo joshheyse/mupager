@@ -1,19 +1,19 @@
 #include "page.hpp"
 
 #include "app.hpp"
-#include "geometry.hpp"
 #include "document.hpp"
 #include "frontend.hpp"
+#include "geometry.hpp"
 #include "graphics/pixmap.hpp"
 #include "util/stopwatch.hpp"
 
 #include <mupdf/fitz/context.h>
 
-#include <cstdint>
 #include <algorithm>
+#include <cstdint>
 #include <format>
-#include <vector>
 #include <utility>
+#include <vector>
 
 Page::Page(std::vector<unsigned char> pixels, int w, int h, int comp, float zoom, float scale, uint32_t id, CellSize grid)
     : base_pixels_(std::move(pixels))
@@ -25,14 +25,7 @@ Page::Page(std::vector<unsigned char> pixels, int w, int h, int comp, float zoom
     , image_id_(id)
     , cell_grid_(grid) {}
 
-Page Page::render(
-    const Document& doc,
-    int page_num,
-    const RenderParams& params,
-    float base_zoom,
-    const HighlightParams& highlights,
-    Frontend& frontend
-) {
+Page Page::render(const Document& doc, int page_num, const RenderParams& params, float base_zoom, const HighlightParams& highlights, Frontend& frontend) {
   float render_zoom = (params.render_scale == 0.0f) ? base_zoom * params.user_zoom : base_zoom * params.render_scale;
 
   Pixmap pixmap = [&] {

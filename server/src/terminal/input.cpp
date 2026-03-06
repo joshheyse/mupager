@@ -1,12 +1,12 @@
 #include "terminal/input.hpp"
 
-#include "app.hpp"
 #include "action.hpp"
-#include "input_event.hpp"
+#include "app.hpp"
 #include "geometry.hpp"
+#include "input_event.hpp"
 
-#include <optional>
 #include <cstdint>
+#include <optional>
 
 std::optional<Action> TerminalInputHandler::translate(const InputEvent& event, InputMode mode, int /*terminal_rows*/, CellSize cell) {
   // Handle mouse events before mode dispatch

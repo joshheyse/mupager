@@ -51,7 +51,11 @@ void PageManager::ensure_uploaded(
         }
         spdlog::debug(
             "cache invalidate page {}: scale {:.2f} -> {:.2f}, zoom {:.2f} -> {:.2f}",
-            i, it->second.render_scale(), render.render_scale, it->second.render_zoom(), render_zoom
+            i,
+            it->second.render_scale(),
+            render.render_scale,
+            it->second.render_zoom(),
+            render_zoom
         );
         it->second.free_image(frontend);
         cache_.erase(it);

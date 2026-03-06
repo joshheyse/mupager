@@ -122,7 +122,6 @@ function M.setup(bufnr, opts)
       capture_key()
     end)
   end, "Link hints")
-
 end
 
 return M

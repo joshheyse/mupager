@@ -16,13 +16,13 @@
 #include <sys/ttycom.h>
 #include <unistd.h>
 
-#include <cstdint>
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <format>
 #include <iterator>
-#include <string>
 #include <optional>
+#include <string>
 #include <vector>
 
 TerminalFrontend::TerminalFrontend() {
@@ -276,7 +276,6 @@ void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {
 
   std::fwrite(out.data(), 1, out.size(), stdout);
   std::fflush(stdout);
-
 }
 
 /// Count display columns, skipping ANSI escape sequences.

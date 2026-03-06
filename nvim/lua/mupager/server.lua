@@ -76,7 +76,8 @@ function M.start(file, opts)
     local g = math.floor(fg / 0x100) % 256
     local b = fg % 256
     local lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-    local level = lum > 0.5 and math.floor((1 - lum) * 0.12 * 255 + 0.5) or math.floor((1 - (1 - lum) * 0.12) * 255 + 0.5)
+    local level = lum > 0.5 and math.floor((1 - lum) * 0.12 * 255 + 0.5)
+      or math.floor((1 - (1 - lum) * 0.12) * 255 + 0.5)
     bg = level * 0x10101
   end
   if fg then

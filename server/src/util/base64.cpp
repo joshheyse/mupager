@@ -2,8 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <span>
+#include <string>
 
 namespace base64 {
 

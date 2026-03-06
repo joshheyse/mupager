@@ -1,25 +1,27 @@
 #include "document.hpp"
+
+#include "graphics/pixmap.hpp"
+
+#include <mupdf/fitz/color.h>
 #include <mupdf/fitz/context.h>
-#include <mupdf/fitz/types.h>
+#include <mupdf/fitz/device.h>
 #include <mupdf/fitz/document.h>
 #include <mupdf/fitz/geometry.h>
-#include "graphics/pixmap.hpp"
-#include <mupdf/fitz/color.h>
-#include <mupdf/fitz/util.h>
-#include <mupdf/fitz/device.h>
-#include <mupdf/fitz/pixmap.h>
-#include <mupdf/fitz/outline.h>
 #include <mupdf/fitz/link.h>
-#include <mupdf/fitz/structured-text.h>
+#include <mupdf/fitz/outline.h>
+#include <mupdf/fitz/pixmap.h>
 #include <mupdf/fitz/string-util.h>
+#include <mupdf/fitz/structured-text.h>
+#include <mupdf/fitz/types.h>
+#include <mupdf/fitz/util.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
 #include <string>
-#include <vector>
 #include <utility>
+#include <vector>
 
 void ContextDeleter::operator()(fz_context* ctx) const {
   fz_drop_context(ctx);

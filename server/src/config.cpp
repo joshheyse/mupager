@@ -1,19 +1,20 @@
 #include "config.hpp"
+
 #include "action_traits.hpp"
 #include "color.hpp"
 
 #include <spdlog/spdlog.h>
 
-#include <cstdint>
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <string>
-#include <map>
 #include <unordered_set>
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include <toml++/toml.hpp> // NOLINT(misc-include-cleaner)
 
@@ -41,10 +42,16 @@ static void parse_colors_table(const toml::table& tbl, Config& cfg) {
   }
 
   static const std::unordered_set<std::string> KnownColorKeys = {
-      "statusline-fg",    "statusline-bg",          "overlay-fg",        "overlay-bg",          "overlay-border",      "sidebar-fg",
-      "sidebar-bg",       "sidebar-active-fg",      "sidebar-active-bg", "sidebar-border",      "link-hint-fg",        "link-hint-bg",
-      "search-highlight", "search-highlight-alpha", "selection-highlight", "selection-highlight-alpha",
-      "recolor-dark",     "recolor-light",          "recolor-accent",
+      "statusline-fg",       "statusline-bg",
+      "overlay-fg",          "overlay-bg",
+      "overlay-border",      "sidebar-fg",
+      "sidebar-bg",          "sidebar-active-fg",
+      "sidebar-active-bg",   "sidebar-border",
+      "link-hint-fg",        "link-hint-bg",
+      "search-highlight",    "search-highlight-alpha",
+      "selection-highlight", "selection-highlight-alpha",
+      "recolor-dark",        "recolor-light",
+      "recolor-accent",
   };
 
   for (auto&& [key, val] : *colors_tbl) {

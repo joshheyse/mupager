@@ -1,34 +1,34 @@
 #include "neovim/frontend.hpp"
 
+#include "action.hpp"
 #include "app.hpp"
 #include "document.hpp"
 #include "frontend.hpp"
-#include "action.hpp"
 #include "geometry.hpp"
 #include "graphics/kitty.hpp"
 #include "graphics/sgr.hpp"
 #include "input_event.hpp"
 #include "neovim/rpc_transport.hpp"
 
-#include <msgpack.hpp>
 #include <spdlog/spdlog.h>
-#include <cstdio>
 #include <sys/ioctl.h>
 #include <sys/ttycom.h>
 #include <unistd.h>
 
 #include <array>
 #include <cerrno>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstdint>
 #include <cstring>
+#include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <variant>
-#include <stdexcept>
-#include <optional>
 #include <vector>
+
+#include <msgpack.hpp>
 
 /// @brief Run a tmux display-message command targeting a specific pane and return the trimmed output.
 /// @param pane_id The tmux pane target (e.g. "%0"). Empty string uses the active pane.

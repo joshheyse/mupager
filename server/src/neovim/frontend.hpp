@@ -1,11 +1,10 @@
 #pragma once
 
+#include "../frontend.hpp" // relative path to resolve base, not self
 #include "neovim/rpc_transport.hpp"
 
 #include <cstdio>
 #include <deque>
-
-#include "../frontend.hpp" // relative path to resolve base, not self
 
 class App;
 
