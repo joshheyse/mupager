@@ -19,10 +19,6 @@ jobs:
             artifact: mupager-aarch64-darwin
             install: brew install mupdf msgpack-cxx
             cmake_extra: ""
-          - os: macos-13
-            artifact: mupager-x86_64-darwin
-            install: brew install mupdf msgpack-cxx
-            cmake_extra: ""
           - os: ubuntu-latest
             artifact: mupager-x86_64-linux-portable
             install: >-
@@ -33,10 +29,6 @@ jobs:
             cmake_extra: -DMUPAGER_STATIC_DEPS=ON
           - os: macos-latest
             artifact: mupager-aarch64-darwin-portable
-            install: brew install mupdf msgpack-cxx
-            cmake_extra: -DMUPAGER_STATIC_DEPS=ON
-          - os: macos-13
-            artifact: mupager-x86_64-darwin-portable
             install: brew install mupdf msgpack-cxx
             cmake_extra: -DMUPAGER_STATIC_DEPS=ON
     runs-on: ${{ matrix.os }}
