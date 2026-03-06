@@ -11,8 +11,8 @@ pkg_check_modules(MUPDF REQUIRED IMPORTED_TARGET mupdf)
 pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw)
 
 if(MUPAGER_STATIC_DEPS)
-  pkg_check_modules(MUPDF_STATIC REQUIRED IMPORTED_TARGET mupdf --static)
-  pkg_check_modules(NCURSESW_STATIC REQUIRED IMPORTED_TARGET ncursesw --static)
+  pkg_check_modules(MUPDF_DEPS REQUIRED IMPORTED_TARGET
+    freetype2 harfbuzz libjpeg libopenjp2 gumbo zlib)
 endif()
 
 # --- Server library (shared between exe and tests) ---
@@ -54,8 +54,9 @@ target_include_directories(server-lib
 
 if(MUPAGER_STATIC_DEPS)
   target_link_libraries(server-lib
-    PUBLIC PkgConfig::MUPDF_STATIC
-    PUBLIC PkgConfig::NCURSESW_STATIC
+    PUBLIC PkgConfig::MUPDF
+    PUBLIC PkgConfig::MUPDF_DEPS
+    PUBLIC PkgConfig::NCURSESW
     PUBLIC spdlog::spdlog
     PRIVATE CLI11::CLI11
     PRIVATE tomlplusplus::tomlplusplus
