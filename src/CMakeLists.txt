@@ -17,19 +17,19 @@ if(NOT MUPDF_FOUND)
   find_library(MUPDF_LIBRARY mupdf
     HINTS ENV CMAKE_PREFIX_PATH
     PATH_SUFFIXES lib)
-  find_library(MUPDF_THIRD_LIBRARY mupdf-third
-    HINTS ENV CMAKE_PREFIX_PATH
-    PATH_SUFFIXES lib)
   if(NOT MUPDF_INCLUDE_DIR OR NOT MUPDF_LIBRARY)
     message(FATAL_ERROR "mupdf not found via pkg-config or find_library")
   endif()
   add_library(PkgConfig::MUPDF INTERFACE IMPORTED)
   target_include_directories(PkgConfig::MUPDF INTERFACE ${MUPDF_INCLUDE_DIR})
   target_link_libraries(PkgConfig::MUPDF INTERFACE ${MUPDF_LIBRARY})
-  if(MUPDF_THIRD_LIBRARY)
-    target_link_libraries(PkgConfig::MUPDF INTERFACE ${MUPDF_THIRD_LIBRARY})
-  endif()
   set(MUPDF_INCLUDE_DIRS ${MUPDF_INCLUDE_DIR})
+endif()
+
+# mupdf-third: bundled third-party deps (needed when mupdf is a static archive)
+find_library(MUPDF_THIRD_LIBRARY mupdf-third)
+if(MUPDF_THIRD_LIBRARY)
+  target_link_libraries(PkgConfig::MUPDF INTERFACE ${MUPDF_THIRD_LIBRARY})
 endif()
 
 pkg_check_modules(NCURSESW IMPORTED_TARGET ncursesw)
