@@ -1298,8 +1298,7 @@ void App::enter_link_hints() {
   link_hints_.clear();
   link_hint_input_.clear();
 
-  spdlog::debug("enter_link_hints: pages=[{},{}] scroll=({},{}) vp={}x{}", viewport_first_page_, viewport_last_page_,
-                scroll_.x, scroll_.y, vw, vh);
+  spdlog::debug("enter_link_hints: pages=[{},{}] scroll=({},{}) vp={}x{}", viewport_first_page_, viewport_last_page_, scroll_.x, scroll_.y, vw, vh);
 
   for (int p = viewport_first_page_; p <= viewport_last_page_; ++p) {
     auto page_links = doc_.load_links(p);

@@ -118,7 +118,9 @@ target_link_libraries(ServerTests
 )
 
 get_target_property(_doctest_inc doctest::doctest_with_main INTERFACE_INCLUDE_DIRECTORIES)
-target_include_directories(ServerTests SYSTEM PRIVATE ${_doctest_inc})
+if(_doctest_inc)
+  target_include_directories(ServerTests SYSTEM PRIVATE ${_doctest_inc})
+endif()
 
 target_set_warnings(ServerTests)
 target_set_sanitizers(ServerTests)
