@@ -1,8 +1,21 @@
 project(mupager VERSION 0.1.0 LANGUAGES CXX)
 
+option(MUPAGER_STATIC_DEPS "Statically link dependencies (not glibc)" OFF)
+if(MUPAGER_STATIC_DEPS)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+  if(NOT APPLE)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
+  endif()
+endif()
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MUPDF REQUIRED IMPORTED_TARGET mupdf)
 pkg_check_modules(NCURSESW REQUIRED IMPORTED_TARGET ncursesw)
+
+if(MUPAGER_STATIC_DEPS)
+  pkg_check_modules(MUPDF_STATIC REQUIRED IMPORTED_TARGET mupdf --static)
+  pkg_check_modules(NCURSESW_STATIC REQUIRED IMPORTED_TARGET ncursesw --static)
+endif()
 
 find_path(MSGPACK_INCLUDE_DIR NAMES msgpack.hpp REQUIRED)
 
@@ -15,6 +28,7 @@ set(SERVER_LIB_SOURCES
   src/terminal/key_bindings.cpp
   src/document.cpp
   src/frontend.cpp
+  src/diagnose.cpp
   src/app.cpp
   src/page.cpp
   src/page_manager.cpp
@@ -32,19 +46,34 @@ set(SERVER_LIB_SOURCES
 
 add_library(server-lib STATIC ${SERVER_LIB_SOURCES})
 
+target_compile_definitions(server-lib PUBLIC
+  MUPAGER_VERSION="${PROJECT_VERSION}"
+  MUPAGER_GIT_HASH="${MUPAGER_GIT_HASH}"
+  MUPAGER_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
+
 target_include_directories(server-lib
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
   PUBLIC ${MUPDF_INCLUDE_DIRS}
   PRIVATE ${MSGPACK_INCLUDE_DIR}
 )
 
-target_link_libraries(server-lib
-  PUBLIC PkgConfig::MUPDF
-  PUBLIC PkgConfig::NCURSESW
-  PUBLIC spdlog::spdlog
-  PRIVATE CLI11::CLI11
-  PRIVATE tomlplusplus::tomlplusplus
-)
+if(MUPAGER_STATIC_DEPS)
+  target_link_libraries(server-lib
+    PUBLIC PkgConfig::MUPDF_STATIC
+    PUBLIC PkgConfig::NCURSESW_STATIC
+    PUBLIC spdlog::spdlog
+    PRIVATE CLI11::CLI11
+    PRIVATE tomlplusplus::tomlplusplus
+  )
+else()
+  target_link_libraries(server-lib
+    PUBLIC PkgConfig::MUPDF
+    PUBLIC PkgConfig::NCURSESW
+    PUBLIC spdlog::spdlog
+    PRIVATE CLI11::CLI11
+    PRIVATE tomlplusplus::tomlplusplus
+  )
+endif()
 
 target_set_warnings(server-lib)
 target_set_sanitizers(server-lib)
@@ -65,6 +94,9 @@ target_include_directories(mupager
 target_link_libraries(mupager
   PRIVATE server-lib
 )
+
+install(TARGETS mupager RUNTIME DESTINATION bin)
+install(FILES ${CMAKE_SOURCE_DIR}/doc/mupager.1 DESTINATION share/man/man1)
 
 # --- Tests ---
 

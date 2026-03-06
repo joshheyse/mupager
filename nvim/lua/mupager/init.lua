@@ -38,6 +38,10 @@ end
 --- Setup mupager plugin.
 --- @param opts table|nil Configuration options.
 function M.setup(opts)
+  local plugin_dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h:h")
+  local doc_dir = plugin_dir .. "/doc"
+  if vim.fn.isdirectory(doc_dir) == 1 then pcall(vim.cmd, "helptags " .. vim.fn.fnameescape(doc_dir)) end
+
   local file_config = require("mupager.config").load()
   config = vim.tbl_deep_extend("force", file_config, opts or {})
   if config.log_level then log.set_level(config.log_level) end
