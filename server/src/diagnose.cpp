@@ -12,18 +12,27 @@
 #include <filesystem>
 #include <string>
 
+/// @brief RAII wrapper for popen/pclose.
+struct PipeGuard {
+  FILE* pipe = nullptr;
+  ~PipeGuard() {
+    if (pipe) {
+      pclose(pipe);
+    }
+  }
+};
+
 /// @brief Read output from a shell command, trimming trailing newlines.
 static std::string shell_exec(const char* cmd) {
-  std::string result;
-  FILE* pipe = popen(cmd, "r");
-  if (!pipe) {
+  PipeGuard guard{popen(cmd, "r")};
+  if (!guard.pipe) {
     return {};
   }
+  std::string result;
   std::array<char, 256> buf{};
-  while (fgets(buf.data(), static_cast<int>(buf.size()), pipe)) {
+  while (fgets(buf.data(), static_cast<int>(buf.size()), guard.pipe)) {
     result += buf.data();
   }
-  pclose(pipe);
   while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) {
     result.pop_back();
   }

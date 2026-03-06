@@ -10,7 +10,6 @@
 #include <map>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 /// @brief Shell-escape a path by wrapping in single quotes.
 static std::string shell_escape(const std::string& path) {
@@ -70,18 +69,13 @@ std::optional<std::string> find_converter(const std::string& file_path, const st
 
 ConversionResult convert(const std::string& input_path, const std::string& command) {
   auto tmpdir = std::filesystem::temp_directory_path();
-  auto tmp_template = (tmpdir / "mupager_XXXXXX").string();
+  std::string tmp_path = (tmpdir / "mupager_XXXXXX").string();
 
-  std::vector<char> buf(tmp_template.begin(), tmp_template.end());
-  buf.push_back('\0');
-
-  int fd = mkstemp(buf.data());
+  int fd = mkstemp(tmp_path.data());
   if (fd < 0) {
     throw std::runtime_error("failed to create temp file");
   }
   close(fd);
-
-  std::string tmp_path(buf.data());
   std::string pdf_path = tmp_path + ".pdf";
   std::filesystem::rename(tmp_path, pdf_path);
 

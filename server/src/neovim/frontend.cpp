@@ -11,11 +11,8 @@
 #include "neovim/rpc_transport.hpp"
 
 #include <msgpack.hpp>
-#include <msgpack/v3/adaptor/adaptor_base_decl.hpp>
-#include <msgpack/v3/object_fwd_decl.hpp>
-#include <msgpack/v3/sbuffer_decl.hpp>
 #include <spdlog/spdlog.h>
-#include <stdio.h>
+#include <cstdio>
 #include <sys/ioctl.h>
 #include <sys/ttycom.h>
 #include <unistd.h>

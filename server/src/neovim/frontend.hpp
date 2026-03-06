@@ -5,7 +5,7 @@
 #include <cstdio>
 #include <deque>
 
-#include <frontend.hpp> // angle brackets to resolve base, not self
+#include "../frontend.hpp" // relative path to resolve base, not self
 
 class App;
 

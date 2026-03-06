@@ -2,7 +2,6 @@
 #include <mupdf/fitz/context.h>
 #include <mupdf/fitz/types.h>
 #include <mupdf/fitz/document.h>
-#include "geometry.hpp"
 #include <mupdf/fitz/geometry.h>
 #include "graphics/pixmap.hpp"
 #include <mupdf/fitz/color.h>
@@ -149,13 +148,14 @@ Outline Document::load_outline() const {
 
   fz_try(raw_ctx) {
     root = fz_load_outline(raw_ctx, doc_.get());
+    flatten_outline(raw_ctx, doc_.get(), root, 0, result);
+  }
+  fz_always(raw_ctx) {
+    fz_drop_outline(raw_ctx, root);
   }
   fz_catch(raw_ctx) {
-    return result;
+    // Documents without outlines — return empty.
   }
-
-  flatten_outline(raw_ctx, doc_.get(), root, 0, result);
-  fz_drop_outline(raw_ctx, root);
 
   return result;
 }

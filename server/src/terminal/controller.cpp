@@ -406,7 +406,7 @@ void TerminalController::show_outline_popup() {
     outline_scroll_ = outline_cursor_;
   }
   if (outline_cursor_ >= outline_scroll_ + max_visible) {
-    outline_scroll_ = outline_cursor_ - max_visible + 1;
+    outline_scroll_ = std::max(0, outline_cursor_ - max_visible + 1);
   }
 
   int content_w = box_width - 6;
@@ -504,7 +504,7 @@ int TerminalController::sidebar_effective_width() const {
   auto client = frontend_.client_info();
   int total_cols = client.cols + frontend_.canvas_inset();
   if (sidebar_width_cols_ > 0) {
-    return std::min(sidebar_width_cols_, total_cols - 10);
+    return std::max(0, std::min(sidebar_width_cols_, total_cols - 10));
   }
   return std::max(15, total_cols / 5);
 }
@@ -646,7 +646,7 @@ void TerminalController::update_sidebar_display() {
       sidebar_scroll_ = sidebar_cursor_;
     }
     if (sidebar_cursor_ >= sidebar_scroll_ + max_visible) {
-      sidebar_scroll_ = sidebar_cursor_ - max_visible + 1;
+      sidebar_scroll_ = std::max(0, sidebar_cursor_ - max_visible + 1);
     }
 
     std::vector<std::string> lines;
@@ -687,7 +687,7 @@ void TerminalController::update_sidebar_display() {
         sidebar_scroll_ = active;
       }
       if (active >= sidebar_scroll_ + visible_rows) {
-        sidebar_scroll_ = active - visible_rows + 1;
+        sidebar_scroll_ = std::max(0, active - visible_rows + 1);
       }
     }
 

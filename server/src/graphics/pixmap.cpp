@@ -167,15 +167,18 @@ void Pixmap::recolor(Color fg, Color bg, Color accent) {
 std::vector<unsigned char> Pixmap::png_data() const {
   fz_context* ctx = pix_.get_deleter().ctx;
   fz_buffer* buf = nullptr;
+  std::vector<unsigned char> result;
   fz_try(ctx) {
     buf = fz_new_buffer_from_pixmap_as_png(ctx, pix_.get(), fz_default_color_params);
+    unsigned char* data;
+    size_t len = fz_buffer_storage(ctx, buf, &data);
+    result.assign(data, data + len);
+  }
+  fz_always(ctx) {
+    fz_drop_buffer(ctx, buf);
   }
   fz_catch(ctx) {
     throw std::runtime_error("failed to encode PNG: " + std::string(fz_caught_message(ctx)));
   }
-  unsigned char* data;
-  size_t len = fz_buffer_storage(ctx, buf, &data);
-  std::vector<unsigned char> result(data, data + len);
-  fz_drop_buffer(ctx, buf);
   return result;
 }
