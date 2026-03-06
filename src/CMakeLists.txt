@@ -1,5 +1,3 @@
-project(mupager VERSION 0.1.0 LANGUAGES CXX)
-
 option(MUPAGER_STATIC_DEPS "Statically link dependencies (not glibc)" OFF)
 if(MUPAGER_STATIC_DEPS)
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
