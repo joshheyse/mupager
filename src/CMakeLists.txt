@@ -1,15 +1,3 @@
-option(MUPAGER_STATIC_DEPS "Statically link dependencies (not glibc)" OFF)
-if(MUPAGER_STATIC_DEPS)
-  set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
-  if(NOT APPLE)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
-    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++")
-    endif()
-  endif()
-endif()
-
 find_package(PkgConfig REQUIRED)
 
 # mupdf: try pkg-config first, fall back to find_library (Homebrew has no .pc)
@@ -30,27 +18,12 @@ if(NOT MUPDF_FOUND)
   set(MUPDF_INCLUDE_DIRS ${MUPDF_INCLUDE_DIR})
 endif()
 
-# mupdf-third: bundled third-party deps (needed when mupdf is a static archive)
-find_library(MUPDF_THIRD_LIBRARY mupdf-third)
-if(MUPDF_THIRD_LIBRARY)
-  message(STATUS "Found mupdf-third: ${MUPDF_THIRD_LIBRARY}")
-  target_link_libraries(PkgConfig::MUPDF INTERFACE ${MUPDF_THIRD_LIBRARY})
-else()
-  message(STATUS "mupdf-third not found (not needed for shared library builds)")
-endif()
-
 pkg_check_modules(NCURSESW IMPORTED_TARGET ncursesw)
 if(NOT NCURSESW_FOUND)
   find_package(Curses REQUIRED)
   add_library(PkgConfig::NCURSESW INTERFACE IMPORTED)
   target_include_directories(PkgConfig::NCURSESW INTERFACE ${CURSES_INCLUDE_DIRS})
   target_link_libraries(PkgConfig::NCURSESW INTERFACE ${CURSES_LIBRARIES})
-endif()
-
-# mupdf's static lib needs its transitive deps linked explicitly
-if(NOT APPLE)
-  pkg_check_modules(MUPDF_DEPS IMPORTED_TARGET
-    freetype2 harfbuzz libjpeg libopenjp2 gumbo zlib)
 endif()
 
 # --- Server library (shared between exe and tests) ---
@@ -98,10 +71,6 @@ target_link_libraries(server-lib
   PRIVATE tomlplusplus::tomlplusplus
   PUBLIC msgpack-cxx
 )
-
-if(TARGET PkgConfig::MUPDF_DEPS)
-  target_link_libraries(server-lib PUBLIC PkgConfig::MUPDF_DEPS)
-endif()
 
 target_set_warnings(server-lib)
 target_set_sanitizers(server-lib)
