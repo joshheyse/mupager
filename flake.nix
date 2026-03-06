@@ -60,19 +60,7 @@
           version = "0.0.0";
           src = pkgs.lib.cleanSource ./.;
           nativeBuildInputs = with pkgs; [cmake ninja pkg-config];
-          buildInputs = with pkgs;
-            [mupdf ncurses]
-            ++ pkgs.lib.optionals isLinux [
-              # Static link deps for mupdf on Linux
-              freetype
-              harfbuzz
-              libjpeg
-              openjpeg
-              gumbo
-              zlib
-              jbig2dec
-              mujs
-            ];
+          buildInputs = with pkgs; [mupdf ncurses];
 
           preConfigure = ''
             export CPM_SOURCE_CACHE=$TMPDIR/cpm-cache
@@ -80,17 +68,13 @@
             cp ${cpm-cmake} $CPM_SOURCE_CACHE/cpm/CPM_0.42.0.cmake
           '';
 
-          cmakeFlags =
-            [
-              "-DCPM_doctest_SOURCE=${doctest}"
-              "-DCPM_tomlplusplus_SOURCE=${tomlplusplus}"
-              "-DCPM_CLI11_SOURCE=${cli11}"
-              "-DCPM_spdlog_SOURCE=${spdlog}"
-              "-DCPM_msgpack-cxx_SOURCE=${msgpack-cxx}"
-            ]
-            ++ pkgs.lib.optionals isLinux [
-              "-DMUPAGER_STATIC_DEPS=ON"
-            ];
+          cmakeFlags = [
+            "-DCPM_doctest_SOURCE=${doctest}"
+            "-DCPM_tomlplusplus_SOURCE=${tomlplusplus}"
+            "-DCPM_CLI11_SOURCE=${cli11}"
+            "-DCPM_spdlog_SOURCE=${spdlog}"
+            "-DCPM_msgpack-cxx_SOURCE=${msgpack-cxx}"
+          ];
 
           doCheck = true;
           checkPhase = ''ctest -j$NIX_BUILD_CORES --output-on-failure'';
