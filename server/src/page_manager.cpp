@@ -41,6 +41,7 @@ void PageManager::ensure_uploaded(
         if (it->second.render_zoom() == render_zoom) {
           continue;
         }
+        spdlog::debug("cache invalidate page {}: zoom changed {:.2f} -> {:.2f}", i, it->second.render_zoom(), render_zoom);
         it->second.free_image(frontend);
         cache_.erase(it);
       }
@@ -48,9 +49,16 @@ void PageManager::ensure_uploaded(
         if (it->second.render_scale() >= render.render_scale && it->second.render_zoom() == render_zoom) {
           continue;
         }
+        spdlog::debug(
+            "cache invalidate page {}: scale {:.2f} -> {:.2f}, zoom {:.2f} -> {:.2f}",
+            i, it->second.render_scale(), render.render_scale, it->second.render_zoom(), render_zoom
+        );
         it->second.free_image(frontend);
         cache_.erase(it);
       }
+    }
+    else {
+      spdlog::debug("cache miss page {}: zoom={:.2f} scale={:.2f}", i, render_zoom, render.render_scale);
     }
 
     cache_.insert_or_assign(i, Page::render(doc, i, render, base_zoom, highlights, frontend));

@@ -668,6 +668,22 @@ void App::handle_action(const Action& act) {
   last_activity_time_ = std::chrono::steady_clock::now();
 
   std::visit(
+      [](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, action::ScrollDown> || std::is_same_v<T, action::ScrollUp>
+                      || std::is_same_v<T, action::ScrollLeft> || std::is_same_v<T, action::ScrollRight>
+                      || std::is_same_v<T, action::MouseScroll> || std::is_same_v<T, action::Resize>
+                      || std::is_same_v<T, action::DragUpdate> || std::is_same_v<T, action::SelectionMove>) {
+          spdlog::trace("action: {}", T::Name);
+        }
+        else {
+          spdlog::debug("action: {}", T::Name);
+        }
+      },
+      act
+  );
+
+  std::visit(
       [&](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
 

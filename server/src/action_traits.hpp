@@ -9,12 +9,12 @@
 #include <string_view>
 #include <variant>
 
-/// @brief Detect whether T has a static Name member.
+/// @brief Detect whether T is a user-bindable action (has both Name and Description).
 template <typename T, typename = void>
-struct HasName : std::false_type {};
+struct IsBindable : std::false_type {};
 
 template <typename T>
-struct HasName<T, std::void_t<decltype(T::Name)>> : std::true_type {};
+struct IsBindable<T, std::void_t<decltype(T::Name), decltype(T::Description)>> : std::true_type {};
 
 /// @brief Visitor callback type for for_each_named_action().
 using ActionVisitor = void (*)(const char* name, const char* description);
@@ -29,7 +29,7 @@ std::optional<Action> action_from_name_impl(std::string_view name) {
   }
   else {
     using T = std::variant_alternative_t<I, Variant>;
-    if constexpr (HasName<T>::value) {
+    if constexpr (IsBindable<T>::value) {
       if (name == T::Name) {
         return T{};
       }
@@ -43,7 +43,7 @@ template <typename Variant, std::size_t I = 0>
 void for_each_named_action_impl(ActionVisitor fn) {
   if constexpr (I < std::variant_size_v<Variant>) {
     using T = std::variant_alternative_t<I, Variant>;
-    if constexpr (HasName<T>::value) {
+    if constexpr (IsBindable<T>::value) {
       fn(T::Name, T::Description);
     }
     for_each_named_action_impl<Variant, I + 1>(fn);

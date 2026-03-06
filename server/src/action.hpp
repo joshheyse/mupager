@@ -12,6 +12,7 @@ struct Quit {
 };
 
 struct Resize {
+  static constexpr const char* Name = "resize";
   int cols;       ///< Window width in columns.
   int rows;       ///< Window height in rows.
   int offset_row; ///< Screen row offset of the Neovim window.
@@ -63,6 +64,7 @@ struct ScrollRight {
 };
 
 struct GotoPage {
+  static constexpr const char* Name = "goto_page";
   int page; ///< 1-based page number.
 };
 
@@ -97,6 +99,7 @@ struct ToggleViewMode {
 };
 
 struct SetViewMode {
+  static constexpr const char* Name = "set_view_mode";
   std::string mode;
 };
 
@@ -106,20 +109,26 @@ struct ToggleTheme {
 };
 
 struct SetTheme {
+  static constexpr const char* Name = "set_theme";
   std::string theme;
 };
 
 struct SetRenderScale {
+  static constexpr const char* Name = "set_render_scale";
   std::string strategy;
 };
 
 struct SetSidebarWidth {
+  static constexpr const char* Name = "set_sidebar_width";
   int cols; ///< Sidebar width in columns (0 = default).
 };
 
-struct Reload {};
+struct Reload {
+  static constexpr const char* Name = "reload";
+};
 
 struct Search {
+  static constexpr const char* Name = "search";
   std::string term;
 };
 
@@ -154,13 +163,22 @@ struct EnterLinkHints {
 };
 
 struct LinkHintKey {
+  static constexpr const char* Name = "link_hint_key";
   char ch;
 };
 
-struct LinkHintCancel {};
-struct GetOutline {};
-struct GetLinks {};
-struct GetState {};
+struct LinkHintCancel {
+  static constexpr const char* Name = "link_hint_cancel";
+};
+struct GetOutline {
+  static constexpr const char* Name = "get_outline";
+};
+struct GetLinks {
+  static constexpr const char* Name = "get_links";
+};
+struct GetState {
+  static constexpr const char* Name = "get_state";
+};
 
 struct OpenOutline {
   static constexpr const char* Name = "outline";
@@ -187,15 +205,21 @@ struct ShowHelp {
   static constexpr const char* Description = "Toggle Help";
 };
 
-struct Hide {};
-struct Show {};
+struct Hide {
+  static constexpr const char* Name = "hide";
+};
+struct Show {
+  static constexpr const char* Name = "show";
+};
 
 struct MouseScroll {
+  static constexpr const char* Name = "mouse_scroll";
   int dx = 0; ///< Horizontal pixel delta.
   int dy = 0; ///< Vertical pixel delta.
 };
 
 struct ClickAt {
+  static constexpr const char* Name = "click_at";
   int col; ///< Screen column (0-based cell).
   int row; ///< Screen row (0-based cell).
 };
@@ -211,6 +235,7 @@ struct EnterVisualBlockMode {
 };
 
 struct SelectionMove {
+  static constexpr const char* Name = "selection_move";
   int dx; ///< Relative cell movement X.
   int dy; ///< Relative cell movement Y.
 };
@@ -220,9 +245,12 @@ struct SelectionYank {
   static constexpr const char* Description = "Yank Selection";
 };
 
-struct SelectionCancel {};
+struct SelectionCancel {
+  static constexpr const char* Name = "selection_cancel";
+};
 
 struct SelectionMoveWord {
+  static constexpr const char* Name = "selection_move_word";
   int direction; ///< +1 = forward (w), -1 = backward (b).
 };
 
@@ -237,20 +265,24 @@ enum class SelectionTarget {
 };
 
 struct SelectionGoto {
+  static constexpr const char* Name = "selection_goto";
   SelectionTarget target;
 };
 
 struct DragStart {
+  static constexpr const char* Name = "drag_start";
   int col; ///< Screen column (0-based cell).
   int row; ///< Screen row (0-based cell).
 };
 
 struct DragUpdate {
+  static constexpr const char* Name = "drag_update";
   int col; ///< Screen column (0-based cell).
   int row; ///< Screen row (0-based cell).
 };
 
 struct DragEnd {
+  static constexpr const char* Name = "drag_end";
   int col; ///< Screen column (0-based cell).
   int row; ///< Screen row (0-based cell).
 };

@@ -33,7 +33,7 @@ template <std::size_t I = 0>
 void collect_named_actions(EntryTable& table) {
   if constexpr (I < std::variant_size_v<Action>) {
     using T = std::variant_alternative_t<I, Action>;
-    if constexpr (HasName<T>::value) {
+    if constexpr (IsBindable<T>::value) {
       table.add(T::Name, T::Description, []() -> Action { return T{}; });
     }
     collect_named_actions<I + 1>(table);
