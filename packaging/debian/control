@@ -1,0 +1,33 @@
+Source: mupager
+Section: text
+Priority: optional
+Maintainer: Josh Heyse <josh@joshheyse.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ cmake (>= 3.26),
+ ninja-build,
+ g++,
+ pkg-config,
+ git,
+ libmupdf-dev,
+ libfreetype-dev,
+ libmujs-dev,
+ libharfbuzz-dev,
+ libjbig2dec0-dev,
+ libopenjp2-7-dev,
+ libjpeg-dev,
+ libgumbo-dev,
+ zlib1g-dev,
+ libncursesw5-dev,
+ curl
+Standards-Version: 4.6.2
+Homepage: https://github.com/joshheyse/mupager
+Rules-Requires-Root: no
+
+Package: mupager
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Terminal document viewer with pixel-perfect rendering
+ mupager renders PDFs, EPUB, and other documents with pixel-perfect
+ fidelity using the Kitty graphics protocol. It includes Neovim
+ integration for viewing documents inside your editor.

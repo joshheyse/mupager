@@ -1,0 +1,64 @@
+# Maintainer: Josh Heyse <josh@joshheyse.com>
+pkgname=mupager
+pkgver=0.2.0
+pkgrel=1
+pkgdesc='Terminal document viewer with pixel-perfect rendering via Kitty graphics protocol'
+arch=('x86_64' 'aarch64')
+url='https://github.com/joshheyse/mupager'
+license=('MIT')
+depends=('libmupdf' 'ncurses')
+makedepends=('cmake' 'ninja' 'gcc' 'git' 'pkgconf')
+source=(
+  "$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
+  "doctest-2.4.12.tar.gz::https://github.com/doctest/doctest/archive/refs/tags/v2.4.12.tar.gz"
+  "tomlplusplus-3.4.0.tar.gz::https://github.com/marzer/tomlplusplus/archive/refs/tags/v3.4.0.tar.gz"
+  "CLI11-2.4.2.tar.gz::https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.4.2.tar.gz"
+  "spdlog-1.15.0.tar.gz::https://github.com/gabime/spdlog/archive/refs/tags/v1.15.0.tar.gz"
+  "msgpack-cxx-7.0.0.tar.gz::https://github.com/msgpack/msgpack-c/archive/refs/tags/cpp-7.0.0.tar.gz"
+)
+sha256sums=('SKIP'
+            'SKIP'
+            'SKIP'
+            'SKIP'
+            'SKIP'
+            'SKIP')
+
+prepare() {
+  cd "$pkgname-$pkgver"
+
+  # Create git repo with version tag so CMake's git describe works
+  git init -q
+  git -c user.name=build -c user.email=build@build commit -q -m "v$pkgver" --allow-empty
+  git tag "v$pkgver"
+}
+
+build() {
+  cd "$pkgname-$pkgver"
+
+  cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCPM_doctest_SOURCE="$srcdir/doctest-2.4.12" \
+    -DCPM_tomlplusplus_SOURCE="$srcdir/tomlplusplus-3.4.0" \
+    -DCPM_CLI11_SOURCE="$srcdir/CLI11-2.4.2" \
+    -DCPM_spdlog_SOURCE="$srcdir/spdlog-1.15.0" \
+    -DCPM_msgpack-cxx_SOURCE="$srcdir/msgpack-c-cpp-7.0.0"
+
+  cmake --build build
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  ctest --test-dir build --output-on-failure
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  DESTDIR="$pkgdir" cmake --install build
+
+  # Remove CPM dependency artifacts that leak into the install
+  rm -rf "$pkgdir/usr/include/doctest"
+  rm -rf "$pkgdir/usr/lib/cmake/doctest"
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -2,6 +2,21 @@ find_package(PkgConfig REQUIRED)
 
 # mupdf: try pkg-config first, fall back to find_library (Homebrew has no .pc)
 pkg_check_modules(MUPDF IMPORTED_TARGET mupdf)
+if(MUPDF_FOUND)
+  # Some distros (e.g. Ubuntu) ship mupdf as a static library only.
+  # Patch the imported target to include Libs.private transitive deps.
+  find_library(_mupdf_lib NAMES mupdf HINTS ${MUPDF_LIBRARY_DIRS})
+  if(_mupdf_lib MATCHES "\\.a$")
+    set_property(TARGET PkgConfig::MUPDF PROPERTY
+      INTERFACE_LINK_LIBRARIES "${MUPDF_STATIC_LDFLAGS}")
+    # Ubuntu's mupdf.pc omits harfbuzz from Libs.private despite needing it
+    pkg_check_modules(HARFBUZZ harfbuzz)
+    if(HARFBUZZ_FOUND)
+      set_property(TARGET PkgConfig::MUPDF APPEND PROPERTY
+        INTERFACE_LINK_LIBRARIES "${HARFBUZZ_LDFLAGS}")
+    endif()
+  endif()
+endif()
 if(NOT MUPDF_FOUND)
   find_path(MUPDF_INCLUDE_DIR mupdf/fitz.h
     HINTS ENV CMAKE_PREFIX_PATH

@@ -1,0 +1,61 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+
+# CPM dependency versions (keep in sync with CMakeLists.txt)
+DOCTEST_VER     = 2.4.12
+TOML_VER        = 3.4.0
+CLI11_VER       = 2.4.2
+SPDLOG_VER      = 1.15.0
+MSGPACK_VER     = 7.0.0
+
+VERSION = $(shell dpkg-parsechangelog -S Version)
+DEPS_DIR = $(CURDIR)/_deps
+
+%:
+	dh $@
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -rf $(DEPS_DIR)
+
+override_dh_auto_configure:
+	# Download CPM dependency tarballs
+	mkdir -p $(DEPS_DIR)
+	curl -Lo $(DEPS_DIR)/doctest-$(DOCTEST_VER).tar.gz \
+		https://github.com/doctest/doctest/archive/refs/tags/v$(DOCTEST_VER).tar.gz
+	curl -Lo $(DEPS_DIR)/tomlplusplus-$(TOML_VER).tar.gz \
+		https://github.com/marzer/tomlplusplus/archive/refs/tags/v$(TOML_VER).tar.gz
+	curl -Lo $(DEPS_DIR)/CLI11-$(CLI11_VER).tar.gz \
+		https://github.com/CLIUtils/CLI11/archive/refs/tags/v$(CLI11_VER).tar.gz
+	curl -Lo $(DEPS_DIR)/spdlog-$(SPDLOG_VER).tar.gz \
+		https://github.com/gabime/spdlog/archive/refs/tags/v$(SPDLOG_VER).tar.gz
+	curl -Lo $(DEPS_DIR)/msgpack-cxx-$(MSGPACK_VER).tar.gz \
+		https://github.com/msgpack/msgpack-c/archive/refs/tags/cpp-$(MSGPACK_VER).tar.gz
+
+	# Extract
+	tar xzf $(DEPS_DIR)/doctest-$(DOCTEST_VER).tar.gz -C $(DEPS_DIR)
+	tar xzf $(DEPS_DIR)/tomlplusplus-$(TOML_VER).tar.gz -C $(DEPS_DIR)
+	tar xzf $(DEPS_DIR)/CLI11-$(CLI11_VER).tar.gz -C $(DEPS_DIR)
+	tar xzf $(DEPS_DIR)/spdlog-$(SPDLOG_VER).tar.gz -C $(DEPS_DIR)
+	tar xzf $(DEPS_DIR)/msgpack-cxx-$(MSGPACK_VER).tar.gz -C $(DEPS_DIR)
+
+	# Create git repo with version tag so CMake's git describe works
+	git init -q
+	git -c user.name=build -c user.email=build@build commit -q -m "v$(VERSION)" --allow-empty
+	git tag -f v$(VERSION)
+
+	# Configure with CPM sources pointed at local extracts
+	dh_auto_configure -- \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCPM_doctest_SOURCE="$(DEPS_DIR)/doctest-$(DOCTEST_VER)" \
+		-DCPM_tomlplusplus_SOURCE="$(DEPS_DIR)/tomlplusplus-$(TOML_VER)" \
+		-DCPM_CLI11_SOURCE="$(DEPS_DIR)/CLI11-$(CLI11_VER)" \
+		-DCPM_spdlog_SOURCE="$(DEPS_DIR)/spdlog-$(SPDLOG_VER)" \
+		-DCPM_msgpack-cxx_SOURCE="$(DEPS_DIR)/msgpack-c-cpp-$(MSGPACK_VER)"
+
+override_dh_auto_install:
+	dh_auto_install
+	# Remove CPM dependency artifacts that leak into the install
+	rm -rf debian/mupager/usr/include/doctest
+	rm -rf debian/mupager/usr/lib/*/cmake/doctest
