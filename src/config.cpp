@@ -228,8 +228,8 @@ Config load_config(const std::optional<std::string>& path_override) {
   if (auto v = tbl["show-stats"].value<bool>()) {
     cfg.show_stats = *v;
   }
-  if (auto v = tbl["max-page-cache"].value<int64_t>()) {
-    cfg.max_page_cache = static_cast<int>(*v);
+  if (auto v = tbl["cache-size"].value<int64_t>()) {
+    cfg.cache_size = static_cast<int>(*v);
   }
   if (auto v = tbl["watch"].value<bool>()) {
     cfg.watch = *v;
@@ -260,12 +260,11 @@ Config load_config(const std::optional<std::string>& path_override) {
   static const std::unordered_set<std::string> KnownKeys = {
       "view-mode",
       "theme",
-      "render-scale",
       "scroll-lines",
       "log-level",
       "log-file",
       "show-stats",
-      "max-page-cache",
+      "cache-size",
       "terminal-fg",
       "terminal-bg",
       "colors",

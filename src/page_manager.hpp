@@ -29,15 +29,16 @@ public:
       const HighlightParams& highlights
   );
 
-  /// @brief Evict pages outside [keep_first-2, keep_last+2] + size-based eviction.
-  void evict_distant(int keep_first, int keep_last, int layout_size, Frontend& frontend);
+  /// @brief Evict cached pages when over budget, furthest from viewport first.
+  void evict_over_budget(int keep_first, int keep_last, Frontend& frontend);
 
   /// @brief Re-highlight affected pages from base pixels (fast path).
   void refresh_highlights(int first, int last, const Document& doc, Frontend& frontend, const HighlightParams& highlights);
 
-  /// @brief Pre-upload one adjacent page (called during idle).
-  /// @return true if a page was uploaded, false if nothing to do.
-  bool pre_upload_one(
+  /// @brief Pre-render one page to fill the cache (called during idle).
+  /// Prioritizes pages near the viewport, then search results.
+  /// @return true if a page was uploaded, false if cache is full or all pages cached.
+  bool pre_render_one(
       int viewport_first,
       int viewport_last,
       int num_pages,
@@ -45,9 +46,7 @@ public:
       Frontend& frontend,
       const std::vector<PageLayout>& layout,
       const RenderParams& render,
-      const HighlightParams& highlights,
-      const SearchResults& search_results,
-      int search_current
+      const HighlightParams& highlights
   );
 
   /// @brief Free all cached images.

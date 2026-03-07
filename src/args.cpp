@@ -35,8 +35,8 @@ Args::Args(int argc, char* argv[])
   cli.add_option("--mode", mode, "Frontend mode (terminal, neovim)")->check(CLI::IsMember({"terminal", "neovim"}));
   auto* theme_opt = cli.add_option("--theme", theme, "Theme (dark, light, auto, terminal)")->check(CLI::IsMember({"dark", "light", "auto", "terminal"}));
   auto* scroll_lines_opt = cli.add_option("--scroll-lines", scroll_lines, "Lines per scroll step");
-  int max_cache_mb = 64;
-  auto* max_page_cache_opt = cli.add_option("--max-page-cache", max_cache_mb, "Max page cache size in MB (default 64)");
+  int cache_size_mb = 64;
+  auto* cache_size_opt = cli.add_option("--cache-size", cache_size_mb, "Page cache size in MB (default 64)");
   std::string config_str;
   cli.add_option("--config,-c", config_str, "Config file path (overrides XDG default)");
   auto* show_stats_opt = cli.add_flag("--show-stats", show_stats, "Show cache stats in the statusline");
@@ -68,7 +68,7 @@ Args::Args(int argc, char* argv[])
     log_level = env ? env : "info";
   }
 
-  max_page_cache = static_cast<size_t>(max_cache_mb) * 1024 * 1024;
+  cache_size = static_cast<size_t>(cache_size_mb) * 1024 * 1024;
 
   if (!config_str.empty()) {
     config_file = config_str;
@@ -94,8 +94,8 @@ Args::Args(int argc, char* argv[])
   if (show_stats_opt->count()) {
     cli_explicit_ |= CliShowStats;
   }
-  if (max_page_cache_opt->count()) {
-    cli_explicit_ |= CliMaxPageCache;
+  if (cache_size_opt->count()) {
+    cli_explicit_ |= CliCacheSize;
   }
   if (watch_opt->count()) {
     cli_explicit_ |= CliWatch;
@@ -139,8 +139,8 @@ void Args::apply_config(const Config& cfg) {
   if (!(cli_explicit_ & CliShowStats) && cfg.show_stats) {
     show_stats = *cfg.show_stats;
   }
-  if (!(cli_explicit_ & CliMaxPageCache) && cfg.max_page_cache) {
-    max_page_cache = static_cast<size_t>(*cfg.max_page_cache) * 1024 * 1024;
+  if (!(cli_explicit_ & CliCacheSize) && cfg.cache_size) {
+    cache_size = static_cast<size_t>(*cfg.cache_size) * 1024 * 1024;
   }
   if (!(cli_explicit_ & CliWatch) && cfg.watch) {
     watch = *cfg.watch;

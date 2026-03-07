@@ -88,7 +88,7 @@ App::App(std::unique_ptr<Frontend> frontend, const Args& args, std::optional<Col
     , detected_terminal_bg_(detected_bg)
     , show_stats_(args.show_stats)
     , scroll_lines_(args.scroll_lines)
-    , page_manager_(args.max_page_cache)
+    , page_manager_(args.cache_size)
     , file_path_(args.file)
     , source_path_(args.source_file)
     , converter_cmd_(args.source_file.empty() ? "" : args.converter) {
@@ -325,7 +325,7 @@ void App::update_viewport() {
   viewport_first_page_ = first;
   viewport_last_page_ = last;
 
-  page_manager_.evict_distant(first, last, static_cast<int>(layout_.size()), *frontend_);
+  page_manager_.evict_over_budget(first, last, *frontend_);
   page_manager_.ensure_uploaded(first, last, doc_, *frontend_, layout_, make_render_params(), make_highlight_params());
 
   // Build PageSlice vector
@@ -588,7 +588,7 @@ void App::idle_tick() {
   else {
     auto idle = std::chrono::steady_clock::now() - last_activity_time_;
     if (idle >= std::chrono::milliseconds(300)) {
-      page_manager_.pre_upload_one(
+      page_manager_.pre_render_one(
           viewport_first_page_,
           viewport_last_page_,
           static_cast<int>(layout_.size()),
@@ -596,9 +596,7 @@ void App::idle_tick() {
           *frontend_,
           layout_,
           make_render_params(),
-          make_highlight_params(),
-          search_.results,
-          search_.current
+          make_highlight_params()
       );
     }
     if (last_action_.expired()) {

@@ -17,7 +17,7 @@ struct Args {
   std::string mode = "terminal"; ///< Frontend mode: "terminal" or "neovim".
   std::string theme = "dark";    ///< Initial theme.
   int scroll_lines = 3;                          ///< Lines per scroll step.
-  size_t max_page_cache = 64 * 1024 * 1024;      ///< Max page cache size in bytes (default 64 MB).
+  size_t cache_size = 64 * 1024 * 1024; ///< Max page cache size in bytes (default 64 MB).
   bool show_stats = false;                       ///< Show cache stats in the statusline.
   bool watch = false;                            ///< Auto-reload document on file changes.
   std::string converter;                         ///< CLI override converter command.
@@ -42,7 +42,7 @@ private:
   static constexpr unsigned CliLogLevel = 1 << 3;
   static constexpr unsigned CliLogFile = 1 << 4;
   static constexpr unsigned CliShowStats = 1 << 5;
-  static constexpr unsigned CliMaxPageCache = 1 << 6;
+  static constexpr unsigned CliCacheSize = 1 << 6;
   static constexpr unsigned CliWatch = 1 << 7;
   static constexpr unsigned CliConverter = 1 << 8;
   unsigned cli_explicit_ = 0; ///< Bitmask of CLI flags explicitly provided.

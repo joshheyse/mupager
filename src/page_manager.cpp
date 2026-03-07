@@ -69,23 +69,7 @@ void PageManager::ensure_uploaded(
   }
 }
 
-void PageManager::evict_distant(int keep_first, int keep_last, int layout_size, Frontend& frontend) {
-  int keep_lo = std::max(0, keep_first - 2);
-  int keep_hi = std::min(layout_size - 1, keep_last + 2);
-
-  std::vector<int> to_evict;
-  for (auto& [page, cached] : cache_) {
-    if (page < keep_lo || page > keep_hi) {
-      to_evict.push_back(page);
-    }
-  }
-  for (int page : to_evict) {
-    auto it = cache_.find(page);
-    it->second.free_image(frontend);
-    cache_.erase(it);
-    spdlog::debug("evicted page {}", page);
-  }
-
+void PageManager::evict_over_budget(int keep_first, int keep_last, Frontend& frontend) {
   if (max_cache_bytes_ == 0) {
     return;
   }
@@ -137,7 +121,7 @@ void PageManager::refresh_highlights(int first, int last, const Document& doc, F
   }
 }
 
-bool PageManager::pre_upload_one(
+bool PageManager::pre_render_one(
     int viewport_first,
     int viewport_last,
     int num_pages,
@@ -145,36 +129,40 @@ bool PageManager::pre_upload_one(
     Frontend& frontend,
     const std::vector<PageLayout>& layout,
     const RenderParams& render,
-    const HighlightParams& highlights,
-    const SearchResults& search_results,
-    int search_current
+    const HighlightParams& highlights
 ) {
-  std::vector<int> candidates = {
-      viewport_first - 1,
-      viewport_last + 1,
-      viewport_first - 2,
-      viewport_last + 2,
-  };
-
-  if (!search_results.empty() && search_current >= 0) {
-    int n = static_cast<int>(search_results.size());
-    int next_idx = (search_current + 1) % n;
-    int prev_idx = (search_current - 1 + n) % n;
-    candidates.push_back(search_results[next_idx].page);
-    candidates.push_back(search_results[prev_idx].page);
+  // Stop if cache is already at budget.
+  if (max_cache_bytes_ > 0) {
+    size_t total = 0;
+    for (const auto& [page, cached] : cache_) {
+      total += cached.memory_bytes();
+    }
+    if (total >= max_cache_bytes_) {
+      return false;
+    }
   }
 
-  for (int page : candidates) {
-    if (page < 0 || page >= num_pages) {
+  // Build candidate list: all pages ordered by distance from viewport center.
+  int mid = (viewport_first + viewport_last) / 2;
+  int best = -1;
+  int best_dist = num_pages + 1;
+  for (int p = 0; p < num_pages; ++p) {
+    if (cache_.count(p) > 0) {
       continue;
     }
-    if (cache_.count(page) > 0) {
-      continue;
+    int dist = std::abs(p - mid);
+    if (dist < best_dist) {
+      best_dist = dist;
+      best = p;
     }
-    ensure_uploaded(page, page, doc, frontend, layout, render, highlights);
-    return true;
   }
-  return false;
+
+  if (best < 0) {
+    return false;
+  }
+
+  ensure_uploaded(best, best, doc, frontend, layout, render, highlights);
+  return true;
 }
 
 void PageManager::clear(Frontend& frontend) {
