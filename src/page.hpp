@@ -52,6 +52,10 @@ public:
   /// @brief Free the uploaded image.
   void free_image(Frontend& frontend);
 
+  /// @brief Update the virtual placement grid without re-rendering.
+  /// Used when user_zoom changes but render_scale stays the same.
+  void update_grid(int cols, int rows, Frontend& frontend);
+
   /// @brief KGP image handle.
   uint32_t image_id() const {
     return image_id_;

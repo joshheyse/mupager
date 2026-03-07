@@ -192,7 +192,17 @@ uint32_t TerminalFrontend::upload_image(const Pixmap& pixmap, int cols, int rows
   {
     Stopwatch sw("kitty transmit encode");
     if (in_tmux_) {
-      seq = kitty::wrap_tmux(kitty::transmit(pixmap, image_id, cols, rows));
+      // Transmit image data only (a=t), then create a unicode virtual
+      // placement separately (a=p,U=1). Using a=T,U=1 in one step causes
+      // tmux to render the image at the cursor position in addition to the
+      // placeholder characters, producing ghosting artifacts at high zoom.
+      seq = kitty::wrap_tmux(kitty::transmit(pixmap, image_id));
+      kitty::PlaceCommand vp;
+      vp.image_id = image_id;
+      vp.unicode = true;
+      vp.columns = cols;
+      vp.rows = rows;
+      seq += kitty::wrap_tmux(vp.serialize());
     }
     else {
       seq = kitty::transmit(pixmap, image_id);
@@ -207,6 +217,29 @@ uint32_t TerminalFrontend::upload_image(const Pixmap& pixmap, int cols, int rows
 
   uploaded_ids_.insert(image_id);
   return image_id;
+}
+
+void TerminalFrontend::update_image_grid(uint32_t image_id, int cols, int rows) {
+  if (!in_tmux_ || uploaded_ids_.count(image_id) == 0) {
+    return;
+  }
+  // Delete old placement (keep image data) and create a new virtual placement
+  // with updated grid dimensions.
+  kitty::DeleteCommand del;
+  del.target = kitty::DeleteTarget::ById;
+  del.free = false;
+  del.image_id = image_id;
+  std::string seq = kitty::wrap_tmux(del.serialize());
+
+  kitty::PlaceCommand vp;
+  vp.image_id = image_id;
+  vp.unicode = true;
+  vp.columns = cols;
+  vp.rows = rows;
+  seq += kitty::wrap_tmux(vp.serialize());
+
+  std::fwrite(seq.data(), 1, seq.size(), stdout);
+  std::fflush(stdout);
 }
 
 void TerminalFrontend::show_pages(const std::vector<PageSlice>& slices) {

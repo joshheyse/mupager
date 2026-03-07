@@ -80,6 +80,11 @@ void Page::free_image(Frontend& frontend) {
   frontend.free_image(image_id_);
 }
 
+void Page::update_grid(int cols, int rows, Frontend& frontend) {
+  frontend.update_image_grid(image_id_, cols, rows);
+  cell_grid_ = {cols, rows};
+}
+
 Pixmap Page::highlight(const Document& doc, int page_num, const HighlightParams& params) const {
   Pixmap pixmap = to_pixmap(doc.ctx());
   highlight_search(pixmap, page_num, render_zoom_, params);

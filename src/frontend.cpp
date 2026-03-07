@@ -44,6 +44,8 @@ void Frontend::free_image(uint32_t image_id) {
   uploaded_ids_.erase(image_id);
 }
 
+void Frontend::update_image_grid(uint32_t /*image_id*/, int /*cols*/, int /*rows*/) {}
+
 void Frontend::set_color_scheme(const ColorScheme& scheme) {
   colors_ = scheme;
 }

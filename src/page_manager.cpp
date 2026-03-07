@@ -37,29 +37,38 @@ void PageManager::ensure_uploaded(
 
     auto it = cache_.find(i);
     if (it != cache_.end()) {
+      bool reusable = false;
       if (render.render_scale == 0.0f) {
-        if (it->second.render_zoom() == render_zoom) {
-          continue;
-        }
-        spdlog::debug("cache invalidate page {}: zoom changed {:.2f} -> {:.2f}", i, it->second.render_zoom(), render_zoom);
-        it->second.free_image(frontend);
-        cache_.erase(it);
+        reusable = (it->second.render_zoom() == render_zoom);
       }
       else {
-        if (it->second.render_scale() >= render.render_scale && it->second.render_zoom() == render_zoom) {
-          continue;
-        }
-        spdlog::debug(
-            "cache invalidate page {}: scale {:.2f} -> {:.2f}, zoom {:.2f} -> {:.2f}",
-            i,
-            it->second.render_scale(),
-            render.render_scale,
-            it->second.render_zoom(),
-            render_zoom
-        );
-        it->second.free_image(frontend);
-        cache_.erase(it);
+        reusable = (it->second.render_scale() >= render.render_scale && it->second.render_zoom() == render_zoom);
       }
+
+      if (reusable) {
+        // Image pixels are valid, but the virtual placement grid may need
+        // updating if user_zoom changed (different display dimensions).
+        auto ps = doc.page_size(i);
+        float display_zoom = base_zoom * render.user_zoom;
+        int expected_cols = (static_cast<int>(ps.width * display_zoom) + client.cell.width - 1) / client.cell.width;
+        if (it->second.cell_grid().width != expected_cols) {
+          int expected_rows = (static_cast<int>(ps.height * display_zoom) + client.cell.height - 1) / client.cell.height;
+          spdlog::debug("update grid page {}: cols {} -> {}", i, it->second.cell_grid().width, expected_cols);
+          it->second.update_grid(expected_cols, expected_rows, frontend);
+        }
+        continue;
+      }
+
+      spdlog::debug(
+          "cache invalidate page {}: scale {:.2f} -> {:.2f}, zoom {:.2f} -> {:.2f}",
+          i,
+          it->second.render_scale(),
+          render.render_scale,
+          it->second.render_zoom(),
+          render_zoom
+      );
+      it->second.free_image(frontend);
+      cache_.erase(it);
     }
     else {
       spdlog::debug("cache miss page {}: zoom={:.2f} scale={:.2f}", i, render_zoom, render.render_scale);

@@ -18,6 +18,7 @@ public:
   void clear() override;
   ClientInfo client_info() override;
   uint32_t upload_image(const Pixmap& pixmap, int cols, int rows) override;
+  void update_image_grid(uint32_t image_id, int cols, int rows) override;
   void show_pages(const std::vector<PageSlice>& slices) override;
   void statusline(const std::string& left, const std::string& right) override;
   void show_overlay(const std::string& title, const std::vector<std::string>& lines) override;
