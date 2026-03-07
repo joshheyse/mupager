@@ -38,10 +38,6 @@ void Frontend::free_image(uint32_t image_id) {
   uploaded_ids_.erase(image_id);
 }
 
-bool Frontend::supports_image_viewporting() const {
-  return !in_tmux_;
-}
-
 void Frontend::set_color_scheme(const ColorScheme& scheme) {
   colors_ = scheme;
 }

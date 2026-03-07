@@ -766,9 +766,6 @@ std::pair<std::optional<Action>, std::string> TerminalController::parse_command_
     if (key == "mode") {
       return {action::SetViewMode{value}, {}};
     }
-    if (key == "render-scale") {
-      return {action::SetRenderScale{value}, {}};
-    }
     if (key == "sidebar-width") {
       try {
         return {action::SetSidebarWidth{std::stoi(value)}, {}};

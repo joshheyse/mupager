@@ -216,9 +216,6 @@ Config load_config(const std::optional<std::string>& path_override) {
   if (auto v = tbl["theme"].value<std::string>()) {
     cfg.theme = *v;
   }
-  if (auto v = tbl["render-scale"].value<std::string>()) {
-    cfg.render_scale = *v;
-  }
   if (auto v = tbl["scroll-lines"].value<int64_t>()) {
     cfg.scroll_lines = static_cast<int>(*v);
   }

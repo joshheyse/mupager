@@ -113,11 +113,6 @@ struct SetTheme {
   std::string theme;
 };
 
-struct SetRenderScale {
-  static constexpr const char* Name = "set_render_scale";
-  std::string strategy;
-};
-
 struct SetSidebarWidth {
   static constexpr const char* Name = "set_sidebar_width";
   int cols; ///< Sidebar width in columns (0 = default).
@@ -311,7 +306,6 @@ using Action = std::variant<
     action::SetViewMode,
     action::ToggleTheme,
     action::SetTheme,
-    action::SetRenderScale,
     action::SetSidebarWidth,
     action::Reload,
     action::Search,

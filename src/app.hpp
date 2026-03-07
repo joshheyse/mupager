@@ -290,7 +290,6 @@ private:
   void do_reload();
   void apply_theme(const std::string& name);
   void apply_view_mode(const std::string& name);
-  void apply_render_scale(const std::string& name);
   float effective_render_scale() const;
   void handle_zoom_change(float old_zoom);
 
@@ -342,8 +341,7 @@ private:
   ViewMode view_mode_ = ViewMode::Continuous;
   Theme theme_ = Theme::Dark;
   AppMode app_mode_ = AppMode::Normal;
-  float user_zoom_ = 1.0f;           ///< User zoom multiplier (1.0 = fit-to-viewport).
-  RenderScale render_scale_setting_; ///< From CLI --render-scale.
+  float user_zoom_ = 1.0f; ///< User zoom multiplier (1.0 = fit-to-viewport).
   SearchState search_;
 
   std::vector<PageLayout> layout_;

@@ -20,28 +20,6 @@ static std::string default_log_path() {
   return (dir / "mupager.log").string();
 }
 
-static RenderScale parse_render_scale(const std::string& s) {
-  if (s == "never") {
-    return RenderScale::Never;
-  }
-  else if (s == "0.25" || s == ".25") {
-    return RenderScale::X025;
-  }
-  else if (s == "0.5" || s == ".5") {
-    return RenderScale::X05;
-  }
-  else if (s == "1") {
-    return RenderScale::X1;
-  }
-  else if (s == "2") {
-    return RenderScale::X2;
-  }
-  else if (s == "4") {
-    return RenderScale::X4;
-  }
-  return RenderScale::Auto;
-}
-
 Args::Args(int argc, char* argv[])
     : file{}
     , log_file{default_log_path()}
@@ -54,9 +32,6 @@ Args::Args(int argc, char* argv[])
   auto* log_file_opt = cli.add_option("--log-file", log_file, "Log file path");
   auto* view_mode_opt = cli.add_option("--view-mode", view_mode, "View mode (continuous, page, page-height, side-by-side)")
                             ->check(CLI::IsMember({"continuous", "page", "page-height", "side-by-side"}));
-  std::string scale_str = "auto";
-  auto* render_scale_opt = cli.add_option("--render-scale", scale_str, "Render scale (auto, never, 0.25, 0.5, 1, 2, 4)")
-                               ->check(CLI::IsMember({"auto", "never", "0.25", "0.5", "1", "2", "4"}));
   cli.add_option("--mode", mode, "Frontend mode (terminal, neovim)")->check(CLI::IsMember({"terminal", "neovim"}));
   auto* theme_opt = cli.add_option("--theme", theme, "Theme (dark, light, auto, terminal)")->check(CLI::IsMember({"dark", "light", "auto", "terminal"}));
   auto* scroll_lines_opt = cli.add_option("--scroll-lines", scroll_lines, "Lines per scroll step");
@@ -93,7 +68,6 @@ Args::Args(int argc, char* argv[])
     log_level = env ? env : "info";
   }
 
-  render_scale = parse_render_scale(scale_str);
   max_page_cache = static_cast<size_t>(max_cache_mb) * 1024 * 1024;
 
   if (!config_str.empty()) {
@@ -107,9 +81,6 @@ Args::Args(int argc, char* argv[])
   }
   if (theme_opt->count()) {
     cli_explicit_ |= CliTheme;
-  }
-  if (render_scale_opt->count()) {
-    cli_explicit_ |= CliRenderScale;
   }
   if (scroll_lines_opt->count()) {
     cli_explicit_ |= CliScrollLines;
@@ -155,9 +126,6 @@ void Args::apply_config(const Config& cfg) {
   }
   if (!(cli_explicit_ & CliTheme) && cfg.theme) {
     theme = *cfg.theme;
-  }
-  if (!(cli_explicit_ & CliRenderScale) && cfg.render_scale) {
-    render_scale = parse_render_scale(*cfg.render_scale);
   }
   if (!(cli_explicit_ & CliScrollLines) && cfg.scroll_lines) {
     scroll_lines = *cfg.scroll_lines;

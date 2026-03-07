@@ -262,12 +262,6 @@ static std::optional<Action> parse_rpc_command(const msgpack::object& params) {
       return action::SetTheme{theme};
     }
   }
-  if (cmd_name == "set_render_scale" && args_map) {
-    std::string strategy = extract_map_string(*args_map, "strategy", "");
-    if (!strategy.empty()) {
-      return action::SetRenderScale{strategy};
-    }
-  }
   if (cmd_name == "reload") {
     return action::Reload{};
   }

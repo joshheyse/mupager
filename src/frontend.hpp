@@ -95,10 +95,6 @@ public:
   /// @brief Copy text to the system clipboard via OSC 52.
   void copy_to_clipboard(const std::string& text);
 
-  /// @brief Whether the frontend supports Kitty image viewporting (source-rect cropping on place).
-  /// Tmux unicode placeholders cannot viewport, so this returns false in tmux mode.
-  bool supports_image_viewporting() const;
-
   /// @brief Apply a color scheme to the frontend.
   void set_color_scheme(const ColorScheme& scheme);
 

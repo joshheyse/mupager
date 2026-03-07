@@ -88,7 +88,6 @@ App::App(std::unique_ptr<Frontend> frontend, const Args& args, std::optional<Col
     , detected_terminal_bg_(detected_bg)
     , show_stats_(args.show_stats)
     , scroll_lines_(args.scroll_lines)
-    , render_scale_setting_(args.render_scale)
     , page_manager_(args.max_page_cache)
     , file_path_(args.file)
     , source_path_(args.source_file)
@@ -200,33 +199,14 @@ int App::page_at_y(int y) const {
 }
 
 float App::effective_render_scale() const {
-  RenderScale setting = render_scale_setting_;
-
-  if (setting == RenderScale::Auto) {
-    setting = frontend_->supports_image_viewporting() ? RenderScale::X05 : RenderScale::Never;
-  }
-
-  if (setting == RenderScale::Never) {
-    return 0.0f;
-  }
-
-  float floor_scale = 1.0f;
-  if (setting == RenderScale::X025) {
-    floor_scale = 0.25f;
-  }
-  else if (setting == RenderScale::X05) {
-    floor_scale = 0.5f;
-  }
-  else if (setting == RenderScale::X2) {
-    floor_scale = 2.0f;
-  }
-  else if (setting == RenderScale::X4) {
-    floor_scale = 4.0f;
-  }
-
-  float dynamic_scale = std::pow(2.0f, std::floor(std::log2(user_zoom_ * 0.5f)));
-
-  return std::max(floor_scale, dynamic_scale);
+  auto client = frontend_->client_info();
+  int vw = std::max(1, client.viewport_pixel().width);
+  // Floor: rendered pages must be at least ~600px wide (readable text).
+  // Since render_width ≈ vw * render_scale, min_scale = 600 / vw.
+  float min_scale = std::pow(2.0f, std::ceil(std::log2(600.0f / static_cast<float>(vw))));
+  // Desired: render at quarter display resolution, stepping up with zoom.
+  float desired = std::pow(2.0f, std::floor(std::log2(user_zoom_ * 0.25f)));
+  return std::max(desired, min_scale);
 }
 
 void App::handle_zoom_change(float old_zoom) {
@@ -857,9 +837,6 @@ void App::handle_action(const Action& act) {
         else if constexpr (std::is_same_v<T, action::SetTheme>) {
           apply_theme(arg.theme);
         }
-        else if constexpr (std::is_same_v<T, action::SetRenderScale>) {
-          apply_render_scale(arg.strategy);
-        }
         else if constexpr (std::is_same_v<T, action::SetSidebarWidth>) {
         }
         else if constexpr (std::is_same_v<T, action::Reload>) {
@@ -1069,35 +1046,6 @@ void App::apply_view_mode(const std::string& name) {
   view_mode_ = *vm;
   user_zoom_ = 1.0f;
   scroll_.x = 0;
-  render();
-}
-
-void App::apply_render_scale(const std::string& name) {
-  if (name == "auto") {
-    render_scale_setting_ = RenderScale::Auto;
-  }
-  else if (name == "never") {
-    render_scale_setting_ = RenderScale::Never;
-  }
-  else if (name == "0.25") {
-    render_scale_setting_ = RenderScale::X025;
-  }
-  else if (name == "0.5") {
-    render_scale_setting_ = RenderScale::X05;
-  }
-  else if (name == "1") {
-    render_scale_setting_ = RenderScale::X1;
-  }
-  else if (name == "2") {
-    render_scale_setting_ = RenderScale::X2;
-  }
-  else if (name == "4") {
-    render_scale_setting_ = RenderScale::X4;
-  }
-  else {
-    last_action_.set("Unknown render-scale: {}", name);
-    return;
-  }
   render();
 }
 

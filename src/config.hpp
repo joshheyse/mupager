@@ -12,7 +12,6 @@
 struct Config {
   std::optional<std::string> view_mode;
   std::optional<std::string> theme;
-  std::optional<std::string> render_scale;
   std::optional<int> scroll_lines;
   std::optional<std::string> log_level;
   std::optional<std::string> log_file;
