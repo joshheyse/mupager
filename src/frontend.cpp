@@ -7,10 +7,16 @@
 #include <cstdint>
 #include <cstdlib>
 #include <string>
+#include <unistd.h>
 
 Frontend::Frontend(uint32_t initial_image_id)
     : next_image_id_(initial_image_id) {
   in_tmux_ = std::getenv("TMUX") != nullptr;
+
+  // Seed image IDs from PID so concurrent instances don't collide
+  // in Kitty's shared image store. Upper 16 bits = PID, lower 16 bits
+  // count up, giving each process ~65k unique IDs.
+  next_image_id_ = (static_cast<uint32_t>(getpid()) << 16) | 1u;
 }
 
 std::string Frontend::build_delete_sequence(uint32_t image_id) const {
