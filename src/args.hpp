@@ -14,10 +14,10 @@ struct Args {
   std::string log_level;
   std::string log_file;
   std::string view_mode;
-  std::string mode = "terminal"; ///< Frontend mode: "terminal" or "neovim".
-  std::string theme = "dark";    ///< Initial theme.
+  std::string mode = "terminal";                 ///< Frontend mode: "terminal" or "neovim".
+  std::string theme = "dark";                    ///< Initial theme.
   int scroll_lines = 3;                          ///< Lines per scroll step.
-  size_t cache_size = 64 * 1024 * 1024; ///< Max page cache size in bytes (default 64 MB).
+  size_t cache_size = 64 * 1024 * 1024;          ///< Max page cache size in bytes (default 64 MB).
   bool show_stats = false;                       ///< Show cache stats in the statusline.
   bool watch = false;                            ///< Auto-reload document on file changes.
   std::string converter;                         ///< CLI override converter command.

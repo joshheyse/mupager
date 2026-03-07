@@ -133,7 +133,7 @@ void TerminalController::update_statusline() {
 
   // Right sections in priority order — added until they won't fit.
   // Each section includes its leading separator.
-  static constexpr int SepWidth = 5; // " │ "
+  static constexpr int SepWidth = 5;              // " │ "
   int left_w = static_cast<int>(left.size()) + 2; // " {left} " padding
   int remaining = width - left_w;
 

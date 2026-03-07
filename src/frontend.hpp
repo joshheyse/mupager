@@ -65,7 +65,6 @@ public:
   /// Default implementation is a no-op; TerminalFrontend overrides for tmux.
   virtual void update_image_grid(uint32_t image_id, int cols, int rows);
 
-
   /// @brief Display page slices on screen.
   /// @param slices Vector of PageSlice describing each visible page region.
   virtual void show_pages(const std::vector<PageSlice>& slices) = 0;

@@ -16,7 +16,7 @@ struct Config {
   std::optional<std::string> log_level;
   std::optional<std::string> log_file;
   std::optional<bool> show_stats;
-  std::optional<int> cache_size; ///< Page cache size in MB.
+  std::optional<int> cache_size;                                ///< Page cache size in MB.
   std::optional<bool> watch;                                    ///< Auto-reload document on file changes.
   std::optional<std::map<std::string, std::string>> converters; ///< Pattern -> command converter map.
 

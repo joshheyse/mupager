@@ -4,10 +4,11 @@
 #include "graphics/kitty.hpp"
 #include "util/base64.hpp"
 
+#include <unistd.h>
+
 #include <cstdint>
 #include <cstdlib>
 #include <string>
-#include <unistd.h>
 
 Frontend::Frontend(uint32_t initial_image_id)
     : next_image_id_(initial_image_id) {

@@ -589,14 +589,7 @@ void App::idle_tick() {
     auto idle = std::chrono::steady_clock::now() - last_activity_time_;
     if (idle >= std::chrono::milliseconds(300)) {
       page_manager_.pre_render_one(
-          viewport_first_page_,
-          viewport_last_page_,
-          static_cast<int>(layout_.size()),
-          doc_,
-          *frontend_,
-          layout_,
-          make_render_params(),
-          make_highlight_params()
+          viewport_first_page_, viewport_last_page_, static_cast<int>(layout_.size()), doc_, *frontend_, layout_, make_render_params(), make_highlight_params()
       );
     }
     if (last_action_.expired()) {
