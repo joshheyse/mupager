@@ -317,9 +317,8 @@ void TerminalFrontend::statusline(const std::string& left, const std::string& ri
   }
 
   int width = static_cast<int>(ws_col_);
-  // Build content: " {left}{padding}{right} "
   auto padded_left = std::format(" {}", left);
-  auto padded_right = std::format("{} ", right);
+  auto padded_right = right.empty() ? std::string{} : std::format("{} ", right);
   int content_len = display_width(padded_left) + display_width(padded_right);
   int pad = std::max(0, width - content_len);
 

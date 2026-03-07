@@ -102,7 +102,13 @@ void TerminalController::idle_tick() {
 
 void TerminalController::update_statusline() {
   auto vs = app_.view_state();
+  auto client = frontend_.client_info();
+  int width = client.cols;
+  if (width <= 0) {
+    return;
+  }
 
+  // Left section (highest priority — always shown, truncated if needed).
   std::string left;
   if (terminal_mode_ == TerminalMode::Command) {
     left = std::format(":{}", command_input_);
@@ -119,24 +125,51 @@ void TerminalController::update_statusline() {
     }
   }
   else if (!vs.visual_mode.empty()) {
-    if (vs.visual_mode == "visual") {
-      left = "-- VISUAL --";
-    }
-    else {
-      left = "-- VISUAL BLOCK --";
-    }
+    left = (vs.visual_mode == "visual") ? "-- VISUAL --" : "-- VISUAL BLOCK --";
   }
   else if (!vs.flash_message.empty()) {
     left = vs.flash_message;
   }
 
-  std::string right = vs.view_mode;
-  if (vs.zoom_percent != 100) {
-    right += std::format("{}{}%", Sep, vs.zoom_percent);
-  }
-  int page_width = static_cast<int>(std::to_string(vs.total_pages).size());
-  right += std::format("{}{}{}{:>{}}/{}", Sep, vs.theme, Sep, vs.current_page, page_width, vs.total_pages);
+  // Right sections in priority order — added until they won't fit.
+  // Each section includes its leading separator.
+  static constexpr int SepWidth = 5; // " │ "
+  int left_w = static_cast<int>(left.size()) + 2; // " {left} " padding
+  int remaining = width - left_w;
 
+  std::string right;
+  auto try_append = [&](const std::string& section) {
+    int section_w = SepWidth + static_cast<int>(section.size());
+    if (right.empty()) {
+      section_w = static_cast<int>(section.size()); // no separator for first section
+    }
+    if (section_w <= remaining) {
+      if (!right.empty()) {
+        right += Sep;
+      }
+      right += section;
+      remaining -= section_w;
+      return true;
+    }
+    return false;
+  };
+
+  // Priority 2: page number
+  int page_width = static_cast<int>(std::to_string(vs.total_pages).size());
+  try_append(std::format("{:>{}}/{}", vs.current_page, page_width, vs.total_pages));
+
+  // Priority 3: zoom (only if not 100%)
+  if (vs.zoom_percent != 100) {
+    try_append(std::format("{}%", vs.zoom_percent));
+  }
+
+  // Priority 4: view mode
+  try_append(vs.view_mode);
+
+  // Priority 5: theme
+  try_append(vs.theme);
+
+  // Priority 6: cache stats
   if (!vs.cache_pages.empty()) {
     std::string stats;
     if (vs.cache_bytes >= 1024 * 1024) {
@@ -146,11 +179,7 @@ void TerminalController::update_statusline() {
       stats = std::format("[{}] {:.0f}K", vs.cache_pages, static_cast<double>(vs.cache_bytes) / 1024.0);
     }
     if (!stats.empty()) {
-      static constexpr int StatsWidth = 20;
-      int pad = std::max(0, StatsWidth - static_cast<int>(stats.size()));
-      right += Sep;
-      right.append(pad, ' ');
-      right += stats;
+      try_append(stats);
     }
   }
 

@@ -578,6 +578,7 @@ std::string transmit(const Pixmap& pixmap, uint32_t image_id, int cols, int rows
     cmd.unicode = true;
     cmd.columns = cols;
     cmd.rows = rows;
+    cmd.do_not_move_cursor = true;
   }
   return cmd.serialize(b64);
 }

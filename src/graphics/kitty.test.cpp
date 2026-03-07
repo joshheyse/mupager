@@ -88,6 +88,7 @@ TEST_CASE("kitty transmit with cols/rows produces unicode placeholder mode") {
 
   CHECK(out.find("a=T") != std::string::npos);
   CHECK(out.find("U=1") != std::string::npos);
+  CHECK(out.find("C=1") != std::string::npos);
   CHECK(out.find("c=3") != std::string::npos);
   CHECK(out.find("r=5") != std::string::npos);
 }

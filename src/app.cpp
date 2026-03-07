@@ -214,10 +214,10 @@ void App::handle_zoom_change(float old_zoom) {
   int vw = client.viewport_pixel().width;
   int vh = client.viewport_pixel().height;
 
-  // Scale scroll positions to match the new zoom
+  // Scale scroll positions to keep the viewport center anchored.
   if (old_zoom > 0.0f && user_zoom_ != old_zoom) {
     float ratio = user_zoom_ / old_zoom;
-    scroll_.y = static_cast<int>(scroll_.y * ratio);
+    scroll_.y = static_cast<int>((scroll_.y + vh / 2) * ratio - vh / 2);
     scroll_.x = static_cast<int>((scroll_.x + vw / 2) * ratio - vw / 2);
   }
 
